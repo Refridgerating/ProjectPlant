@@ -1,0 +1,17 @@
+﻿# general
+.DS_Store
+node_modules/
+dist/
+build/
+.cache/
+.env
+.env.*
+# python
+.venv/
+__pycache__/
+*.pyc
+# firmware
+firmware/**/build/
+# editor
+.vscode/
+.idea/
