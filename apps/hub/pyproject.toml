@@ -1,7 +1,7 @@
-﻿[project]
+[project]
 name = "projectplant-hub"
 version = "0.1.0"
-description = "ProjectPlant Hub (FastAPI) — minimal skeleton"
+description = "ProjectPlant Hub (FastAPI) - minimal skeleton"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -9,6 +9,8 @@ dependencies = [
   "uvicorn[standard]>=0.30.0",
   "pydantic>=2.7.0",
   "pydantic-settings>=2.2.0",
+  "asyncio-mqtt>=0.16.0,<1.0.0",
+  "paho-mqtt>=1.6.1,<2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -18,6 +20,7 @@ dev = [
   "ruff>=0.5.0",
   "black>=24.4.0",
   "mypy>=1.10.0",
+  "respx>=0.20.2",
 ]
 
 [build-system]
