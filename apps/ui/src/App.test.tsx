@@ -1,4 +1,4 @@
-﻿import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, vi } from "vitest";
 import App from "./App";
@@ -35,12 +35,35 @@ describe("App", () => {
       availableWindows: [0.5, 1, 2],
     });
 
+    const coords: GeolocationCoordinates = {
+      latitude: 38.9,
+      longitude: -77.0,
+      accuracy: 10,
+      altitude: null,
+      altitudeAccuracy: null,
+      heading: null,
+      speed: null,
+      toJSON: () => ({
+        latitude: 38.9,
+        longitude: -77.0,
+        accuracy: 10,
+        altitude: null,
+        altitudeAccuracy: null,
+        heading: null,
+        speed: null,
+      }),
+    };
+    const timestamp = Date.now();
+    const mockPosition: GeolocationPosition = {
+      coords,
+      timestamp,
+      toJSON: () => ({ coords, timestamp }),
+    };
+
     Object.defineProperty(window.navigator, "geolocation", {
       configurable: true,
       value: {
-        getCurrentPosition: vi.fn((success) =>
-          success({ coords: { latitude: 38.9, longitude: -77.0 } as any } as any)
-        ),
+        getCurrentPosition: vi.fn((success) => success(mockPosition)),
       },
     });
   });
@@ -71,3 +94,5 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: /local area conditions/i })).toBeInTheDocument();
   });
 });
+
+

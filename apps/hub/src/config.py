@@ -1,4 +1,4 @@
-﻿from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator
 from typing import List
 
@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     weather_request_timeout: float = Field(default=5.0, ge=1.0, description="Timeout in seconds for weather HTTP calls")
     weather_cache_ttl: int = Field(default=300, ge=0, description="Cache duration (seconds) for weather responses")
     weather_base_url: str = Field(default="https://api.weather.gov", description="Base URL for weather provider")
+
+    # Plant lookup APIs
+    trefle_token: str | None = Field(default=None, description="Token for Trefle API access")
+    trefle_base_url: str = Field(default="https://trefle.io/api/v1")
+    powo_base_url: str = Field(default="https://powo.science.kew.org/api/2")
+    openfarm_base_url: str = Field(default="https://openfarm.cc/api/v1")
+    plant_lookup_timeout: float = Field(default=6.0, ge=1.0, description="Timeout for plant enrichment HTTP calls")
+    plant_lookup_cache_ttl: int = Field(default=1800, ge=0, description="Cache duration (seconds) for plant lookups")
 
     @field_validator("cors_origins", mode="before")
     @classmethod

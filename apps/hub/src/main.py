@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import logging, time
@@ -7,6 +7,7 @@ from config import settings
 from api.v1.router import router as v1_router
 from mqtt.client import startup as mqtt_startup, shutdown as mqtt_shutdown
 from services.weather import weather_service
+from services.plant_lookup import plant_lookup_service
 
 logger = logging.getLogger("projectplant.hub")
 if not logger.handlers:
@@ -56,7 +57,10 @@ def create_app() -> FastAPI:
     async def _shutdown():
         await mqtt_shutdown()
         await weather_service.close()
+        await plant_lookup_service.close()
 
     return app
 
 app = create_app()
+
+

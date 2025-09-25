@@ -113,6 +113,105 @@ export type WateringRequest = {
   };
 };
 
+export type PlantReference = {
+  species: string;
+  common_name: string;
+  light: string;
+  water: string;
+  humidity: string;
+  temperature_c: [number, number];
+  ph_range: [number, number];
+  notes: string;
+};
+
+export type PlantSuggestion = {
+  scientific_name: string;
+  common_name: string | null;
+  source: string;
+  rank: string | null;
+  image_url: string | null;
+  summary: string | null;
+};
+
+export type PlantCareProfile = {
+  light: string;
+  water: string;
+  humidity: string;
+  temperature_c: [number, number];
+  ph_range: [number, number];
+  notes: string | null;
+  level: "species" | "genus" | "custom";
+  source: string | null;
+  warning: string | null;
+  allow_user_input?: boolean | null;
+};
+
+export type PlantDetails = {
+  scientific_name: string;
+  common_name: string | null;
+  family: string | null;
+  genus: string | null;
+  rank: string | null;
+  synonyms: string[];
+  distribution: string[];
+  summary: string | null;
+  taxonomy: Record<string, string>;
+  image_url: string | null;
+  care: PlantCareProfile;
+  sources: string[];
+};
+
+export type PotModel = {
+  id: string;
+  name: string;
+  volume_l: number;
+  features: string[];
+};
+
+export type IrrigationZone = {
+  id: string;
+  name: string;
+  description: string;
+  coverage_sq_ft: number;
+};
+
+export type PlantRecord = {
+  id: number;
+  nickname: string;
+  species: string;
+  common_name: string;
+  location_type: "smart_pot" | "garden";
+  pot_model: string | null;
+  irrigation_zone_id: string | null;
+  taxonomy: Record<string, string>;
+  summary: string | null;
+  image_url: string | null;
+  ideal_conditions: {
+    light: string;
+    water: string;
+    humidity: string;
+    temperature_c: [number, number];
+    ph_range: [number, number];
+    notes: string | null;
+  };
+  care_level: "species" | "genus" | "custom";
+  care_source: string | null;
+  care_warning: string | null;
+  image_data?: string | null;
+};
+export type CreatePlantPayload = {
+  nickname: string;
+  species: string;
+  location_type: "smart_pot" | "garden";
+  pot_model?: string | null;
+  irrigation_zone_id?: string | null;
+  image_data?: string | null;
+  taxonomy?: Record<string, string> | null;
+  summary?: string | null;
+  image_url?: string | null;
+  care_profile?: PlantCareProfile | null;
+};
+
 const BASE_URL = "/api/v1";
 
 export async function fetchHubInfo(signal?: AbortSignal): Promise<HubInfo> {
@@ -180,3 +279,100 @@ export async function fetchWateringRecommendation(
   }
   return (await response.json()) as WateringRecommendation;
 }
+
+export async function fetchPlantReferences(search?: string, signal?: AbortSignal): Promise<PlantReference[]> {
+  const params = new URLSearchParams();
+  if (search) {
+    params.set("search", search);
+  }
+  const response = await fetch(`${BASE_URL}/plants/reference${params.toString() ? `?${params}` : ""}`, { signal });
+  if (!response.ok) {
+    throw new Error(`Failed to load plant references (${response.status})`);
+  }
+  return (await response.json()) as PlantReference[];
+}
+
+export async function suggestPlants(query: string, signal?: AbortSignal): Promise<PlantSuggestion[]> {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return [];
+  }
+  const params = new URLSearchParams({ query: trimmed });
+  const response = await fetch(`${BASE_URL}/plants/suggest?${params.toString()}`, { signal });
+  if (!response.ok) {
+    throw new Error(`Failed to load plant suggestions (${response.status})`);
+  }
+  return (await response.json()) as PlantSuggestion[];
+}
+
+export async function fetchPlantDetails(name: string, signal?: AbortSignal): Promise<PlantDetails> {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new Error("Scientific name is required");
+  }
+  const params = new URLSearchParams({ name: trimmed });
+  const response = await fetch(`${BASE_URL}/plants/details?${params.toString()}`, { signal });
+  if (!response.ok) {
+    let message = `Failed to load plant details (${response.status})`;
+    try {
+      const payload = await response.json();
+      if (payload && typeof payload.detail === "string") {
+        message = payload.detail;
+      }
+    } catch {
+      // ignore parse errors
+    }
+    throw new Error(message);
+  }
+  return (await response.json()) as PlantDetails;
+}
+
+export async function fetchPotModels(signal?: AbortSignal): Promise<PotModel[]> {
+  const response = await fetch(`${BASE_URL}/plants/pots`, { signal });
+  if (!response.ok) {
+    throw new Error(`Failed to load smart pot models (${response.status})`);
+  }
+  return (await response.json()) as PotModel[];
+}
+
+export async function fetchIrrigationZones(signal?: AbortSignal): Promise<IrrigationZone[]> {
+  const response = await fetch(`${BASE_URL}/plants/zones`, { signal });
+  if (!response.ok) {
+    throw new Error(`Failed to load irrigation zones (${response.status})`);
+  }
+  return (await response.json()) as IrrigationZone[];
+}
+
+export async function detectSmartPot(signal?: AbortSignal): Promise<PotModel> {
+  const response = await fetch(`${BASE_URL}/plants/detect-pot`, { signal });
+  if (!response.ok) {
+    throw new Error(`Failed to detect smart pot (${response.status})`);
+  }
+  return (await response.json()) as PotModel;
+}
+
+export async function fetchPlants(signal?: AbortSignal): Promise<PlantRecord[]> {
+  const response = await fetch(`${BASE_URL}/plants`, { signal });
+  if (!response.ok) {
+    throw new Error(`Failed to load plants (${response.status})`);
+  }
+  return (await response.json()) as PlantRecord[];
+}
+
+export async function createPlant(
+  payload: CreatePlantPayload,
+  signal?: AbortSignal
+): Promise<PlantRecord> {
+  const response = await fetch(`${BASE_URL}/plants`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create plant (${response.status})`);
+  }
+  return (await response.json()) as PlantRecord;
+}
+
+

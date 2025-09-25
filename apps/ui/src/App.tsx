@@ -14,6 +14,7 @@ import { TelemetrySummary } from "./components/TelemetrySummary";
 import { TelemetryTable } from "./components/TelemetryTable";
 import { WateringRecommendationCard } from "./components/WateringRecommendationCard";
 import { LocalConditionsMap } from "./components/LocalConditionsMap";
+import { MyPlantsTab } from "./components/MyPlantsTab";
 
 const LOCAL_RANGE_OPTIONS = [
   { label: "30 minutes", value: 0.5 },
@@ -37,6 +38,7 @@ const CONTROL_DEVICES = [
 
 type ControlDeviceId = (typeof CONTROL_DEVICES)[number]["id"];
 type ControlStates = Record<ControlDeviceId, boolean>;
+type HubTab = "plant" | "control" | "local" | "myplants";
 
 const DEFAULT_WATERING_OPTIONS = {
   potDiameterCm: 26,
@@ -53,7 +55,7 @@ const DEFAULT_WATERING_OPTIONS = {
 
 function formatMaybeNumber(value: number | null | undefined, fractionDigits: number): string {
   if (value === null || value === undefined || Number.isNaN(value)) {
-    return "—";
+    return "-";
   }
   return value.toFixed(fractionDigits);
 }
@@ -163,7 +165,7 @@ export default function App() {
   const watering = useWateringRecommendation(telemetry, DEFAULT_WATERING_OPTIONS);
   const geolocation = useGeolocation();
   const [localRange, setLocalRange] = useState<LocalRange>(6);
-  const [activeChartTab, setActiveChartTab] = useState<"plant" | "local" | "control">("plant");
+  const [activeChartTab, setActiveChartTab] = useState<HubTab>("plant");
   const [controlStates, setControlStates] = useState<ControlStates>(() =>
     CONTROL_DEVICES.reduce((acc, device) => {
       acc[device.id] = false;
@@ -212,8 +214,7 @@ export default function App() {
     }));
   };
 
-
-  const chartContent = (() => {
+  const chartContent = useMemo(() => {
     if (activeChartTab === "plant") {
       return (
         <TelemetryChart
@@ -228,37 +229,58 @@ export default function App() {
       return <PlantControlPanel states={controlStates} onToggle={toggleControl} watering={watering} />;
     }
 
-    if (!geolocation.coords) {
+    if (activeChartTab === "local") {
+      if (!geolocation.coords) {
+        return (
+          <LocationPrompt
+            status={geolocation.status}
+            error={geolocation.error}
+            onEnable={geolocation.requestPermission}
+          />
+        );
+      }
+
+      if (localLoading && !localWeather.length) {
+        return <LoadingState message="Loading local area conditions..." />;
+      }
+
+      if (localError && !localWeather.length) {
+        return <ErrorState message={localError} onRetry={refreshLocal} />;
+      }
+
+      const coverageLabel = coverageHours ? `Coverage ~${coverageHours.toFixed(1)} hours` : null;
+      const subtitle =
+        localLatest?.station
+          ? `Nearest station: ${localLatest.station}${coverageLabel ? ` - ${coverageLabel}` : ""}`
+          : coverageLabel ?? "Live observations from public data.";
+
       return (
-        <LocationPrompt
-          status={geolocation.status}
-          error={geolocation.error}
-          onEnable={geolocation.requestPermission}
-        />
+        <div className="space-y-4">
+          <TelemetryChart data={localWeather} title="Local Area Conditions" subtitle={subtitle} />
+          {geolocation.coords ? (
+            <LocalConditionsMap lat={geolocation.coords.lat} lon={geolocation.coords.lon} />
+          ) : null}
+        </div>
       );
     }
 
-    if (localLoading && !localWeather.length) {
-      return <LoadingState message="Loading local area conditions..." />;
-    }
-
-    if (localError && !localWeather.length) {
-      return <ErrorState message={localError} onRetry={refreshLocal} />;
-    }
-
-    const coverageLabel = coverageHours ? `Coverage ~${coverageHours.toFixed(1)} hours` : null;
-    const subtitle =
-      localLatest?.station
-        ? `Nearest station: ${localLatest.station}${coverageLabel ? ` · ${coverageLabel}` : ""}`
-        : coverageLabel ?? "Live observations from public data.";
-
-    return (
-      <div className="space-y-4">
-        <TelemetryChart data={localWeather} title="Local Area Conditions" subtitle={subtitle} />
-        <LocalConditionsMap lat={geolocation.coords.lat} lon={geolocation.coords.lon} />
-      </div>
-    );
-  })();
+    return null;
+  }, [
+    activeChartTab,
+    controlStates,
+    geolocation.coords,
+    geolocation.error,
+    geolocation.requestPermission,
+    geolocation.status,
+    localError,
+    localLatest,
+    localLoading,
+    localWeather,
+    refreshLocal,
+    telemetry,
+    coverageHours,
+    watering,
+  ]);
 
   return (
     <PageShell
@@ -300,6 +322,11 @@ export default function App() {
                     isActive={activeChartTab === "local"}
                     onClick={() => setActiveChartTab("local")}
                   />
+                  <TabButton
+                    label="My Plants"
+                    isActive={activeChartTab === "myplants"}
+                    onClick={() => setActiveChartTab("myplants")}
+                  />
                 </div>
                 {activeChartTab === "local" && geolocation.coords ? (
                   <LocalRangeSelector
@@ -309,7 +336,7 @@ export default function App() {
                   />
                 ) : null}
               </div>
-              {chartContent}
+              {activeChartTab === "myplants" ? <MyPlantsTab /> : chartContent}
             </section>
 
             {activeChartTab === "plant" ? (
@@ -330,10 +357,10 @@ export default function App() {
                   {localLatest?.timestamp ? new Date(localLatest.timestamp).toLocaleString() : "Timestamp unavailable"}
                 </p>
                 <ul className="mt-4 space-y-1 text-slate-200">
-                  <li>Temperature: {formatMaybeNumber(localLatest?.temperature_c, 1)} °C</li>
+                  <li>Temperature: {formatMaybeNumber(localLatest?.temperature_c, 1)} deg C</li>
                   <li>Humidity: {formatMaybeNumber(localLatest?.humidity_pct, 1)} %</li>
                   <li>Pressure: {formatMaybeNumber(localLatest?.pressure_hpa, 1)} hPa</li>
-                  <li>Solar Radiation: {formatMaybeNumber(localLatest?.solar_radiation_w_m2, 1)} W/m²</li>
+                  <li>Solar Radiation: {formatMaybeNumber(localLatest?.solar_radiation_w_m2, 1)} W/m2</li>
                 </ul>
               </section>
             ) : null}
