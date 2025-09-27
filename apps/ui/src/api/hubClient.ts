@@ -125,9 +125,10 @@ export type PlantReference = {
 };
 
 export type PlantSuggestion = {
+  id: string;
   scientific_name: string;
   common_name: string | null;
-  source: string;
+  sources: string[];
   rank: string | null;
   image_url: string | null;
   summary: string | null;
@@ -144,9 +145,13 @@ export type PlantCareProfile = {
   source: string | null;
   warning: string | null;
   allow_user_input?: boolean | null;
+  soil?: string | null;
+  spacing?: string | null;
+  lifecycle?: string | null;
 };
 
 export type PlantDetails = {
+  id: string;
   scientific_name: string;
   common_name: string | null;
   family: string | null;
@@ -157,6 +162,7 @@ export type PlantDetails = {
   summary: string | null;
   taxonomy: Record<string, string>;
   image_url: string | null;
+  images: string[];
   care: PlantCareProfile;
   sources: string[];
 };
@@ -213,6 +219,7 @@ export type CreatePlantPayload = {
 };
 
 const BASE_URL = "/api/v1";
+const AGGREGATOR_BASE_URL = "/api";
 
 export async function fetchHubInfo(signal?: AbortSignal): Promise<HubInfo> {
   const response = await fetch(`${BASE_URL}/info`, { signal });
@@ -297,21 +304,38 @@ export async function suggestPlants(query: string, signal?: AbortSignal): Promis
   if (!trimmed) {
     return [];
   }
-  const params = new URLSearchParams({ query: trimmed });
-  const response = await fetch(`${BASE_URL}/plants/suggest?${params.toString()}`, { signal });
+  const params = new URLSearchParams({ q: trimmed });
+  const response = await fetch(`${AGGREGATOR_BASE_URL}/search?${params.toString()}`, { signal });
   if (!response.ok) {
     throw new Error(`Failed to load plant suggestions (${response.status})`);
   }
-  return (await response.json()) as PlantSuggestion[];
+  const payload = (await response.json()) as Array<Record<string, unknown>>;
+  return payload.map((item) => {
+    const sources =
+      Array.isArray(item["sources"]) && item["sources"].length
+        ? (item["sources"] as string[])
+        : typeof item["source"] === "string"
+        ? [item["source"] as string]
+        : [];
+    return {
+      id: String(item["id"] ?? ""),
+      scientific_name: String(item["scientific_name"] ?? ""),
+      common_name: (item["common_name"] as string | null | undefined) ?? null,
+      sources,
+      rank: (item["rank"] as string | null | undefined) ?? null,
+      image_url: (item["image_url"] as string | null | undefined) ?? null,
+      summary: (item["summary"] as string | null | undefined) ?? null,
+    } as PlantSuggestion;
+  });
 }
 
-export async function fetchPlantDetails(name: string, signal?: AbortSignal): Promise<PlantDetails> {
-  const trimmed = name.trim();
-  if (!trimmed) {
-    throw new Error("Scientific name is required");
+export async function fetchPlantDetails(id: string, signal?: AbortSignal): Promise<PlantDetails> {
+  const slug = id.trim();
+  if (!slug) {
+    throw new Error("Plant identifier is required");
   }
-  const params = new URLSearchParams({ name: trimmed });
-  const response = await fetch(`${BASE_URL}/plants/details?${params.toString()}`, { signal });
+  const encoded = encodeURIComponent(slug);
+  const response = await fetch(`${AGGREGATOR_BASE_URL}/plants/${encoded}`, { signal });
   if (!response.ok) {
     let message = `Failed to load plant details (${response.status})`;
     try {
@@ -374,5 +398,4 @@ export async function createPlant(
   }
   return (await response.json()) as PlantRecord;
 }
-
 

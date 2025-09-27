@@ -22,6 +22,9 @@ class CareProfileModel(BaseModel):
     source: str | None = None
     warning: str | None = None
     allow_user_input: bool | None = None
+    soil: str | None = None
+    spacing: str | None = None
+    lifecycle: str | None = None
 
 
 class PlantSuggestionModel(BaseModel):
@@ -31,6 +34,7 @@ class PlantSuggestionModel(BaseModel):
     rank: str | None = None
     image_url: str | None = None
     summary: str | None = None
+    sources: list[str] | None = None
 
 
 class PlantReferenceModel(BaseModel):
@@ -69,6 +73,7 @@ class PlantDetailsModel(BaseModel):
     summary: str | None = None
     taxonomy: dict[str, str]
     image_url: str | None = None
+    images: list[str]
     care: CareProfileModel
     sources: list[str]
 
@@ -115,19 +120,20 @@ async def suggest_plants(query: str = Query(..., min_length=2, description="Sear
     remote = await plant_lookup_service.suggest(query)
     suggestions: list[PlantSuggestionModel] = [_to_suggestion_model(item) for item in remote]
     local_refs = plant_catalog.search_references(query)
-    existing = {suggestion.scientific_name.lower() for suggestion in suggestions}
+    local_seen: set[str] = set()
     for ref in local_refs:
         key = ref.species.lower()
-        if key not in existing:
-            suggestions.append(
-                PlantSuggestionModel(
-                    scientific_name=ref.species,
-                    common_name=ref.common_name,
-                    source="local",
-                    summary=ref.notes,
-                )
+        if key in local_seen:
+            continue
+        suggestions.append(
+            PlantSuggestionModel(
+                scientific_name=ref.species,
+                common_name=ref.common_name,
+                source="local",
+                summary=ref.notes,
             )
-            existing.add(key)
+        )
+        local_seen.add(key)
     return suggestions[:15]
 
 
@@ -207,6 +213,7 @@ def _to_suggestion_model(item: PlantSuggestion) -> PlantSuggestionModel:
         rank=item.rank,
         image_url=item.image_url,
         summary=item.summary,
+        sources=list(item.sources),
     )
 
 
@@ -222,6 +229,7 @@ def _to_details_model(detail: PlantDetails) -> PlantDetailsModel:
         summary=detail.summary,
         taxonomy=detail.taxonomy,
         image_url=detail.image_url,
+        images=list(detail.images),
         care=_to_care_model(detail.care),
         sources=detail.sources,
     )
@@ -257,6 +265,9 @@ def _to_care_model(care: PlantCareProfile) -> CareProfileModel:
         source=care.source,
         warning=care.warning,
         allow_user_input=care.allow_user_input,
+        soil=care.soil,
+        spacing=care.spacing,
+        lifecycle=care.lifecycle,
     )
 
 

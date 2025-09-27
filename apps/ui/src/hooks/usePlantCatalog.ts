@@ -107,8 +107,8 @@ export function usePlantCatalog() {
     return suggestPlants(term);
   }, []);
 
-  const getDetails = useCallback(async (name: string) => {
-    return fetchPlantDetails(name.trim());
+  const getDetails = useCallback(async (plantId: string) => {
+    return fetchPlantDetails(plantId.trim());
   }, []);
 
   return useMemo(

@@ -1,23 +1,16 @@
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from fastapi.testclient import TestClient
 
-from config import settings
-from main import create_app
-from services.evapotranspiration import ClimateSample, PlantParams, PotParams, compute_penman_monteith
-
-
-@pytest.fixture
-def disable_mqtt():
-    original = settings.mqtt_enabled
-    settings.mqtt_enabled = False
-    try:
-        yield
-    finally:
-        settings.mqtt_enabled = original
+from services.evapotranspiration import (
+    ClimateSample,
+    PlantParams,
+    PotParams,
+    compute_penman_monteith,
+)
 
 
 def _sample_series() -> list[ClimateSample]:
@@ -50,7 +43,7 @@ def _sample_series() -> list[ClimateSample]:
     ]
 
 
-def test_compute_penman_monteith_outputs_positive():
+def test_compute_penman_monteith_outputs_positive() -> None:
     samples = _sample_series()
     plant = PlantParams(crop_coefficient=0.85, name="Test Plant")
     pot = PotParams(
@@ -77,8 +70,7 @@ def test_compute_penman_monteith_outputs_positive():
     assert 20 <= result.climate.coverage_hours <= 30
 
 
-def test_irrigation_endpoint_returns_recommendation(disable_mqtt):
-    app = create_app()
+def test_irrigation_endpoint_returns_recommendation(client: TestClient) -> None:
     samples = _sample_series()
     payload = {
         "method": "penman_monteith",
@@ -104,8 +96,7 @@ def test_irrigation_endpoint_returns_recommendation(disable_mqtt):
         },
     }
 
-    with TestClient(app) as client:
-        response = client.post("/api/v1/irrigation/estimate", json=payload)
+    response = client.post("/api/v1/irrigation/estimate", json=payload)
 
     assert response.status_code == 200
     body = response.json()

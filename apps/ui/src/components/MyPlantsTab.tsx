@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   PlantRecord,
   PlantSuggestion,
@@ -48,6 +48,29 @@ const INITIAL_MANUAL_CARE: ManualCareState = {
   phHigh: "",
   notes: "",
 };
+type GalleryImage = {
+  url: string;
+  label: string;
+  origin: "upload" | "reference" | "suggestion";
+};
+
+
+
+
+function createManualCareFromProfile(profile: PlantCareProfile): ManualCareState {
+  const [tempLow, tempHigh] = profile.temperature_c;
+  const [phLow, phHigh] = profile.ph_range;
+  return {
+    light: profile.light ?? "",
+    water: profile.water ?? "",
+    humidity: profile.humidity ?? "",
+    tempLow: Number.isFinite(tempLow) ? String(tempLow) : "",
+    tempHigh: Number.isFinite(tempHigh) ? String(tempHigh) : "",
+    phLow: Number.isFinite(phLow) ? String(phLow) : "",
+    phHigh: Number.isFinite(phHigh) ? String(phHigh) : "",
+    notes: profile.notes ?? "",
+  };
+}
 
 const LOCATION_OPTIONS: ReadonlyArray<{ id: "smart_pot" | "garden"; label: string }> = [
   { id: "smart_pot", label: "Smart Pot" },
@@ -55,6 +78,27 @@ const LOCATION_OPTIONS: ReadonlyArray<{ id: "smart_pot" | "garden"; label: strin
 ];
 
 const MIN_QUERY_LENGTH = 3;
+
+function sanitizeSummary(input?: string | null): string {
+  if (!input) {
+    return "";
+  }
+  try {
+    if (typeof DOMParser !== "undefined") {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(input, "text/html");
+      const text = doc.body.textContent ?? "";
+      return text.replace(/\s+/g, " ").trim();
+    }
+  } catch {
+    // ignore DOMParser errors and fall back to regex cleanup
+  }
+  return input
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 export function MyPlantsTab() {
   const {
@@ -71,7 +115,13 @@ export function MyPlantsTab() {
   } = usePlantCatalog();
 
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
-  const [manualCare, setManualCare] = useState<ManualCareState>(INITIAL_MANUAL_CARE);
+  const [manualCare, setManualCare] = useState<ManualCareState>({ ...INITIAL_MANUAL_CARE });
+  const [manualSeed, setManualSeed] = useState<string | null>(null);
+  const [manualOverrides, setManualOverrides] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const lightboxActiveRef = useRef(isLightboxOpen);
   const [suggestions, setSuggestions] = useState<PlantSuggestion[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [detail, setDetail] = useState<PlantDetails | null>(null);
@@ -83,6 +133,9 @@ export function MyPlantsTab() {
   });
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  useEffect(() => {
+    lightboxActiveRef.current = isLightboxOpen;
+  }, [isLightboxOpen]);
 
   // Suggest species based on user input
   useEffect(() => {
@@ -118,10 +171,34 @@ export function MyPlantsTab() {
     }
   }, [form.locationType, requestDetection]);
 
+  useEffect(() => {
+    if (!detail) {
+      if (manualSeed !== null) {
+        setManualCare({ ...INITIAL_MANUAL_CARE });
+        setManualSeed(null);
+      }
+      setManualOverrides(false);
+      setActiveImageIndex(0);
+      setIsLightboxOpen(false);
+      return;
+    }
+    const nextSeed = detail.scientific_name.toLowerCase();
+    if (nextSeed !== manualSeed) {
+      setManualCare(createManualCareFromProfile(detail.care));
+      setManualSeed(nextSeed);
+      setManualOverrides(false);
+      setActiveImageIndex(0);
+      setIsLightboxOpen(false);
+    }
+  }, [detail, manualSeed]);
+
   const handleSpeciesChange = (value: string) => {
     setForm((prev) => ({ ...prev, species: value }));
     setDetail(null);
     setDetailError(null);
+    setPreviewImageUrl(null);
+    setActiveImageIndex(0);
+    setIsLightboxOpen(false);
   };
 
   const handleLocationChange = (next: FormState["locationType"]) => {
@@ -135,12 +212,16 @@ export function MyPlantsTab() {
 
   const handleSuggestionClick = async (suggestion: PlantSuggestion) => {
     setForm((prev) => ({ ...prev, species: suggestion.scientific_name }));
+    setSuggestions([]);
+    setPreviewImageUrl(suggestion.image_url ?? null);
+    setActiveImageIndex(0);
+    setIsLightboxOpen(false);
     setLoadingDetail(true);
     setDetailError(null);
     try {
-      const fetched = await getDetails(suggestion.scientific_name);
+      const fetched = await getDetails(suggestion.id);
       setDetail(fetched);
-      setManualCare(INITIAL_MANUAL_CARE);
+      setPreviewImageUrl((prev) => fetched.image_url ?? prev);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to load plant details.";
       setDetailError(message);
@@ -154,20 +235,28 @@ export function MyPlantsTab() {
     const file = event.target.files?.[0];
     if (!file) {
       setForm((prev) => ({ ...prev, imageData: null }));
+      setPreviewImageUrl(detail?.image_url ?? null);
+      setActiveImageIndex(0);
+      setIsLightboxOpen(false);
       return;
     }
     const reader = new FileReader();
     reader.onload = () => {
       setForm((prev) => ({ ...prev, imageData: typeof reader.result === "string" ? reader.result : null }));
+      setPreviewImageUrl(null);
+      setActiveImageIndex(0);
+      setIsLightboxOpen(false);
     };
     reader.readAsDataURL(file);
   };
 
   const handleManualCareChange = (field: keyof ManualCareState, value: string) => {
+    setManualOverrides(true);
     setManualCare((prev) => ({ ...prev, [field]: value }));
   };
 
   const buildCareProfile = (): PlantCareProfile | null => {
+    const trimmedInitialNotes = manualCare.notes.trim();
     const base: PlantCareProfile | null = detail?.care
       ? { ...detail.care }
       : {
@@ -176,10 +265,10 @@ export function MyPlantsTab() {
           humidity: manualCare.humidity || "Average humidity",
           temperature_c: [18, 26],
           ph_range: [6, 7],
-          notes: manualCare.notes || null,
+          notes: trimmedInitialNotes || null,
           level: "custom",
           source: null,
-          warning: detail?.care.warning,
+          warning: detail?.care.warning ?? null,
           allow_user_input: true,
         };
 
@@ -187,37 +276,38 @@ export function MyPlantsTab() {
       return null;
     }
 
-    let hasOverrides = false;
+    let hasOverrides = manualOverrides;
 
-    if (manualCare.light.trim()) {
-      base.light = manualCare.light.trim();
-      hasOverrides = true;
-    }
-    if (manualCare.water.trim()) {
-      base.water = manualCare.water.trim();
-      hasOverrides = true;
-    }
-    if (manualCare.humidity.trim()) {
-      base.humidity = manualCare.humidity.trim();
-      hasOverrides = true;
-    }
-    if (manualCare.notes.trim()) {
-      base.notes = manualCare.notes.trim();
-      hasOverrides = true;
-    }
-
-    const lowTemp = parseFloat(manualCare.tempLow);
-    const highTemp = parseFloat(manualCare.tempHigh);
-    if (!Number.isNaN(lowTemp) && !Number.isNaN(highTemp)) {
-      base.temperature_c = [lowTemp, highTemp];
-      hasOverrides = true;
-    }
-
-    const lowPh = parseFloat(manualCare.phLow);
-    const highPh = parseFloat(manualCare.phHigh);
-    if (!Number.isNaN(lowPh) && !Number.isNaN(highPh)) {
-      base.ph_range = [lowPh, highPh];
-      hasOverrides = true;
+    if (!detail || manualOverrides) {
+      if (manualCare.light.trim()) {
+        base.light = manualCare.light.trim();
+        hasOverrides = true;
+      }
+      if (manualCare.water.trim()) {
+        base.water = manualCare.water.trim();
+        hasOverrides = true;
+      }
+      if (manualCare.humidity.trim()) {
+        base.humidity = manualCare.humidity.trim();
+        hasOverrides = true;
+      }
+      const trimmedNotes = manualCare.notes.trim();
+      if (manualOverrides || trimmedNotes) {
+        base.notes = trimmedNotes || null;
+        hasOverrides = true;
+      }
+      const lowTemp = parseFloat(manualCare.tempLow);
+      const highTemp = parseFloat(manualCare.tempHigh);
+      if (!Number.isNaN(lowTemp) && !Number.isNaN(highTemp)) {
+        base.temperature_c = [lowTemp, highTemp];
+        hasOverrides = true;
+      }
+      const lowPh = parseFloat(manualCare.phLow);
+      const highPh = parseFloat(manualCare.phHigh);
+      if (!Number.isNaN(lowPh) && !Number.isNaN(highPh)) {
+        base.ph_range = [lowPh, highPh];
+        hasOverrides = true;
+      }
     }
 
     if (!detail) {
@@ -232,6 +322,19 @@ export function MyPlantsTab() {
     return base;
   };
 
+
+
+  const handleResetManualCare = () => {
+    if (detail) {
+      setManualCare(createManualCareFromProfile(detail.care));
+      setManualOverrides(false);
+      setManualSeed(detail.scientific_name.toLowerCase());
+    } else {
+      setManualCare({ ...INITIAL_MANUAL_CARE });
+      setManualOverrides(false);
+      setManualSeed(null);
+    }
+  };
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!form.species.trim()) {
@@ -263,9 +366,14 @@ export function MyPlantsTab() {
       });
       setStatusMessage(`Saved ${record.nickname}`);
       setForm(INITIAL_FORM);
-      setManualCare(INITIAL_MANUAL_CARE);
+      setManualCare({ ...INITIAL_MANUAL_CARE });
+      setManualOverrides(false);
+      setManualSeed(null);
+      setPreviewImageUrl(null);
+      setActiveImageIndex(0);
+      setIsLightboxOpen(false);
       setDetail(null);
-        setSuggestions([]);
+      setSuggestions([]);
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to save plant.";
@@ -275,10 +383,99 @@ export function MyPlantsTab() {
     }
   };
 
-  const previewImage = detail?.image_url ?? form.imageData ?? null;
-  const previewLabel = detail?.image_url ? "Reference image" : form.imageData ? "Uploaded photo" : "";
-  const allowManualCare = !detail || detail.care.level !== "species" || detail.care.allow_user_input;
-  const activeCare = detail?.care ?? null;
+  const galleryImages = useMemo(() => {
+    const items: GalleryImage[] = [];
+    const seen = new Set<string>();
+    const register = (url: string | null | undefined, label: string, origin: GalleryImage['origin']) => {
+      if (typeof url !== 'string') {
+        return;
+      }
+      const trimmed = url.trim();
+      if (!trimmed || seen.has(trimmed) || items.length >= 10) {
+        return;
+      }
+      seen.add(trimmed);
+      items.push({ url: trimmed, label, origin });
+    };
+
+    if (form.imageData) {
+      register(form.imageData, 'Uploaded photo', 'upload');
+    }
+
+    const referenceImages = detail?.images ?? [];
+    if (referenceImages.length) {
+      const referenceLabel = detail?.sources?.length
+        ? `${detail?.sources?.join(' + ')} reference`
+        : 'Reference image';
+      for (const url of referenceImages) {
+        register(url, referenceLabel, 'reference');
+        if (items.length >= 10) {
+          break;
+        }
+      }
+    }
+
+    if (previewImageUrl) {
+      register(previewImageUrl, 'Suggestion preview', 'suggestion');
+    }
+
+    return items;
+  }, [detail?.images, detail?.sources, form.imageData, previewImageUrl]);
+
+  useEffect(() => {
+    if (!galleryImages.length) {
+      setActiveImageIndex(0);
+      setIsLightboxOpen(false);
+      return;
+    }
+    setActiveImageIndex((prev) => (prev >= galleryImages.length ? 0 : prev));
+  }, [galleryImages]);
+
+  const activeImage = galleryImages[activeImageIndex] ?? null;
+  const previewImage = activeImage?.url ?? null;
+  const previewLabel = activeImage?.label ?? '';
+  const previewTitle = detail?.scientific_name || form.species || "Plant preview";
+
+
+  const cycleGallery = useCallback((direction: 1 | -1) => {
+    if (!galleryImages.length) {
+      return;
+    }
+    setActiveImageIndex((prev) => {
+      const length = galleryImages.length;
+      return (prev + direction + length) % length;
+    });
+  }, [galleryImages]);
+
+  const openLightbox = useCallback(() => {
+    if (activeImage) {
+      setIsLightboxOpen(true);
+    }
+  }, [activeImage]);
+
+  const closeLightbox = useCallback(() => {
+    setIsLightboxOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (!lightboxActiveRef.current) {
+        return;
+      }
+      if (event.key === 'Escape') {
+        setIsLightboxOpen(false);
+      } else if (event.key === 'ArrowRight') {
+        cycleGallery(1);
+      } else if (event.key === 'ArrowLeft') {
+        cycleGallery(-1);
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [cycleGallery]);
+
+  const baseCareProfile = detail?.care ?? null;
+
 
   return (
     <div className="space-y-6">
@@ -326,20 +523,32 @@ export function MyPlantsTab() {
             ) : suggestions.length ? (
               <ul className="rounded-lg border border-slate-800 bg-slate-900/80 text-xs text-slate-300">
                 {suggestions.map((item) => (
-                  <li key={`${item.source}-${item.scientific_name}`}>
+                  <li key={`${item.id}-${item.scientific_name}`}>
                     <button
                       type="button"
                       className="w-full px-3 py-2 text-left hover:bg-slate-800/80"
                       onClick={() => void handleSuggestionClick(item)}
                     >
-                      <div className="flex items-center justify-between">
-                        <p className="font-semibold text-slate-100">{item.common_name ?? item.scientific_name}</p>
-                        <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">
-                          {item.source}
-                        </span>
+                      <div className="flex items-start gap-3">
+                        <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-md border border-slate-700 bg-slate-800/60">
+                          {item.image_url ? (
+                            <img src={item.image_url} alt={item.common_name ?? item.scientific_name} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-[10px] uppercase tracking-wide text-slate-500">
+                              No image
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-1 flex-col gap-1">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-semibold text-slate-100">{item.common_name ?? item.scientific_name}</p>
+                            <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">
+                              {item.sources && item.sources.length ? item.sources.join(" + ") : "guide"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] uppercase tracking-wide text-slate-400">{item.scientific_name}</p>
+                        </div>
                       </div>
-                      <p className="text-[11px] uppercase tracking-wide text-slate-400">{item.scientific_name}</p>
-                      {item.summary ? <p className="mt-1 text-[11px] text-slate-500 line-clamp-2">{item.summary}</p> : null}
                     </button>
                   </li>
                 ))}
@@ -423,17 +632,68 @@ export function MyPlantsTab() {
 
           <div className="space-y-4">
             {previewImage ? (
-              <div className="overflow-hidden rounded-xl border border-slate-800">
-                <img src={previewImage} alt="Plant preview" className="h-48 w-full object-cover" />
+              <div className="relative flex min-h-[260px] items-center justify-center overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60">
+                <button
+                  type="button"
+                  onClick={openLightbox}
+                  className="group flex h-full w-full items-center justify-center focus:outline-none"
+                >
+                  <img
+                    src={previewImage}
+                    alt={previewLabel || "Plant reference image"}
+                    className="max-h-[360px] w-full object-contain transition-transform duration-150 group-hover:scale-[1.01]"
+                  />
+                  <span className="sr-only">Open full-screen preview</span>
+                </button>
+                {galleryImages.length > 1 ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => cycleGallery(-1)}
+                      className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-700 bg-slate-900/60 text-slate-200 hover:border-slate-500 hover:text-white"
+                      aria-label="Previous photo"
+                    >
+                      {'<'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => cycleGallery(1)}
+                      className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-700 bg-slate-900/60 text-slate-200 hover:border-slate-500 hover:text-white"
+                      aria-label="Next photo"
+                    >
+                      {'>'}
+                    </button>
+                  </>
+                ) : null}
                 {previewLabel ? (
-                  <p className="bg-slate-900/70 px-3 py-1 text-[11px] uppercase tracking-wide text-slate-400">{previewLabel}</p>
+                  <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-slate-900/80 px-3 py-1 text-[11px] uppercase tracking-wide text-slate-300">
+                    {previewLabel}
+                  </div>
                 ) : null}
               </div>
             ) : (
-              <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-900/40 text-xs text-slate-500">
+              <div className="flex min-h-[260px] items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-900/40 text-xs text-slate-500">
                 Plant preview will appear here
               </div>
             )}
+            {galleryImages.length > 1 ? (
+              <div className="flex gap-2 overflow-x-auto pt-2">
+                {galleryImages.map((image, index) => (
+                  <button
+                    key={image.url}
+                    type="button"
+                    onClick={() => {
+                      setActiveImageIndex(index);
+                      setIsLightboxOpen(false);
+                    }}
+                    className={`relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-md border ${index === activeImageIndex ? 'border-brand-400 shadow shadow-brand-500/40' : 'border-slate-700 hover:border-slate-500'}`}
+                    aria-label={image.label || `Preview image ${index + 1}`}
+                  >
+                    <img src={image.url} alt={image.label || `Preview image ${index + 1}`} className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
             {loadingDetail ? (
               <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 text-sm text-slate-300">
@@ -449,11 +709,16 @@ export function MyPlantsTab() {
               </div>
             )}
 
-            {allowManualCare ? (
-              <ManualCareEditor manualCare={manualCare} onChange={handleManualCareChange} />
-            ) : activeCare ? (
-              <CareSummary care={activeCare} title="Suggested care" />
+            {baseCareProfile ? (
+              <CareSummary care={baseCareProfile} title="OpenFarm suggested care" />
             ) : null}
+            <ManualCareEditor
+              manualCare={manualCare}
+              onChange={handleManualCareChange}
+              onReset={detail ? handleResetManualCare : undefined}
+              baseProfile={baseCareProfile}
+              hasOverrides={manualOverrides}
+            />
 
             <button
               type="submit"
@@ -490,18 +755,67 @@ export function MyPlantsTab() {
           </div>
         )}
       </section>
+      {isLightboxOpen && activeImage ? (
+        <div className="fixed inset-0 z-50 flex flex-col bg-slate-950/95" onClick={closeLightbox}>
+          <div className="flex items-center justify-between px-6 py-4 text-slate-200" onClick={(event) => event.stopPropagation()}>
+            <p className="text-sm font-semibold">
+              {previewTitle}
+            </p>
+            <button
+              type="button"
+              onClick={closeLightbox}
+              className="rounded-md border border-slate-700 bg-slate-900/80 px-3 py-1 text-xs font-semibold text-slate-200 hover:border-slate-500 hover:text-white"
+            >
+              Close
+            </button>
+          </div>
+          <div className="relative flex flex-1 items-center justify-center px-6 pb-6" onClick={(event) => event.stopPropagation()}>
+            <img
+              src={activeImage.url}
+              alt={activeImage.label || "Plant reference image"}
+              className="max-h-full max-w-full object-contain"
+            />
+            {galleryImages.length > 1 ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => cycleGallery(-1)}
+                  className="absolute left-6 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-slate-700 bg-slate-900/60 text-slate-200 hover:border-slate-500 hover:text-white"
+                  aria-label="Previous photo"
+                >
+                  {'<'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => cycleGallery(1)}
+                  className="absolute right-6 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-slate-700 bg-slate-900/60 text-slate-200 hover:border-slate-500 hover:text-white"
+                  aria-label="Next photo"
+                >
+                  {'>'}
+                </button>
+              </>
+            ) : null}
+          </div>
+          {activeImage?.label ? (
+            <div className="px-6 pb-6 text-center text-xs text-slate-300" onClick={(event) => event.stopPropagation()}>
+              {activeImage.label}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
 
 function BotanicalSnippet({ detail }: { detail: PlantDetails }) {
+  const summaryText = sanitizeSummary(detail.summary);
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300">
       <header className="space-y-1">
         <h3 className="text-base font-semibold text-slate-100">{detail.scientific_name}</h3>
         {detail.common_name ? <p className="text-xs uppercase tracking-wide text-slate-400">{detail.common_name}</p> : null}
       </header>
-      {detail.summary ? <p className="mt-3 text-xs text-slate-400">{detail.summary}</p> : null}
+      {summaryText ? <p className="mt-3 text-xs text-slate-400">{summaryText}</p> : null}
       <dl className="mt-3 grid gap-2 text-xs text-slate-400 sm:grid-cols-2">
         {detail.taxonomy.family ? <SnippetRow label="Family" value={detail.taxonomy.family} /> : null}
         {detail.taxonomy.genus ? <SnippetRow label="Genus" value={detail.taxonomy.genus} /> : null}
@@ -524,13 +838,39 @@ function BotanicalSnippet({ detail }: { detail: PlantDetails }) {
   );
 }
 
-function ManualCareEditor({ manualCare, onChange }: { manualCare: ManualCareState; onChange: (field: keyof ManualCareState, value: string) => void }) {
+function ManualCareEditor({
+  manualCare,
+  onChange,
+  baseProfile,
+  onReset,
+  hasOverrides,
+}: {
+  manualCare: ManualCareState;
+  onChange: (field: keyof ManualCareState, value: string) => void;
+  baseProfile?: PlantCareProfile | null;
+  onReset?: () => void;
+  hasOverrides: boolean;
+}) {
+  const description = baseProfile
+    ? "OpenFarm suggestions are loaded. Adjust any fields to customise care for your space."
+    : "Species-specific care was not available. Enter instructions so ProjectPlant can automate the routine.";
+
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300">
-      <h3 className="text-sm font-semibold text-slate-200">Customise care</h3>
-      <p className="mt-1 text-xs text-slate-400">
-        Species-specific care was not available. Enter instructions so ProjectPlant can automate the routine.
-      </p>
+      <div className="flex items-start justify-between">
+        <h3 className="text-sm font-semibold text-slate-200">Customise care</h3>
+        {baseProfile && onReset ? (
+          <button
+            type="button"
+            onClick={onReset}
+            disabled={!hasOverrides}
+            className="rounded-md border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 hover:border-slate-600 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Reset suggestions
+          </button>
+        ) : null}
+      </div>
+      <p className="mt-1 text-xs text-slate-400">{description}</p>
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <label className="text-xs uppercase tracking-wide text-slate-500">
           Light
@@ -561,7 +901,7 @@ function ManualCareEditor({ manualCare, onChange }: { manualCare: ManualCareStat
         </label>
         <div className="grid grid-cols-2 gap-3">
           <label className="text-xs uppercase tracking-wide text-slate-500">
-            Temp low (°C)
+            Temp low (deg C)
             <input
               value={manualCare.tempLow}
               onChange={(event) => onChange("tempLow", event.target.value)}
@@ -570,7 +910,7 @@ function ManualCareEditor({ manualCare, onChange }: { manualCare: ManualCareStat
             />
           </label>
           <label className="text-xs uppercase tracking-wide text-slate-500">
-            Temp high (°C)
+            Temp high (deg C)
             <input
               value={manualCare.tempHigh}
               onChange={(event) => onChange("tempHigh", event.target.value)}
@@ -620,8 +960,11 @@ function CareSummary({ care, title }: { care: PlantCareProfile; title: string })
       <h3 className="text-sm font-semibold text-brand-100">{title}</h3>
       {care.warning ? <p className="mt-1 text-xs text-amber-200">{care.warning}</p> : null}
       <dl className="mt-3 space-y-2">
-        <InfoRow label="Light" value={care.light} />
-        <InfoRow label="Water" value={care.water} />
+        <InfoRow label="Sun" value={care.light} />
+        <InfoRow label="Watering" value={care.water} />
+        {care.soil ? <InfoRow label="Soil" value={care.soil} /> : null}
+        {care.spacing ? <InfoRow label="Spacing" value={care.spacing} /> : null}
+        {care.lifecycle ? <InfoRow label="Lifecycle" value={care.lifecycle} /> : null}
         <InfoRow label="Humidity" value={care.humidity} />
         <InfoRow label="Temperature" value={`${care.temperature_c[0]}-${care.temperature_c[1]} deg C`} />
         <InfoRow label="pH" value={`${care.ph_range[0]}-${care.ph_range[1]}`} />
@@ -651,6 +994,7 @@ function PlantCard({ plant, potModels, zones }: { plant: PlantRecord; potModels:
     ? zones.find((zone) => zone.id === plant.irrigation_zone_id)?.name ?? plant.irrigation_zone_id
     : "-";
   const cardImage = plant.image_url ?? plant.image_data ?? null;
+  const summaryText = sanitizeSummary(plant.summary);
 
   return (
     <div className="flex flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60">
@@ -707,7 +1051,7 @@ function PlantCard({ plant, potModels, zones }: { plant: PlantRecord; potModels:
             <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-500">Source: {plant.care_source}</p>
           ) : null}
         </div>
-        {plant.summary ? <p className="text-xs text-slate-400">{plant.summary}</p> : null}
+        {summaryText ? <p className="text-xs text-slate-400">{summaryText}</p> : null}
       </div>
     </div>
   );
@@ -721,6 +1065,9 @@ function SnippetRow({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+
+
 
 
 

@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging, time
 
 from config import settings
+from api.search_router import router as search_router
 from api.v1.router import router as v1_router
 from mqtt.client import startup as mqtt_startup, shutdown as mqtt_shutdown
 from services.weather import weather_service
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
     async def health():
         return JSONResponse({"status": "ok", "version": settings.app_version})
 
+    app.include_router(search_router)
     app.include_router(v1_router)
 
     @app.on_event("startup")
