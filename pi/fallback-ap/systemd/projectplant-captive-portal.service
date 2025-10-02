@@ -1,0 +1,15 @@
+[Unit]
+Description=ProjectPlant: minimal captive portal (SSID/PASS)
+After=projectplant-hostapd.service projectplant-dnsmasq.service
+PartOf=projectplant-ap.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env python3 /opt/projectplant/fallback-ap/projectplant-captive-portal.py
+Restart=on-failure
+User=root
+Group=root
+
+[Install]
+WantedBy=projectplant-ap.target
+

@@ -1,0 +1,24 @@
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<!--
+  ProjectPlant Avahi service definition
+  Type: _projectplant._tcp
+  Port: 8000 (adjust if your API runs on a different port)
+  TXT: role=server
+  Install to: /etc/avahi/services/projectplant.service (Linux)
+-->
+<service-group>
+  <name replace-wildcards="yes">ProjectPlant (%h)</name>
+  <service>
+    <type>_projectplant._tcp</type>
+    <port>8000</port>
+    <txt-record>role=server</txt-record>
+  </service>
+  <!-- Add additional <service> blocks if advertising multiple types -->
+  <!-- Example: <type>_http._tcp</type> for web UI, with port 80/443 -->
+  <!-- <service>
+    <type>_http._tcp</type>
+    <port>80</port>
+  </service> -->
+</service-group>
+

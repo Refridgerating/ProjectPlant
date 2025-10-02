@@ -1,0 +1,17 @@
+[Unit]
+Description=ProjectPlant BLE Wi-Fi Provisioning Service
+After=bluetooth.target network.target
+Wants=bluetooth.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env python3 /opt/projectplant/ble-provision/pp_ble_provision.py
+Restart=on-failure
+RestartSec=2
+User=root
+Group=root
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+

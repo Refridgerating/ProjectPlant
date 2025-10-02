@@ -1,0 +1,7 @@
+[Unit]
+Description=ProjectPlant Fallback AP Target
+Requires=projectplant-disable-ble.service projectplant-disable-nm.service projectplant-ap-setup.service projectplant-hostapd.service projectplant-dnsmasq.service projectplant-captive-portal.service
+After=projectplant-disable-ble.service projectplant-disable-nm.service projectplant-ap-setup.service
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,10 @@
+# ACL file for Mosquitto
+# Copy to /etc/mosquitto/acl (Linux)
+
+# Per-device namespace: each authenticated username can only
+# publish/subscribe within devices/<username>/#
+pattern readwrite devices/%u/#
+
+# Optionally allow read-only access to public broadcast topics:
+# topic read broadcast/#
+

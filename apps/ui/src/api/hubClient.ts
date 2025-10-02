@@ -218,11 +218,15 @@ export type CreatePlantPayload = {
   care_profile?: PlantCareProfile | null;
 };
 
-const BASE_URL = "/api/v1";
+import { getApiBaseUrlSync } from "../settings";
+
+function apiBase(): string {
+  return getApiBaseUrlSync();
+}
 const AGGREGATOR_BASE_URL = "/api";
 
 export async function fetchHubInfo(signal?: AbortSignal): Promise<HubInfo> {
-  const response = await fetch(`${BASE_URL}/info`, { signal });
+  const response = await fetch(`${apiBase()}/info`, { signal });
   if (!response.ok) {
     throw new Error(`Failed to load hub info (${response.status})`);
   }
@@ -237,7 +241,7 @@ export async function fetchMockTelemetry(
   if (params?.samples) {
     search.set("samples", params.samples.toString());
   }
-  const requestUrl = `${BASE_URL}/mock/telemetry${search.toString() ? `?${search}` : ""}`;
+  const requestUrl = `${apiBase()}/mock/telemetry${search.toString() ? `?${search}` : ""}`;
   const response = await fetch(requestUrl, { signal });
   if (!response.ok) {
     throw new Error(`Failed to load mock telemetry (${response.status})`);
@@ -255,7 +259,7 @@ export async function fetchLocalWeather(
     lon: params.lon.toString(),
     hours: params.hours.toString(),
   });
-  const response = await fetch(`${BASE_URL}/weather/local?${search.toString()}`, { signal });
+  const response = await fetch(`${apiBase()}/weather/local?${search.toString()}`, { signal });
   if (!response.ok) {
     throw new Error(`Failed to load local weather (${response.status})`);
   }
@@ -275,7 +279,7 @@ export async function fetchWateringRecommendation(
   payload: WateringRequest,
   signal?: AbortSignal
 ): Promise<WateringRecommendation> {
-  const response = await fetch(`${BASE_URL}/irrigation/estimate`, {
+  const response = await fetch(`${apiBase()}/irrigation/estimate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -292,7 +296,7 @@ export async function fetchPlantReferences(search?: string, signal?: AbortSignal
   if (search) {
     params.set("search", search);
   }
-  const response = await fetch(`${BASE_URL}/plants/reference${params.toString() ? `?${params}` : ""}`, { signal });
+  const response = await fetch(`${apiBase()}/plants/reference${params.toString() ? `?${params}` : ""}`, { signal });
   if (!response.ok) {
     throw new Error(`Failed to load plant references (${response.status})`);
   }
@@ -352,7 +356,7 @@ export async function fetchPlantDetails(id: string, signal?: AbortSignal): Promi
 }
 
 export async function fetchPotModels(signal?: AbortSignal): Promise<PotModel[]> {
-  const response = await fetch(`${BASE_URL}/plants/pots`, { signal });
+  const response = await fetch(`${apiBase()}/plants/pots`, { signal });
   if (!response.ok) {
     throw new Error(`Failed to load smart pot models (${response.status})`);
   }
@@ -360,7 +364,7 @@ export async function fetchPotModels(signal?: AbortSignal): Promise<PotModel[]> 
 }
 
 export async function fetchIrrigationZones(signal?: AbortSignal): Promise<IrrigationZone[]> {
-  const response = await fetch(`${BASE_URL}/plants/zones`, { signal });
+  const response = await fetch(`${apiBase()}/plants/zones`, { signal });
   if (!response.ok) {
     throw new Error(`Failed to load irrigation zones (${response.status})`);
   }
@@ -368,7 +372,7 @@ export async function fetchIrrigationZones(signal?: AbortSignal): Promise<Irriga
 }
 
 export async function detectSmartPot(signal?: AbortSignal): Promise<PotModel> {
-  const response = await fetch(`${BASE_URL}/plants/detect-pot`, { signal });
+  const response = await fetch(`${apiBase()}/plants/detect-pot`, { signal });
   if (!response.ok) {
     throw new Error(`Failed to detect smart pot (${response.status})`);
   }
@@ -376,7 +380,7 @@ export async function detectSmartPot(signal?: AbortSignal): Promise<PotModel> {
 }
 
 export async function fetchPlants(signal?: AbortSignal): Promise<PlantRecord[]> {
-  const response = await fetch(`${BASE_URL}/plants`, { signal });
+  const response = await fetch(`${apiBase()}/plants`, { signal });
   if (!response.ok) {
     throw new Error(`Failed to load plants (${response.status})`);
   }
@@ -387,7 +391,7 @@ export async function createPlant(
   payload: CreatePlantPayload,
   signal?: AbortSignal
 ): Promise<PlantRecord> {
-  const response = await fetch(`${BASE_URL}/plants`, {
+  const response = await fetch(`${apiBase()}/plants`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

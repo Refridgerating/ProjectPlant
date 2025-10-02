@@ -1,0 +1,5 @@
+﻿packages:
+  - "apps/web"
+  - "apps/android"
+  - "packages/sdk"
+  - "packages/native-bridge"

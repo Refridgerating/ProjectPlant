@@ -1,0 +1,16 @@
+[Unit]
+Description=ProjectPlant: dnsmasq for fallback AP
+After=projectplant-ap-setup.service
+Conflicts=dnsmasq.service
+PartOf=projectplant-ap.target
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/dnsmasq --conf-file=/etc/dnsmasq.d/projectplant.conf --no-daemon
+Restart=on-failure
+User=root
+Group=root
+
+[Install]
+WantedBy=projectplant-ap.target
+

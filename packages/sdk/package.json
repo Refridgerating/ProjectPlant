@@ -1,0 +1,29 @@
+{
+  "name": "@projectplant/sdk",
+  "version": "0.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./env": "./src/env.ts",
+    "./rest": "./src/rest.ts",
+    "./mqtt": "./src/mqtt.ts",
+    "./discover": "./src/discover.ts",
+    "./mock": "./src/mock.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.4.3",
+    "@capacitor/preferences": "^7.0.2",
+    "@projectplant/native-bridge": "workspace:*",
+    "mqtt": "^5.10.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.3",
+    "typescript": "^5.5.4",
+    "vitest": "^1.6.0"
+  }
+}

@@ -1,0 +1,35 @@
+menu "ProjectPlant Firmware"
+
+config PROJECTPLANT_BUTTON_GPIO
+    int "Long-press button GPIO"
+    default 0
+    help
+        GPIO number for long-press to re-enter provisioning.
+        On DevKitC, the BOOT button is typically GPIO0.
+
+config PROJECTPLANT_LONGPRESS_MS
+    int "Long-press duration (ms)"
+    default 3000
+    help
+        How long to hold the button low (in milliseconds) to enter provisioning.
+
+config PROJECTPLANT_MQTT_BROKER_URI
+    string "Default MQTT broker URI"
+    default "mqtt://test.mosquitto.org"
+    help
+        Default MQTT broker URI. Can be overridden from NVS key 'mqtt/broker_url'.
+
+config PROJECTPLANT_TELEMETRY_SEC
+    int "Telemetry publish interval (sec)"
+    default 30
+    help
+        Interval for publishing telemetry to plant/<id>/tele.
+
+config PROJECTPLANT_PROV_POP
+    string "Provisioning PoP (Proof-of-Possession)"
+    default "plantpop"
+    help
+        PoP string for BLE provisioning with security level 1.
+
+endmenu
+

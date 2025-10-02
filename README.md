@@ -87,6 +87,9 @@ Visit `http://localhost:8000/health` or `http://localhost:8000/docs` to confirm 
 - Weather and plant services hit public APIs; tests use mocks and are network-safe. Supply `TREFLE_TOKEN` in `.env` for richer plant data during manual testing.
 - Stop the app with `Ctrl+C`; FastAPI triggers shutdown routines that close MQTT and HTTP clients cleanly.
 
+Android release build
+- See `docs/android-release.md` for keystore creation, signing config, shrinker/ProGuard rules, build output path, and `adb install` commands.
+
 ## Project Layout
 
 ```

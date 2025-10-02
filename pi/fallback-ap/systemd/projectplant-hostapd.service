@@ -1,0 +1,16 @@
+[Unit]
+Description=ProjectPlant: hostapd for fallback AP
+After=projectplant-ap-setup.service
+Conflicts=hostapd.service
+PartOf=projectplant-ap.target
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/hostapd -d /etc/hostapd/hostapd.conf
+Restart=on-failure
+User=root
+Group=root
+
+[Install]
+WantedBy=projectplant-ap.target
+

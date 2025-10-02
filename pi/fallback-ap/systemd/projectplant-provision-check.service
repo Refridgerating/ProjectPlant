@@ -1,0 +1,13 @@
+[Unit]
+Description=ProjectPlant: Start fallback AP if not provisioned in 5 minutes
+After=multi-user.target network.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/projectplant/fallback-ap/projectplant-wait-provisioning.sh
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
+

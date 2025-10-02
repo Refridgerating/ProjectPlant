@@ -1,0 +1,13 @@
+[Unit]
+Description=ProjectPlant: Apply Wi‑Fi credentials and revert AP
+After=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/projectplant/fallback-ap/projectplant-apply-wifi.sh
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
+

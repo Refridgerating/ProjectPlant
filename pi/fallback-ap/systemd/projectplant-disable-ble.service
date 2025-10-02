@@ -1,0 +1,18 @@
+[Unit]
+Description=ProjectPlant: Disable BLE while AP is active
+Before=projectplant-hostapd.service projectplant-dnsmasq.service projectplant-captive-portal.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/systemctl stop bluetooth.service
+ExecStart=/usr/bin/systemctl stop projectplant-ble-provision.service
+ExecStop=/usr/bin/systemctl start bluetooth.service
+ExecStop=/usr/bin/systemctl start projectplant-ble-provision.service
+User=root
+Group=root
+PartOf=projectplant-ap.target
+
+[Install]
+WantedBy=projectplant-ap.target
+

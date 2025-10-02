@@ -1,0 +1,17 @@
+[Unit]
+Description=ProjectPlant: Configure AP network and configs
+Before=projectplant-hostapd.service projectplant-dnsmasq.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/projectplant/fallback-ap/projectplant-ap-setup.sh
+# Cleanup static IP on stop
+ExecStop=/usr/bin/bash -lc 'source /etc/projectplant/ap.env 2>/dev/null || true; ip addr flush dev "${WLAN_IFACE:-wlan0}" || true'
+User=root
+Group=root
+PartOf=projectplant-ap.target
+
+[Install]
+WantedBy=projectplant-ap.target
+

@@ -1,4 +1,4 @@
-import { ArrowPathIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
 import { useEffect, useMemo, useState } from "react";
 import { useHubInfo } from "./hooks/useHubInfo";
 import { useGeolocation } from "./hooks/useGeolocation";
@@ -15,6 +15,9 @@ import { TelemetryTable } from "./components/TelemetryTable";
 import { WateringRecommendationCard } from "./components/WateringRecommendationCard";
 import { LocalConditionsMap } from "./components/LocalConditionsMap";
 import { MyPlantsTab } from "./components/MyPlantsTab";
+import { ConnectionBadges } from "./components/ConnectionBadges";
+import { SettingsPanel } from "./components/SettingsPanel";
+import { getSettings } from "./settings";
 
 const LOCAL_RANGE_OPTIONS = [
   { label: "30 minutes", value: 0.5 },
@@ -181,6 +184,8 @@ export default function App() {
     availableWindows,
     refresh: refreshLocal,
   } = useLocalWeather(geolocation.coords, localRange, { maxSamples: 200 });
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [serverHint, setServerHint] = useState<string>(() => getSettings().serverBaseUrl);
 
   const availableRangeOptions = useMemo(() => {
     if (!availableWindows.length) {
@@ -204,6 +209,19 @@ export default function App() {
     refreshTelemetry();
     if (geolocation.coords) {
       refreshLocal();
+    }
+  };
+
+  const handleCloseSettings = () => {
+    setSettingsOpen(false);
+    try {
+      const current = getSettings().serverBaseUrl;
+      if (current !== serverHint) {
+        setServerHint(current);
+        handleRefresh();
+      }
+    } catch {
+      // ignore
     }
   };
 
@@ -283,18 +301,31 @@ export default function App() {
   ]);
 
   return (
+    <>
     <PageShell
       title={title}
       subtitle="Monitor broker connectivity and hub health as we iterate on the UI."
       actions={
-        <button
-          type="button"
-          onClick={handleRefresh}
-          className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-800"
-        >
-          <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <ConnectionBadges rest={{ loading, error, data }} />
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm font-medium text-slate-200 hover:bg-slate-800"
+          >
+            <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
+            Refresh
+          </button>
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm font-medium text-slate-200 hover:bg-slate-800"
+            title="Settings"
+          >
+            <Cog6ToothIcon className="h-4 w-4" aria-hidden="true" />
+            Settings
+          </button>
+        </div>
       }
     >
       <div className="space-y-8">
@@ -368,6 +399,8 @@ export default function App() {
         ) : null}
       </div>
     </PageShell>
+    <SettingsPanel open={settingsOpen} onClose={handleCloseSettings} />
+    </>
   );
 }
 

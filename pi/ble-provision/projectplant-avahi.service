@@ -1,0 +1,18 @@
+[Unit]
+Description=ProjectPlant Avahi _projectplant._tcp publisher
+After=avahi-daemon.service network-online.target
+Requires=avahi-daemon.service
+
+[Service]
+Type=simple
+# Default port 80; override by creating /etc/projectplant/avahi-port with desired port
+EnvironmentFile=-/etc/projectplant/avahi-port.env
+ExecStart=/usr/bin/env sh -c 'PORT=${PROJECTPLANT_PORT:-80}; exec /usr/bin/avahi-publish-service -s ProjectPlant _projectplant._tcp ${PORT}'
+Restart=on-failure
+RestartSec=2
+User=avahi
+Group=avahi
+
+[Install]
+WantedBy=multi-user.target
+

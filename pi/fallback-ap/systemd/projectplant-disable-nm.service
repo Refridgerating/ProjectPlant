@@ -1,0 +1,16 @@
+[Unit]
+Description=ProjectPlant: Stop NetworkManager while AP is active
+Before=projectplant-ap-setup.service projectplant-hostapd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/systemctl stop NetworkManager.service
+ExecStop=/usr/bin/systemctl start NetworkManager.service
+User=root
+Group=root
+PartOf=projectplant-ap.target
+
+[Install]
+WantedBy=projectplant-ap.target
+

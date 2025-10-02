@@ -1,0 +1,12 @@
+{
+  "name": "projectplant-monorepo",
+  "private": true,
+  "packageManager": "pnpm@9.10.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @projectplant/web run dev",
+    "build:web": "pnpm --filter @projectplant/web run build",
+    "mobile:android:open": "pnpm --filter @projectplant/web run mobile:android:open",
+    "mobile:android:build": "pnpm --filter @projectplant/android run build",
+    "build:mobile": "pnpm --filter @projectplant/web run build:mobile"
+  }
+}

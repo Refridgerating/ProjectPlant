@@ -1,0 +1,23 @@
+﻿{
+  "name": "@projectplant/native-bridge",
+  "version": "0.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./ble": "./src/ble.ts",
+    "./nsd": "./src/nsd.ts",
+    "./secure-storage": "./src/secure-storage.ts",
+    "./discover": "./src/discover.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.1.1",
+    "@capacitor-community/bluetooth-le": "^6.0.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}
