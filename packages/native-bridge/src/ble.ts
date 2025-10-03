@@ -1,4 +1,5 @@
 import { BleClient } from "@capacitor-community/bluetooth-le";
+import { Capacitor } from "@capacitor/core";
 
 export interface BleDevice {
   id: string;
@@ -19,18 +20,49 @@ async function ensureInit(): Promise<void> {
   }
 }
 
+async function ensureReadyState(): Promise<void> {
+  await ensureInit();
+  if (Capacitor.getPlatform() === "android") {
+    let enabled = await BleClient.isEnabled();
+    if (!enabled) {
+      try {
+        await BleClient.requestEnable();
+      } catch (err) {
+        console.warn("BLE enable request rejected", err);
+      }
+      enabled = await BleClient.isEnabled();
+      if (!enabled) {
+        throw new Error("Bluetooth is disabled. Enable it to continue.");
+      }
+    }
+
+    const locationEnabled = await BleClient.isLocationEnabled();
+    if (!locationEnabled) {
+      throw new Error("Enable location services to scan for nearby devices.");
+    }
+  }
+}
+
 function toBytes(input: DataView | Uint8Array): Uint8Array {
-  if (input instanceof Uint8Array) return input;
+  if (input instanceof Uint8Array) {
+    return input;
+  }
   const out = new Uint8Array(input.byteLength);
-  for (let i = 0; i < input.byteLength; i++) out[i] = input.getUint8(i);
+  for (let i = 0; i < input.byteLength; i += 1) {
+    out[i] = input.getUint8(i);
+  }
   return out;
 }
 
 export const BleBridge = {
+  async ensureReady(): Promise<void> {
+    await ensureReadyState();
+  },
+
   // Scan for devices. If serviceUuid is provided it is stored as the active service
   // and the scan is filtered by that service when supported. Returns a snapshot.
   async scan(serviceUuid?: string, durationMs = 5000): Promise<BleDevice[]> {
-    await ensureInit();
+    await ensureReadyState();
     activeServiceUuid = serviceUuid ?? activeServiceUuid;
 
     const devices = new Map<string, BleDevice>();
@@ -45,13 +77,21 @@ export const BleBridge = {
       }
     );
 
-    await new Promise((resolve) => setTimeout(resolve, durationMs));
-    await BleClient.stopLEScan();
+    try {
+      await new Promise((resolve) => setTimeout(resolve, durationMs));
+    } finally {
+      try {
+        await BleClient.stopLEScan();
+      } catch (err) {
+        console.warn("Failed to stop BLE scan", err);
+      }
+    }
+
     return Array.from(devices.values());
   },
 
   async connect(deviceId: string): Promise<void> {
-    await ensureInit();
+    await ensureReadyState();
     await BleClient.connect(deviceId);
     activeDeviceId = deviceId;
   },
@@ -101,7 +141,20 @@ export const BleBridge = {
     return async () => {
       await BleClient.stopNotifications(deviceId, serviceUuid, characteristicUuid);
     };
+  },
+
+  async openLocationSettings(): Promise<void> {
+    if (Capacitor.getPlatform() === "android") {
+      await BleClient.openLocationSettings();
+    }
+  },
+
+  async openBluetoothSettings(): Promise<void> {
+    if (Capacitor.getPlatform() === "android") {
+      await BleClient.openBluetoothSettings();
+    }
   }
 };
 
 export type BleApi = typeof BleBridge;
+

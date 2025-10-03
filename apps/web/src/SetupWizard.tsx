@@ -78,6 +78,7 @@ export default function SetupWizard() {
   const [step, setStep] = useState<"scan" | "connect" | "config" | "apply" | "done">("scan");
   const unsubscribeRef = useRef<null | (() => void | Promise<void>)>(null);
   const [error, setError] = useState<string | null>(null);
+  const [permissionHint, setPermissionHint] = useState<"location" | "bluetooth" | null>(null);
 
   useEffect(() => {
     return () => {
@@ -90,12 +91,11 @@ export default function SetupWizard() {
 
   const handleScan = useCallback(async () => {
     setError(null);
+    setPermissionHint(null);
     setScanning(true);
     setDevices([]);
     try {
-      // remember service for subsequent read/write/subscribe
       const found = await BleBridge.scan(profile.serviceUuid, 5000);
-      // Also include by name match if present
       const filtered = found.filter((d) => {
         const name = (d.name ?? "").toLowerCase();
         return kind === "esp32"
@@ -104,11 +104,27 @@ export default function SetupWizard() {
       });
       setDevices(filtered.length > 0 ? filtered : found);
     } catch (e) {
-      setError((e as Error).message);
+      const message = e instanceof Error ? e.message : String(e ?? "Scan failed");
+      setError(message);
+      if (message.includes("Location services")) {
+        setPermissionHint("location");
+      } else if (message.includes("Bluetooth is disabled")) {
+        setPermissionHint("bluetooth");
+      }
     } finally {
       setScanning(false);
     }
   }, [profile.serviceUuid, kind]);
+
+  const handleOpenLocationSettings = useCallback(() => {
+    void BleBridge.openLocationSettings();
+  }, []);
+
+  const handleOpenBluetoothSettings = useCallback(() => {
+    void BleBridge.openBluetoothSettings();
+  }, []);
+
+
 
   const handleConnect = useCallback(
     async (device: BleDevice) => {
@@ -301,8 +317,29 @@ export default function SetupWizard() {
       )}
 
       {error && (
-        <div style={{ color: "#b91c1c", marginTop: 12 }}>Error: {error}</div>
+        <div style={{ color: "#b91c1c", marginTop: 12 }}>
+          <p style={{ margin: 0 }}>Error: {error}</p>
+          {permissionHint === "location" ? (
+            <button
+              type="button"
+              onClick={handleOpenLocationSettings}
+              style={{ marginTop: 8, padding: "0.4rem 0.75rem" }}
+            >
+              Open Location Settings
+            </button>
+          ) : null}
+          {permissionHint === "bluetooth" ? (
+            <button
+              type="button"
+              onClick={handleOpenBluetoothSettings}
+              style={{ marginTop: 8, padding: "0.4rem 0.75rem" }}
+            >
+              Open Bluetooth Settings
+            </button>
+          ) : null}
+        </div>
       )}
     </main>
   );
 }
+

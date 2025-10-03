@@ -73,11 +73,11 @@ importers:
   packages/native-bridge:
     dependencies:
       '@capacitor-community/bluetooth-le':
-        specifier: ^6.0.1
-        version: 6.1.0(@capacitor/core@6.2.1)
+        specifier: ^7.2.0
+        version: 7.2.0(@capacitor/core@7.4.3)
       '@capacitor/core':
-        specifier: ^6.1.1
-        version: 6.2.1
+        specifier: ^7.4.3
+        version: 7.4.3
     devDependencies:
       typescript:
         specifier: ^5.5.4
@@ -91,6 +91,9 @@ importers:
       '@capacitor/preferences':
         specifier: ^7.0.2
         version: 7.0.2(@capacitor/core@7.4.3)
+      '@projectplant/native-bridge':
+        specifier: workspace:*
+        version: link:../native-bridge
       mqtt:
         specifier: ^5.10.1
         version: 5.14.1
@@ -194,10 +197,10 @@ packages:
     resolution: {integrity: sha512-bkFqkLhh3pMBUQQkpVgWDWq/lqzc2678eUyDlTBhRqhCHFguYYGM0Efga7tYk4TogG/3x0EEl66/OQ+WGbWB/Q==}
     engines: {node: '>=6.9.0'}
 
-  '@capacitor-community/bluetooth-le@6.1.0':
-    resolution: {integrity: sha512-hnNChEwV+xNOVqDYI4bfkQtFtvEyzBMlgYs+6xsLYTJVl0v8h6Hn3nCwjW9l6LH0tMzYaRYlFLCiGHKPHt1N0Q==}
+  '@capacitor-community/bluetooth-le@7.2.0':
+    resolution: {integrity: sha512-eBM0Ia6C68YKqYbGjy6xgjaBrCvfH9EICn77EqxpR3Pu9yniRGTlCuZQdcCAonLwp16uuyAh/5tESxkkVJMccA==}
     peerDependencies:
-      '@capacitor/core': ^6.0.0
+      '@capacitor/core': '>=7.0.0'
 
   '@capacitor/android@7.4.3':
     resolution: {integrity: sha512-VpjvnOcmYGPLgvXRhe3CGLs62Cg7sxOyp77NddCr+Y06qqgnoaj6OGeBVTc2DZlqZ6bSmh15JvFu82pkvmdgfQ==}
@@ -208,9 +211,6 @@ packages:
     resolution: {integrity: sha512-SWozpdDgrbQ/ry1nIapugDFvE9z+l22BmU/+fpgL2Zv5487hGdXvCX5+1SluuFBP3IPpx6b4LjsKnBigyJoUWg==}
     engines: {node: '>=20.0.0'}
     hasBin: true
-
-  '@capacitor/core@6.2.1':
-    resolution: {integrity: sha512-urZwxa7hVE/BnA18oCFAdizXPse6fCKanQyEqpmz6cBJ2vObwMpyJDG5jBeoSsgocS9+Ax+9vb4ducWJn0y2qQ==}
 
   '@capacitor/core@7.4.3':
     resolution: {integrity: sha512-wCWr8fQ9Wxn0466vPg7nMn0tivbNVjNy1yL4GvDSIZuZx7UpU2HeVGNe9QjN/quEd+YLRFeKEBLBw619VqUiNg==}
@@ -1535,9 +1535,9 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.27.1
 
-  '@capacitor-community/bluetooth-le@6.1.0(@capacitor/core@6.2.1)':
+  '@capacitor-community/bluetooth-le@7.2.0(@capacitor/core@7.4.3)':
     dependencies:
-      '@capacitor/core': 6.2.1
+      '@capacitor/core': 7.4.3
       '@types/web-bluetooth': 0.0.20
 
   '@capacitor/android@7.4.3(@capacitor/core@7.4.3)':
@@ -1565,10 +1565,6 @@ snapshots:
       xml2js: 0.6.2
     transitivePeerDependencies:
       - supports-color
-
-  '@capacitor/core@6.2.1':
-    dependencies:
-      tslib: 2.8.1
 
   '@capacitor/core@7.4.3':
     dependencies:
