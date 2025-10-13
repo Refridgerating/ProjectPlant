@@ -9,7 +9,8 @@ typedef struct {
     float soil_percent;
     float temperature_c;
     float humidity_pct;
-    bool water_low;
+    bool water_low;      // Backwards-compatible: maps to refill float
+    bool water_cutoff;   // New: cutoff float (active-low)
     bool pump_is_on;
 } sensor_reading_t;
 

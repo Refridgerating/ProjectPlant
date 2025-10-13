@@ -26,10 +26,24 @@ class DummyClient:
         self.disconnected = True
 
 
+class DummyBridge:
+    def __init__(self, client):
+        self.client = client
+        self.started = False
+        self.stopped = False
+
+    async def start(self):
+        self.started = True
+
+    async def stop(self):
+        self.stopped = True
+
+
 @pytest.mark.anyio("asyncio")
 async def test_startup_and_shutdown_toggle_manager(monkeypatch):
     DummyClient.instances.clear()
     monkeypatch.setattr(mqtt_client, "Client", DummyClient)
+    monkeypatch.setattr(mqtt_client, "MqttBridge", DummyBridge)
 
     settings = types.SimpleNamespace(
         mqtt_host="broker.example",
@@ -65,6 +79,7 @@ async def test_startup_logs_on_failure(monkeypatch, caplog):
             raise MqttError("boom")
 
     monkeypatch.setattr(mqtt_client, "Client", FailingClient)
+    monkeypatch.setattr(mqtt_client, "MqttBridge", DummyBridge)
     caplog.set_level("ERROR", logger="projectplant.hub.mqtt")
 
     settings = types.SimpleNamespace(

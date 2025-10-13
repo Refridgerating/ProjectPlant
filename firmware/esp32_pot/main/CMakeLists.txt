@@ -4,7 +4,8 @@ idf_component_register(
         "sensors.c"
         "plant_mqtt.c"
         "wifi.c"
-        "sht4x.c"
+        "aht10.c"
+        "ads1115.c"
     INCLUDE_DIRS "."
-    REQUIRES driver esp_wifi esp_event esp_netif nvs_flash mqtt json esp_adc
+    REQUIRES driver esp_wifi esp_event esp_netif nvs_flash mqtt json
 )

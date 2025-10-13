@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SensorEvent } from "../src";
+import { sensorTopic, type SensorEvent } from "../src";
 
-const discoverBridgeMock = { discover: vi.fn<[], Promise<null>>(() => Promise.resolve(null)) };
+const discoverBridgeMock = vi.hoisted(() => ({
+  discover: vi.fn<[], Promise<null>>(() => Promise.resolve(null))
+}));
 
 vi.mock("@capacitor/core", () => ({
   Capacitor: {
@@ -37,7 +39,7 @@ describe("sdk demo mode", () => {
     expect(pots.length).toBeGreaterThan(0);
 
     const events: SensorEvent[] = [];
-    const unsubscribe = await sdk.subscribeSensor("pots/pot-1/sensors", (event) => {
+    const unsubscribe = await sdk.subscribeSensor(sensorTopic("pot-1"), (event) => {
       events.push(event);
     });
 

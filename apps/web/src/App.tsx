@@ -5,6 +5,7 @@ import type { SensorTelemetry, MockBackend } from "@sdk/mock";
 import type { IrrigationZone, PotSummary } from "@sdk/rest";
 import { getEnv, type RuntimeMode } from "@sdk/env";
 import { discoverPi, connect as sdkConnect } from "@sdk";
+import { sensorTopic } from "@sdk/topics";
 
 type Unsubscribe = () => void;
 
@@ -25,7 +26,7 @@ function createDemoProvider(backend: MockBackend): PlantDataProvider {
       return backend.listZones();
     },
     async subscribeToPot(potId, handler) {
-      const topic = `pots/${potId}/sensors`;
+      const topic = sensorTopic(potId);
       const unsubscribe = backend.subscribeSensor(topic, handler);
       return () => unsubscribe();
     }
@@ -43,7 +44,7 @@ async function loadLiveProvider(): Promise<PlantDataProvider> {
       return listZones();
     },
     async subscribeToPot(potId, handler) {
-      const topic = `pots/${potId}/sensors`;
+      const topic = sensorTopic(potId);
       try {
         const dispose = await subscribeSensor(topic, (event) => {
           if (event.parsed) {

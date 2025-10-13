@@ -1,0 +1,200 @@
+import { ArrowPathIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useHubInfo } from "./hooks/useHubInfo";
+import { useGeolocation } from "./hooks/useGeolocation";
+import { useLocalWeather } from "./hooks/useLocalWeather";
+import { useMockTelemetry } from "./hooks/useMockTelemetry";
+import { useWateringRecommendation, WateringRecommendationState } from "./hooks/useWateringRecommendation";
+import { CorsOriginsCard } from "./components/CorsOriginsCard";
+import { MqttDiagnostics } from "./components/MqttDiagnostics";
+import { PageShell } from "./components/PageShell";
+import { StatusCard } from "./components/StatusCard";
+import { TelemetryChart } from "./components/TelemetryChart";
+import { TelemetrySummary } from "./components/TelemetrySummary";
+import { TelemetryTable } from "./components/TelemetryTable";
+import { WateringRecommendationCard } from "./components/WateringRecommendationCard";
+import { LocalConditionsMap } from "./components/LocalConditionsMap";
+import { MyPlantsTab } from "./components/MyPlantsTab";
+import { ConnectionBadges } from "./components/ConnectionBadges";
+import { SettingsPanel } from "./components/SettingsPanel";
+import type { HubInfo, TelemetrySample, WateringRecommendation } from "./api/hubClient";
+import { mockBackend as createMockBackend, type MockBackend, type SensorTelemetry } from "@sdk/mock";
+import { getSettings, setSettings, type RuntimeMode, type UiSettings } from "./settings";
+
+const LOCAL_RANGE_OPTIONS = [
+  { label: "30 minutes", value: 0.5 },
+  { label: "1 hour", value: 1 },
+  { label: "2 hours", value: 2 },
+  { label: "6 hours", value: 6 },
+  { label: "12 hours", value: 12 },
+  { label: "24 hours", value: 24 },
+  { label: "48 hours", value: 48 },
+] as const;
+
+type LocalRange = (typeof LOCAL_RANGE_OPTIONS)[number]["value"];
+
+const CONTROL_DEVICES = [
+  { id: "pump", label: "H2O Pump" },
+  { id: "fan", label: "Fan" },
+  { id: "light", label: "Grow Light" },
+  { id: "feeder", label: "Feeder" },
+  { id: "mister", label: "Mister" },
+] as const;
+
+type ControlDeviceId = (typeof CONTROL_DEVICES)[number]["id"];
+type ControlStates = Record<ControlDeviceId, boolean>;
+type HubTab = "plant" | "control" | "local" | "myplants";
+
+const DEFAULT_WATERING_OPTIONS = {
+  potDiameterCm: 26,
+  potHeightCm: 24,
+  cropCoefficient: 0.9,
+  plantName: "Indoor Tropical",
+  lookbackHours: 24,
+  availableWaterFraction: 0.42,
+  irrigationEfficiency: 0.88,
+  targetRefillFraction: 0.5,
+  assumedWindSpeed: 0.12,
+  netRadiationFactor: 0.7,
+} as const;
+
+const MAX_DEMO_SAMPLES = 96;
+const DEMO_STATION = "Demo greenhouse";
+const DEMO_HUB_INFO: HubInfo = {
+  name: "ProjectPlant Demo Hub",
+  version: "v0.1.0-demo",
+  debug: false,
+  cors_origins: ["http://projectplant.local"],
+  mqtt_enabled: false,
+  mqtt_host: "demo.projectplant.local",
+  mqtt_port: 1883,
+};
+function formatMaybeNumber(value: number | null | undefined, fractionDigits: number): string {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "-";
+  }
+  return value.toFixed(fractionDigits);
+}
+
+function LoadingState({ message = "Loading hub status..." }: { message?: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-slate-300">
+      <span className="inline-flex h-3 w-3 animate-ping rounded-full bg-brand-400" />
+      {message}
+    </div>
+  );
+}
+
+function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-6 text-rose-200">
+      <h2 className="text-lg font-semibold">Unable to reach the hub</h2>
+      <p className="mt-2 text-sm text-rose-100/80">{message}</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-4 inline-flex items-center gap-2 rounded-lg bg-rose-500 px-4 py-2 text-sm font-medium text-white hover:bg-rose-400"
+      >
+        <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
+        Try again
+      </button>
+    </div>
+  );
+}
+
+function LocationPrompt({
+  status,
+  error,
+  onEnable,
+}: {
+  status: ReturnType<typeof useGeolocation>["status"];
+  error: string | null;
+  onEnable: () => void;
+}) {
+  if (status === "unsupported") {
+    return (
+      <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 text-sm text-slate-300">
+        <h3 className="text-base font-semibold text-slate-200">Location access unavailable</h3>
+        <p className="mt-2">
+          This browser does not support geolocation, so we cannot load nearby weather stations automatically.
+        </p>
+      </section>
+    );
+  }
+
+  if (status === "pending") {
+    return <LoadingState message="Requesting location permission..." />;
+  }
+
+  return (
+    <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 text-sm text-slate-300">
+      <h3 className="text-base font-semibold text-slate-200">Enable location services</h3>
+      <p className="mt-2">
+        Allow access to your approximate location so we can pull real-time conditions from the closest public weather
+        station. Coordinates stay on your device and are only sent to the hub to resolve the station.
+      </p>
+      {error ? <p className="mt-2 text-rose-300">{error}</p> : null}
+      <button
+        type="button"
+        onClick={onEnable}
+        className="mt-4 inline-flex items-center gap-2 rounded-lg border border-brand-500/60 bg-brand-500/20 px-4 py-2 text-sm font-medium text-brand-200 hover:bg-brand-500/30"
+      >
+        Grant Location Access
+      </button>
+    </section>
+  );
+}
+
+function LocalRangeSelector({
+  value,
+  options,
+  onChange,
+}: {
+  value: LocalRange;
+  options: LocalRange[];
+  onChange: (value: LocalRange) => void;
+}) {
+  return (
+    <label className="flex items-center gap-3 text-sm text-slate-300">
+      <span className="text-slate-400">Range</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value) as LocalRange)}
+        className="rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-500"
+      >
+        {options.map((option) => {
+          const label = LOCAL_RANGE_OPTIONS.find((item) => item.value === option)?.label ?? `${option} hours`;
+          return (
+            <option key={option} value={option}>
+              {label}
+            </option>
+          );
+        })}
+      </select>
+    </label>
+  );
+}
+
+export default function App() {
+  const { data, loading, error, refresh } = useHubInfo();
+  const {
+    data: telemetryData,
+    latest: telemetryLatest,
+    loading: telemetryLoadingRaw,
+    error: telemetryErrorRaw,
+    refresh: refreshTelemetry,
+  } = useMockTelemetry(24);
+  const geolocation = useGeolocation();
+  const [localRange, setLocalRange] = useState<LocalRange>(6);
+  const [activeChartTab, setActiveChartTab] = useState<HubTab>("plant");
+  const [controlStates, setControlStates] = useState<ControlStates>(() =>
+    CONTROL_DEVICES.reduce((acc, device) => {
+      acc[device.id] = false;
+      return acc;
+    }, {} as ControlStates)
+  );
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [serverHint, setServerHint] = useState<string>(() => {
+    try {
+      return getSettings().serverBaseUrl;
+    } catch {

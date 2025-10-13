@@ -22,8 +22,9 @@ This test plan validates key onboarding and runtime behaviors for ProjectPlant a
 - Wi‑Fi SSIDs: `TestLab-2G` (valid), `TestLab-5G`, `Guest`, hidden SSID; password `P@ssw0rd!` and negative `WrongPass!`.
 - ESP32 PoP: valid `abcd1234`, invalid `badpop`.
 - MQTT topics (example):
-  - Telemetry: `projectplant/<deviceId>/sensors` (JSON array or obj)
-  - Status: `projectplant/<deviceId>/status`
+  - Telemetry: `pots/<deviceId>/sensors` (JSON array or obj)
+  - Status: `pots/<deviceId>/status`
+  - Commands: `pots/<deviceId>/command`
 - Sample telemetry payload:
   ```json
   {
@@ -97,7 +98,7 @@ Steps
 1) Navigate to live dashboard bound to discovered device.
 2) Observe connection indicator transitions (Connecting → Connected).
 3) Publish test telemetry using MQTTX or mosquitto to device topic.
-   - Example: `mosquitto_pub -h broker.local -p 8083 -V mqttv311 -t projectplant/pi-01/sensors -m '{"deviceId":"pi-01","timestamp":1735600000,"sensors":{"temp":25.2}}'`
+  - Example: `mosquitto_pub -h broker.local -p 8083 -V mqttv311 -t pots/pi-01/sensors -m '{"potId":"pi-01","timestamp":1735600000,"moisture":0.41,"temperature":25.2}'`
 4) Confirm UI updates relevant tiles/graphs within 2s.
 
 Expected
@@ -233,4 +234,3 @@ Artifacts
 ## Reporting
 - Capture logs and screenshots for each failure.
 - Record device IDs, firmware versions, and app build numbers for reproducibility.
-

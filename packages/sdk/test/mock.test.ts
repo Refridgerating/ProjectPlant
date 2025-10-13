@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockBackend } from "../src/mock";
+import { sensorTopic } from "../src/topics";
 
 describe("mock backend", () => {
   beforeEach(() => {
@@ -16,7 +17,7 @@ describe("mock backend", () => {
     const backend = createMockBackend({ potCount: 1, intervalMs: 1000 });
     const updates: Array<{ moisture: number; temperature: number; valveOpen: boolean; timestamp: string }> = [];
 
-    const unsubscribe = backend.subscribeSensor("pots/pot-1/sensors", (payload) => {
+    const unsubscribe = backend.subscribeSensor(sensorTopic("pot-1"), (payload) => {
       updates.push({
         moisture: payload.moisture,
         temperature: payload.temperature,

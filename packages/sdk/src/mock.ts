@@ -1,4 +1,5 @@
 import type { IrrigationZone, PotSummary } from "./rest";
+import { sensorTopic, parseSensorTopic } from "./topics";
 
 export interface SensorTelemetry {
   potId: string;
@@ -127,7 +128,7 @@ export function createMockBackend(options: MockBackendOptions = {}): MockBackend
   timer = setInterval(update, intervalMs);
 
   function ensureTopic(topic: string, handler: SensorCallback): void {
-    const potId = parsePotTopic(topic);
+    const potId = parseSensorTopic(topic);
     if (!potId) {
       throw new Error(`Unsupported sensor topic: ${topic}`);
     }
@@ -253,7 +254,7 @@ function formatPlantName(id: string): string {
 }
 
 function emitTelemetry(listeners: Map<string, Set<SensorCallback>>, pot: PotState) {
-  const topic = `pots/${pot.id}/sensors`;
+  const topic = sensorTopic(pot.id);
   const payload = createPayload(pot);
   const handlers = listeners.get(topic);
   if (!handlers) {
@@ -272,14 +273,6 @@ function createPayload(pot: PotState): SensorTelemetry {
     flowRateLpm: round(pot.flowRateLpm, 2),
     timestamp: pot.updatedAt
   };
-}
-
-function parsePotTopic(topic: string): string | null {
-  const parts = topic.split("/");
-  if (parts.length === 3 && parts[0] === "pots" && parts[2] === "sensors") {
-    return parts[1];
-  }
-  return null;
 }
 
 function randomWalk(value: number, min: number, max: number, step: number): number {

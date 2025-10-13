@@ -1,5 +1,6 @@
 #include "plant_mqtt.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -75,10 +76,17 @@ esp_mqtt_client_handle_t mqtt_client_start(const char *uri,
     return client;
 }
 
-static void add_common_fields(cJSON *root, const char *device_id)
+static inline bool is_valid_float(float value)
 {
-    cJSON_AddStringToObject(root, "device_id", device_id);
-    cJSON_AddNumberToObject(root, "timestamp_ms", esp_timer_get_time() / 1000ULL);
+    return !isnan(value) && !isinf(value);
+}
+
+static void add_common_fields(cJSON *root, const char *device_id, uint64_t timestamp_ms)
+{
+    cJSON_AddStringToObject(root, "potId", device_id);
+    if (timestamp_ms > 0) {
+        cJSON_AddNumberToObject(root, "timestampMs", (double)timestamp_ms);
+    }
 }
 
 void mqtt_publish_reading(esp_mqtt_client_handle_t client,
@@ -94,13 +102,20 @@ void mqtt_publish_reading(esp_mqtt_client_handle_t client,
         return;
     }
 
-    add_common_fields(root, device_id);
-    cJSON_AddNumberToObject(root, "soil_raw", reading->soil_raw);
-    cJSON_AddNumberToObject(root, "soil_pct", reading->soil_percent);
-    cJSON_AddNumberToObject(root, "temperature_c", reading->temperature_c);
-    cJSON_AddNumberToObject(root, "humidity_pct", reading->humidity_pct);
-    cJSON_AddBoolToObject(root, "water_low", reading->water_low);
-    cJSON_AddBoolToObject(root, "pump_on", reading->pump_is_on);
+    add_common_fields(root, device_id, reading->timestamp_ms);
+
+    float moisture = is_valid_float(reading->soil_percent) ? reading->soil_percent : 0.0f;
+    float temperature = is_valid_float(reading->temperature_c) ? reading->temperature_c : 0.0f;
+
+    cJSON_AddNumberToObject(root, "moisture", moisture);
+    cJSON_AddNumberToObject(root, "temperature", temperature);
+    if (is_valid_float(reading->humidity_pct)) {
+        cJSON_AddNumberToObject(root, "humidity", reading->humidity_pct);
+    }
+    cJSON_AddBoolToObject(root, "valveOpen", reading->pump_is_on);
+    cJSON_AddBoolToObject(root, "waterLow", reading->water_low);
+    cJSON_AddBoolToObject(root, "waterCutoff", reading->water_cutoff);
+    cJSON_AddNumberToObject(root, "soilRaw", reading->soil_raw);
 
     char *payload = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -109,7 +124,7 @@ void mqtt_publish_reading(esp_mqtt_client_handle_t client,
     }
 
     char topic[96];
-    snprintf(topic, sizeof(topic), TELEMETRY_TOPIC_FMT, device_id);
+    snprintf(topic, sizeof(topic), SENSORS_TOPIC_FMT, device_id);
     esp_mqtt_client_publish(client, topic, payload, 0, 1, false);
     cJSON_free(payload);
 }
@@ -128,10 +143,10 @@ void mqtt_publish_status(esp_mqtt_client_handle_t client,
         return;
     }
 
-    add_common_fields(root, device_id);
+    add_common_fields(root, device_id, esp_timer_get_time() / 1000ULL);
     cJSON_AddStringToObject(root, "status", status);
     if (version) {
-        cJSON_AddStringToObject(root, "fw_version", version);
+        cJSON_AddStringToObject(root, "fwVersion", version);
     }
 
     char *payload = cJSON_PrintUnformatted(root);

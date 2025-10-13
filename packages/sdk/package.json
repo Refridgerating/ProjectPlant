@@ -9,7 +9,8 @@
     "./rest": "./src/rest.ts",
     "./mqtt": "./src/mqtt.ts",
     "./discover": "./src/discover.ts",
-    "./mock": "./src/mock.ts"
+    "./mock": "./src/mock.ts",
+    "./topics": "./src/topics.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

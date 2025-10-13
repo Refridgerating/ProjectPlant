@@ -20,10 +20,25 @@ This ESP-IDF application connects an ESP32-based planter node to the ProjectPlan
    idf.py -p <PORT> flash monitor
    ```
 
-MQTT topics:
-- Telemetry: `projectplant/pots/<device_id>/telemetry`
-- Status: `projectplant/pots/<device_id>/status`
-- Commands: `projectplant/pots/<device_id>/command`
+MQTT topics (canonical):
+- Sensors: `pots/<device_id>/sensors`
+- Status: `pots/<device_id>/status`
+- Commands: `pots/<device_id>/command`
+
+Sensors payload example:
+```json
+{
+  "potId": "pot-01",
+  "moisture": 47.2,
+  "temperature": 22.8,
+  "humidity": 48.5,
+  "valveOpen": false,
+  "waterLow": false,
+  "waterCutoff": false,
+  "soilRaw": 18342,
+  "timestampMs": 145000
+}
+```
 
 Command payload example:
 ```json

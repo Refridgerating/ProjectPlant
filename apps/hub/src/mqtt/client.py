@@ -1,7 +1,10 @@
 import logging
 import ssl
 from typing import Optional
+
 from asyncio_mqtt import Client, MqttError
+
+from .bridge import MqttBridge
 
 class MqttManager:
     def __init__(self, host: str, port: int, username: Optional[str] = None, password: Optional[str] = None,
@@ -14,6 +17,7 @@ class MqttManager:
         self.tls = tls
         self.log = logging.getLogger("projectplant.hub.mqtt")
         self._client: Optional[Client] = None
+        self._bridge: Optional[MqttBridge] = None
 
     async def connect(self):
         kwargs = {}
@@ -25,8 +29,13 @@ class MqttManager:
         self._client = Client(self.host, port=self.port, client_id=self.client_id, **kwargs)
         await self._client.connect()
         self.log.info("MQTT connected to %s:%s", self.host, self.port)
+        self._bridge = MqttBridge(self._client)
+        await self._bridge.start()
 
     async def disconnect(self):
+        if self._bridge:
+            await self._bridge.stop()
+            self._bridge = None
         if self._client:
             try:
                 await self._client.disconnect()

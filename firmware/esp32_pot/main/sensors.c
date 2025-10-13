@@ -3,7 +3,6 @@
 #include <math.h>
 
 #include "driver/gpio.h"
-#include "esp_adc/adc_oneshot.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -11,17 +10,18 @@
 #include "freertos/task.h"
 
 #include "hardware_config.h"
-#include "sht4x.h"
+#include "aht10.h"
+#include "ads1115.h"
 
 static const char *TAG = "sensors";
 static bool pump_state = false;
-static adc_oneshot_unit_handle_t soil_adc_handle = NULL;
 
 static float soil_to_percent(uint16_t raw)
 {
-    const float min_raw = 900.0f;
-    const float max_raw = 2600.0f;
-    float pct = 100.0f * (raw - max_raw) / (min_raw - max_raw);
+    // Generic mapping: higher raw => wetter; normalize to 0..100%.
+    // ADS1115 single-ended full-scale = 32767 counts.
+    const float max_raw = 32767.0f;
+    float pct = 100.0f * (1.0f - ((float)raw / max_raw));
     if (pct < 0.0f) {
         pct = 0.0f;
     } else if (pct > 100.0f) {
@@ -32,6 +32,22 @@ static float soil_to_percent(uint16_t raw)
 
 void sensors_set_pump_state(bool on)
 {
+    // If turning ON, ensure cutoff float is not low; floats need sensor power
+    if (on) {
+        int prev = gpio_get_level(SENSOR_EN_GPIO);
+        if (prev == 0) {
+            gpio_set_level(SENSOR_EN_GPIO, 1);
+            vTaskDelay(pdMS_TO_TICKS(SENSOR_POWER_ON_DELAY_MS));
+        }
+        bool cutoff_low = (gpio_get_level(WATER_CUTOFF_GPIO) == 0);
+        if (prev == 0) {
+            gpio_set_level(SENSOR_EN_GPIO, 0);
+        }
+        if (cutoff_low) {
+            ESP_LOGW(TAG, "Pump ON blocked: cutoff float is LOW");
+            on = false;
+        }
+    }
     gpio_set_level(PUMP_GPIO, on ? 1 : 0);
     pump_state = on;
 }
@@ -43,24 +59,6 @@ bool sensors_get_pump_state(void)
 
 void sensors_init(void)
 {
-    adc_oneshot_unit_init_cfg_t unit_cfg = {
-        .unit_id = ADC_UNIT_1,
-        .ulp_mode = ADC_ULP_MODE_DISABLE,
-    };
-    esp_err_t err = adc_oneshot_new_unit(&unit_cfg, &soil_adc_handle);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to init ADC unit: %s", esp_err_to_name(err));
-    } else {
-        adc_oneshot_chan_cfg_t chan_cfg = {
-            .bitwidth = ADC_BITWIDTH_12,
-            .atten = ADC_ATTEN_DB_12,
-        };
-        err = adc_oneshot_config_channel(soil_adc_handle, SOIL_ADC_CHANNEL, &chan_cfg);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to config ADC channel: %s", esp_err_to_name(err));
-        }
-    }
-
     gpio_config_t pump_cfg = {
         .pin_bit_mask = BIT64(PUMP_GPIO),
         .mode = GPIO_MODE_OUTPUT,
@@ -71,19 +69,42 @@ void sensors_init(void)
     gpio_config(&pump_cfg);
     sensors_set_pump_state(false);
 
+    // Sensor power enable (default OFF)
+    gpio_config_t sen_cfg = {
+        .pin_bit_mask = BIT64(SENSOR_EN_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&sen_cfg);
+    gpio_set_level(SENSOR_EN_GPIO, 0);
+
     gpio_config_t float_cfg = {
-        .pin_bit_mask = BIT64(WATER_FLOAT_GPIO),
+        .pin_bit_mask = BIT64(WATER_REFILL_GPIO) | BIT64(WATER_CUTOFF_GPIO),
         .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_ENABLE,
+        // GPIO34/35 have no internal pull-ups; rely on external 100k to 3V3_SW
+        .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_DISABLE,
     };
     gpio_config(&float_cfg);
 
-    err = sht4x_init(I2C_PORT_NUM, I2C_SDA_GPIO, I2C_SCL_GPIO);
+    // Power sensors to initialize I2C devices
+    gpio_set_level(SENSOR_EN_GPIO, 1);
+    vTaskDelay(pdMS_TO_TICKS(SENSOR_POWER_ON_DELAY_MS));
+
+    esp_err_t err = aht10_init(I2C_PORT_NUM, I2C_SDA_GPIO, I2C_SCL_GPIO);
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "SHT4x init failed: %s", esp_err_to_name(err));
+        ESP_LOGW(TAG, "AHT10 init failed: %s", esp_err_to_name(err));
     }
+    err = ads1115_init(I2C_PORT_NUM, I2C_SDA_GPIO, I2C_SCL_GPIO);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "ADS1115 init failed: %s", esp_err_to_name(err));
+    }
+
+    // Optionally power sensors back off after init
+    gpio_set_level(SENSOR_EN_GPIO, 0);
 }
 
 void sensors_collect(sensor_reading_t *out)
@@ -92,37 +113,48 @@ void sensors_collect(sensor_reading_t *out)
         return;
     }
 
-    if (!soil_adc_handle) {
-        ESP_LOGW(TAG, "ADC handle not ready; returning last soil reading");
-        out->soil_raw = 0;
-        out->soil_percent = 0.0f;
-    } else {
-        uint32_t acc = 0;
-        for (int i = 0; i < SOIL_SAMPLES; ++i) {
-            int sample = 0;
-            esp_err_t err = adc_oneshot_read(soil_adc_handle, SOIL_ADC_CHANNEL, &sample);
-            if (err != ESP_OK) {
-                ESP_LOGW(TAG, "ADC read failed: %s", esp_err_to_name(err));
-                sample = 0;
-            }
-            acc += (uint32_t)sample;
-            vTaskDelay(pdMS_TO_TICKS(10));
+    // Power sensors
+    gpio_set_level(SENSOR_EN_GPIO, 1);
+    vTaskDelay(pdMS_TO_TICKS(SENSOR_POWER_ON_DELAY_MS));
+
+    // Soil moisture via ADS1115 (AIN0)
+    int32_t acc = 0;
+    for (int i = 0; i < SOIL_SAMPLES; ++i) {
+        int16_t sample = 0;
+        esp_err_t err = ads1115_read_single_ended(SOIL_ADC_CHANNEL, ADS1115_PGA_4096, &sample);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "ADS1115 read failed: %s", esp_err_to_name(err));
+            sample = 0;
         }
-        out->soil_raw = acc / SOIL_SAMPLES;
-        out->soil_percent = soil_to_percent(out->soil_raw);
+        if (sample < 0) sample = 0; // single-ended should be >= 0
+        acc += sample;
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
+    out->soil_raw = (uint16_t)(acc / SOIL_SAMPLES);
+    out->soil_percent = soil_to_percent(out->soil_raw);
 
-    out->pump_is_on = sensors_get_pump_state();
-    out->water_low = gpio_get_level(WATER_FLOAT_GPIO) == 0;
-    out->timestamp_ms = esp_timer_get_time() / 1000ULL;
+    // Float switches (active-low); valid only when sensors are powered
+    out->water_low = gpio_get_level(WATER_REFILL_GPIO) == 0;      // refill indicator
+    out->water_cutoff = gpio_get_level(WATER_CUTOFF_GPIO) == 0;   // cutoff indicator
 
-    float t = NAN;
-    float rh = NAN;
-    if (sht4x_read(&t, &rh) == ESP_OK) {
+    // Temperature/Humidity from AHT10
+    float t = NAN, rh = NAN;
+    if (aht10_read(&t, &rh) == ESP_OK) {
         out->temperature_c = t;
         out->humidity_pct = rh;
     } else {
         out->temperature_c = NAN;
         out->humidity_pct = NAN;
     }
+
+    // Safety: if pump is on and cutoff is low, turn pump off immediately
+    if (sensors_get_pump_state() && out->water_cutoff) {
+        ESP_LOGW(TAG, "Cutoff float low -> turning pump OFF");
+        sensors_set_pump_state(false);
+    }
+    out->pump_is_on = sensors_get_pump_state();
+    out->timestamp_ms = esp_timer_get_time() / 1000ULL;
+
+    // Power sensors off
+    gpio_set_level(SENSOR_EN_GPIO, 0);
 }

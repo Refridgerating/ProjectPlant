@@ -2,9 +2,11 @@ import { createMockBackend, mockBackend as createStandaloneMockBackend, type Moc
 import { createMqttClient, type MqttBridge, type MessageHandler } from "./mqtt";
 import { createRestClient, type IrrigationZone, type PotSummary, type RestClient } from "./rest";
 import { getEnv, setEnv, type RuntimeEnv } from "./env";
+import { parseSensorTopic, legacyTelemetryTopic } from "./topics";
 
 export { discoverPi } from "./discover";
 export type { PiDiscoveryResult } from "./discover";
+export * from "./topics";
 
 
 export interface SensorEvent {
@@ -68,20 +70,32 @@ export async function subscribeSensor(topic: string, handler: SensorEventHandler
 
   const bridge = ensureMqttBridge(env);
   await bridge.connect();
+  // Map requested SDK topic to one or more broker topics.
+  const { topics: brokerTopics, potId } = mapSensorTopic(topic);
+
+  const expected = new Set(brokerTopics);
+  const disposers: Array<() => void> = [];
   const wrapped: MessageHandler = (msgTopic, raw) => {
-    if (msgTopic !== topic) {
+    if (!expected.has(msgTopic)) {
       return;
     }
+    const parsed = parseTelemetry(raw) ?? parseFirmwareTelemetry(raw, potId);
     handler({
-      topic: msgTopic,
+      // Normalize the exposed topic to the requested SDK topic
+      topic,
       raw,
-      parsed: parseTelemetry(raw),
+      parsed,
       origin: "live"
     });
   };
-  const dispose = bridge.subscribe(topic, wrapped);
+
+  // Subscribe to each mapped broker topic.
+  for (const t of brokerTopics) {
+    disposers.push(bridge.subscribe(t, wrapped));
+  }
+
   return async () => {
-    dispose();
+    disposers.forEach((d) => d());
   };
 }
 
@@ -156,23 +170,73 @@ function encodePayload(payload: SensorTelemetry): Uint8Array {
 function parseTelemetry(buffer: Uint8Array): SensorTelemetry | undefined {
   try {
     const decoded = new TextDecoder().decode(buffer);
-    const parsed = JSON.parse(decoded) as Partial<SensorTelemetry>;
-    if (!parsed || typeof parsed !== "object") {
-      return undefined;
+    const obj = JSON.parse(decoded) as Record<string, unknown> | null;
+    if (!obj || typeof obj !== "object") return undefined;
+
+    // Direct SDK schema
+    if (
+      typeof obj["potId"] === "string" &&
+      typeof obj["moisture"] === "number"
+    ) {
+      return {
+        potId: obj["potId"] as string,
+        moisture: obj["moisture"] as number,
+        temperature: typeof obj["temperature"] === "number" ? (obj["temperature"] as number) : 0,
+        humidity: typeof obj["humidity"] === "number" ? (obj["humidity"] as number) : undefined,
+        valveOpen: typeof obj["valveOpen"] === "boolean" ? (obj["valveOpen"] as boolean) : false,
+        flowRateLpm: typeof obj["flowRateLpm"] === "number" ? (obj["flowRateLpm"] as number) : undefined,
+        timestamp: typeof obj["timestamp"] === "string" ? (obj["timestamp"] as string) : new Date().toISOString()
+      } satisfies SensorTelemetry;
     }
-    if (typeof parsed.potId !== "string" || typeof parsed.moisture !== "number") {
-      return undefined;
-    }
-    return {
-      potId: parsed.potId,
-      moisture: parsed.moisture,
-      temperature: typeof parsed.temperature === "number" ? parsed.temperature : 0,
-      humidity: typeof parsed.humidity === "number" ? parsed.humidity : undefined,
-      valveOpen: typeof parsed.valveOpen === "boolean" ? parsed.valveOpen : false,
-      flowRateLpm: typeof parsed.flowRateLpm === "number" ? parsed.flowRateLpm : undefined,
-      timestamp: typeof parsed.timestamp === "string" ? parsed.timestamp : new Date().toISOString()
-    };
+
+    return undefined;
   } catch {
     return undefined;
   }
+}
+
+// Parse firmware JSON published at legacy firmware topics (projectplant/pots/<id>/telemetry)
+function parseFirmwareTelemetry(buffer: Uint8Array, fallbackPotId?: string): SensorTelemetry | undefined {
+  try {
+    const decoded = new TextDecoder().decode(buffer);
+    const obj = JSON.parse(decoded) as Record<string, unknown> | null;
+    if (!obj || typeof obj !== "object") return undefined;
+
+    const deviceId = typeof obj["device_id"] === "string" ? (obj["device_id"] as string) : fallbackPotId;
+    const soilPct = typeof obj["soil_pct"] === "number" ? (obj["soil_pct"] as number) : undefined;
+    const temperatureC = typeof obj["temperature_c"] === "number" ? (obj["temperature_c"] as number) : undefined;
+    const humidityPct = typeof obj["humidity_pct"] === "number" ? (obj["humidity_pct"] as number) : undefined;
+    const pumpOn = typeof obj["pump_on"] === "boolean" ? (obj["pump_on"] as boolean) : undefined;
+    const tsMs = typeof obj["timestamp_ms"] === "number" ? (obj["timestamp_ms"] as number) : undefined;
+
+    if (!deviceId) return undefined;
+    if (soilPct === undefined && temperatureC === undefined && humidityPct === undefined && pumpOn === undefined) {
+      // Not a telemetry payload we understand
+      return undefined;
+    }
+
+    const isoTs = tsMs !== undefined ? new Date(tsMs).toISOString() : new Date().toISOString();
+    return {
+      potId: deviceId,
+      moisture: soilPct ?? 0,
+      temperature: temperatureC ?? 0,
+      humidity: humidityPct,
+      valveOpen: pumpOn ?? false,
+      flowRateLpm: undefined,
+      timestamp: isoTs
+    } satisfies SensorTelemetry;
+  } catch {
+    return undefined;
+  }
+}
+
+// Map SDK topic aliases to broker topics and extract pot id when possible
+function mapSensorTopic(requested: string): { topics: string[]; potId?: string } {
+  const potId = parseSensorTopic(requested);
+  if (!potId) {
+    return { topics: [requested] };
+  }
+
+  const topics = Array.from(new Set([legacyTelemetryTopic(potId), requested]));
+  return { topics, potId };
 }

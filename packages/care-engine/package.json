@@ -1,0 +1,26 @@
+{
+  "name": "@projectplant/care-engine",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts",
+    "./guidance": "./src/guidance.ts",
+    "./samples": "./src/samples.ts",
+    "./cache": "./src/cache/index.ts",
+    "./adapters": "./src/adapters/index.ts",
+    "./storage": "./src/storage/index.ts",
+    "./batch": "./src/batch/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.5.3",
+    "typescript": "^5.5.4",
+    "vitest": "^1.6.0"
+  }
+}
