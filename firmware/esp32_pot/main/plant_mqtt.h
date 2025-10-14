@@ -12,10 +12,14 @@ typedef enum {
     MQTT_CMD_UNKNOWN = 0,
     MQTT_CMD_PUMP_OVERRIDE,
     MQTT_CMD_CONFIG_UPDATE,
+    MQTT_CMD_SENSOR_READ,
 } mqtt_command_type_t;
+
+#define MQTT_REQUEST_ID_MAX_LEN 64
 
 typedef struct {
     mqtt_command_type_t type;
+    char request_id[MQTT_REQUEST_ID_MAX_LEN];
     bool pump_on;
     uint32_t duration_ms;
 } mqtt_command_t;
@@ -30,7 +34,8 @@ esp_mqtt_client_handle_t mqtt_client_start(const char *uri,
 
 void mqtt_publish_reading(esp_mqtt_client_handle_t client,
                           const char *device_id,
-                          const sensor_reading_t *reading);
+                          const sensor_reading_t *reading,
+                          const char *request_id);
 
 void mqtt_publish_status(esp_mqtt_client_handle_t client,
                          const char *device_id,

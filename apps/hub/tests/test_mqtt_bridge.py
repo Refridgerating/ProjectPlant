@@ -16,6 +16,7 @@ def test_build_sensor_payload_normalizes_fields():
         "humidity_pct": 48.123,
         "pump_on": True,
         "timestamp_ms": 1_700_000_000_000,
+        "requestId": "req-123",
     }
     normalized = build_sensor_payload(_encode(payload), "pot-abc")
     assert normalized is not None
@@ -26,6 +27,7 @@ def test_build_sensor_payload_normalizes_fields():
     assert data["humidity"] == pytest.approx(48.1)
     assert data["valveOpen"] is True
     assert data["timestamp"].endswith("Z")
+    assert data["requestId"] == "req-123"
 
 
 def test_build_sensor_payload_accepts_strings_and_defaults():
@@ -33,6 +35,7 @@ def test_build_sensor_payload_accepts_strings_and_defaults():
         "soil_pct": "34.44",
         "temperature_c": "",
         "pump_on": "off",
+        "request_id": " legacy-req ",
     }
     normalized = build_sensor_payload(_encode(payload), "pot-xyz")
     assert normalized is not None
@@ -40,6 +43,7 @@ def test_build_sensor_payload_accepts_strings_and_defaults():
     assert data["moisture"] == pytest.approx(34.4)
     assert data["temperature"] == 0.0  # default when missing
     assert data["valveOpen"] is False
+    assert data["requestId"] == "legacy-req"
 
 
 def test_build_sensor_payload_returns_none_when_unusable():
@@ -50,4 +54,3 @@ def test_build_sensor_payload_returns_none_when_unusable():
 def test_build_sensor_payload_handles_invalid_json():
     normalized = build_sensor_payload(b"not-json", "pot-123")
     assert normalized is None
-

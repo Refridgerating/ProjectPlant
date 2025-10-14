@@ -25,6 +25,7 @@ class NormalizedTelemetry:
     timestamp: str
     humidity: Optional[float] = None
     flowRateLpm: Optional[float] = None
+    requestId: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -38,6 +39,8 @@ class NormalizedTelemetry:
             payload["humidity"] = self.humidity
         if self.flowRateLpm is not None:
             payload["flowRateLpm"] = self.flowRateLpm
+        if self.requestId:
+            payload["requestId"] = self.requestId
         return payload
 
 
@@ -126,6 +129,7 @@ def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[Normalized
     humidity_pct = _coerce_float(data.get("humidity_pct"))
     flow_rate = _coerce_float(data.get("flow_rate_lpm"))
     pump_on = _coerce_bool(data.get("pump_on"))
+    request_id = _coerce_str(data.get("requestId") or data.get("request_id"))
     timestamp_iso = _coerce_timestamp(data.get("timestamp_ms"))
 
     if soil_pct is None and temperature_c is None and humidity_pct is None and flow_rate is None and pump_on is None:
@@ -147,6 +151,7 @@ def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[Normalized
         valveOpen=valve_open,
         flowRateLpm=flow_rate_lpm,
         timestamp=timestamp,
+        requestId=request_id,
     )
 
 
@@ -218,3 +223,10 @@ def _isoformat(dt: datetime) -> str:
     if iso.endswith("+00:00"):
         return iso[:-6] + "Z"
     return iso
+
+
+def _coerce_str(value: Any) -> Optional[str]:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
+    return None

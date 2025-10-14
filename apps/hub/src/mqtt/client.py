@@ -32,6 +32,11 @@ class MqttManager:
         self._bridge = MqttBridge(self._client)
         await self._bridge.start()
 
+    def get_client(self) -> Client:
+        if not self._client:
+            raise RuntimeError("MQTT client is not connected")
+        return self._client
+
     async def disconnect(self):
         if self._bridge:
             await self._bridge.stop()

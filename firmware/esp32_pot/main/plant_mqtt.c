@@ -147,7 +147,8 @@ static void add_common_fields(cJSON *root, const char *device_id, uint64_t times
 
 void mqtt_publish_reading(esp_mqtt_client_handle_t client,
                           const char *device_id,
-                          const sensor_reading_t *reading)
+                          const sensor_reading_t *reading,
+                          const char *request_id)
 {
     if (!client || !device_id || !reading) {
         return;
@@ -162,6 +163,9 @@ void mqtt_publish_reading(esp_mqtt_client_handle_t client,
 
     float moisture = is_valid_float(reading->soil_percent) ? reading->soil_percent : 0.0f;
     float temperature = is_valid_float(reading->temperature_c) ? reading->temperature_c : 0.0f;
+    if (request_id && request_id[0]) {
+        cJSON_AddStringToObject(root, "requestId", request_id);
+    }
 
     cJSON_AddNumberToObject(root, "moisture", moisture);
     cJSON_AddNumberToObject(root, "temperature", temperature);
@@ -221,6 +225,7 @@ mqtt_command_t mqtt_parse_command(const char *payload, int payload_len)
 {
     mqtt_command_t cmd = {
         .type = MQTT_CMD_UNKNOWN,
+        .request_id = "",
         .pump_on = false,
         .duration_ms = 0,
     };
@@ -242,6 +247,33 @@ mqtt_command_t mqtt_parse_command(const char *payload, int payload_len)
     if (!root) {
         ESP_LOGW(TAG, "Failed to parse command JSON");
         return cmd;
+    }
+
+    cJSON *request_id = cJSON_GetObjectItemCaseSensitive(root, "requestId");
+    if (cJSON_IsString(request_id) && request_id->valuestring) {
+        size_t id_len = strlen(request_id->valuestring);
+        if (id_len < sizeof(cmd.request_id)) {
+            memcpy(cmd.request_id, request_id->valuestring, id_len + 1);
+        } else {
+            ESP_LOGW(TAG, "requestId too long (%u), ignoring", (unsigned)id_len);
+            cmd.request_id[0] = '\0';
+        }
+    }
+
+    const char *action_value = NULL;
+    cJSON *action = cJSON_GetObjectItemCaseSensitive(root, "action");
+    if (cJSON_IsString(action) && action->valuestring) {
+        action_value = action->valuestring;
+    } else {
+        cJSON *command = cJSON_GetObjectItemCaseSensitive(root, "command");
+        if (cJSON_IsString(command) && command->valuestring) {
+            action_value = command->valuestring;
+        }
+    }
+
+    if (action_value &&
+        (strcmp(action_value, "sensor_read") == 0 || strcmp(action_value, "sensorRead") == 0)) {
+        cmd.type = MQTT_CMD_SENSOR_READ;
     }
 
     cJSON *pump = cJSON_GetObjectItemCaseSensitive(root, "pump");

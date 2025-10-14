@@ -85,6 +85,31 @@ export type WateringRecommendation = {
   diagnostics: WateringDiagnostics;
 };
 
+export type SensorReadPayload = {
+  potId: string;
+  moisture: number;
+  temperature: number;
+  valveOpen: boolean;
+  timestamp: string;
+  humidity?: number | null;
+  flowRateLpm?: number | null;
+  waterLow?: boolean | null;
+  waterCutoff?: boolean | null;
+  soilRaw?: number | null;
+  timestampMs?: number | null;
+  [key: string]: unknown;
+};
+
+export type SensorReadResponse = {
+  payload: SensorReadPayload;
+  requestId: string | null;
+};
+
+export type RequestSensorReadOptions = {
+  timeout?: number;
+  signal?: AbortSignal;
+};
+
 export type WateringRequestSample = {
   timestamp: string;
   temperature_c: number | null;
@@ -248,6 +273,45 @@ export async function fetchMockTelemetry(
   }
   const payload = (await response.json()) as { data: TelemetrySample[] };
   return payload.data;
+}
+
+export async function requestSensorRead(
+  potId: string,
+  options?: RequestSensorReadOptions
+): Promise<SensorReadResponse> {
+  const trimmedId = potId.trim();
+  if (!trimmedId) {
+    throw new Error("Pot ID is required");
+  }
+
+  const search = new URLSearchParams();
+  if (options?.timeout) {
+    search.set("timeout", options.timeout.toString());
+  }
+  const url = `${apiBase()}/plant-control/${encodeURIComponent(trimmedId)}/sensor-read${
+    search.toString() ? `?${search}` : ""
+  }`;
+  const response = await fetch(url, {
+    method: "POST",
+    signal: options?.signal,
+  });
+
+  if (!response.ok) {
+    let message = `Failed to request sensor read (${response.status})`;
+    try {
+      const problem = await response.json();
+      if (problem && typeof problem.detail === "string") {
+        message = problem.detail;
+      }
+    } catch {
+      // ignore error payload parsing failures
+    }
+    throw new Error(message);
+  }
+
+  const payload = (await response.json()) as SensorReadPayload;
+  const requestId = response.headers.get("x-command-request-id");
+  return { payload, requestId };
 }
 
 export async function fetchLocalWeather(

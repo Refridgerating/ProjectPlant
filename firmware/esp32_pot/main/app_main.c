@@ -51,6 +51,20 @@ static void handle_command_task(void *arg)
                     }
                 }
                 break;
+            case MQTT_CMD_SENSOR_READ: {
+                sensor_reading_t reading;
+                sensors_collect(&reading);
+                if (cmd.request_id[0]) {
+                    ESP_LOGI(TAG, "Sensor read command (requestId=%s)", cmd.request_id);
+                } else {
+                    ESP_LOGI(TAG, "Sensor read command");
+                }
+                if (mqtt_client) {
+                    const char *request_id = cmd.request_id[0] ? cmd.request_id : NULL;
+                    mqtt_publish_reading(mqtt_client, DEVICE_ID, &reading, request_id);
+                }
+                break;
+            }
             default:
                 ESP_LOGW(TAG, "Unhandled command type %d", cmd.type);
                 break;
@@ -83,7 +97,7 @@ static void mqtt_task(void *arg)
     while (true) {
         if (measurement_queue && xQueueReceive(measurement_queue, &reading, portMAX_DELAY) == pdTRUE) {
             if (mqtt_client) {
-                mqtt_publish_reading(mqtt_client, DEVICE_ID, &reading);
+                mqtt_publish_reading(mqtt_client, DEVICE_ID, &reading, NULL);
             }
         }
     }

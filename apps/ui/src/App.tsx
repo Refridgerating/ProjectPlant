@@ -1,5 +1,5 @@
 import { ArrowPathIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useHubInfo } from "./hooks/useHubInfo";
 import { useGeolocation } from "./hooks/useGeolocation";
 import { useLocalWeather } from "./hooks/useLocalWeather";
@@ -17,6 +17,7 @@ import { LocalConditionsMap } from "./components/LocalConditionsMap";
 import { MyPlantsTab } from "./components/MyPlantsTab";
 import { ConnectionBadges } from "./components/ConnectionBadges";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { useSensorRead } from "./hooks/useSensorRead";
 import { getSettings } from "./settings";
 
 const LOCAL_RANGE_OPTIONS = [
@@ -413,6 +414,107 @@ function PlantControlPanel({
   onToggle: (id: ControlDeviceId) => void;
   watering: WateringRecommendationState;
 }) {
+  const [sensorPotId, setSensorPotId] = useState("");
+  const sensorRead = useSensorRead();
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const lastRequestIdRef = useRef<string | null>(null);
+
+  const describeWaterLow = (value: boolean | null | undefined) => {
+    if (value === true) return "Reservoir low";
+    if (value === false) return "Reservoir OK";
+    return "Unknown";
+  };
+
+  const describeWaterCutoff = (value: boolean | null | undefined) => {
+    if (value === true) return "Cutoff triggered";
+    if (value === false) return "Cutoff OK";
+    return "Unknown";
+  };
+
+  const snapshotTimestampLabel = (timestamp: string | null | undefined, timestampMs: number | null | undefined) => {
+    if (typeof timestamp === "string" && timestamp.trim()) {
+      const parsed = new Date(timestamp);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toLocaleString();
+      }
+    }
+    if (timestampMs !== null && timestampMs !== undefined) {
+      const parsed = new Date(timestampMs);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toLocaleString();
+      }
+    }
+    return null;
+  };
+
+  const applyUnit = (value: string, unit: string) => (value === "-" ? "-" : `${value} ${unit}`);
+
+  useEffect(() => {
+    if (sensorRead.error) {
+      setFeedback({ type: "error", message: sensorRead.error });
+    }
+  }, [sensorRead.error]);
+
+  useEffect(() => {
+    if (sensorRead.requestId && sensorRead.data && !sensorRead.loading) {
+      if (lastRequestIdRef.current !== sensorRead.requestId) {
+        lastRequestIdRef.current = sensorRead.requestId;
+        const label = snapshotTimestampLabel(sensorRead.data.timestamp, sensorRead.data.timestampMs ?? null);
+        setFeedback({
+          type: "success",
+          message: label ? `Snapshot captured ${label}.` : "Snapshot captured.",
+        });
+      }
+    }
+  }, [sensorRead.data, sensorRead.loading, sensorRead.requestId]);
+
+  useEffect(() => {
+    if (!feedback) {
+      return;
+    }
+    const timer = setTimeout(() => setFeedback(null), 5000);
+    return () => clearTimeout(timer);
+  }, [feedback]);
+
+  const handleSensorSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmed = sensorPotId.trim();
+    setSensorPotId(trimmed);
+    if (!trimmed) {
+      setFeedback({
+        type: "error",
+        message: "Enter a pot id before requesting a sensor read.",
+      });
+      return;
+    }
+    setFeedback(null);
+    await sensorRead.request({ potId: trimmed });
+  };
+
+  const sensorSnapshot = sensorRead.data;
+  const trimmedPotId = sensorPotId.trim();
+  const isSubmitDisabled = sensorRead.loading || !trimmedPotId;
+  const snapshotTimestamp = sensorSnapshot
+    ? snapshotTimestampLabel(sensorSnapshot.timestamp, sensorSnapshot.timestampMs ?? null)
+    : null;
+
+  const moistureValue = formatMaybeNumber(sensorSnapshot?.moisture ?? NaN, 1);
+  const temperatureValue = formatMaybeNumber(sensorSnapshot?.temperature ?? NaN, 1);
+  const humidityValue = formatMaybeNumber(sensorSnapshot?.humidity ?? NaN, 1);
+  const flowRateValue = formatMaybeNumber(sensorSnapshot?.flowRateLpm ?? NaN, 2);
+  const valveDisplay = typeof sensorSnapshot?.valveOpen === "boolean"
+    ? sensorSnapshot.valveOpen
+      ? "Open"
+      : "Closed"
+    : "Unknown";
+  const soilRawDisplay =
+    sensorSnapshot && typeof sensorSnapshot.soilRaw === "number" && !Number.isNaN(sensorSnapshot.soilRaw)
+      ? sensorSnapshot.soilRaw.toString()
+      : "-";
+  const reservoirDisplay = describeWaterLow(sensorSnapshot?.waterLow);
+  const cutoffDisplay = describeWaterCutoff(sensorSnapshot?.waterCutoff);
+  const potIdDisplay = sensorSnapshot?.potId ? sensorSnapshot.potId : null;
+
   return (
     <div className="space-y-4">
       <WateringRecommendationCard
@@ -421,26 +523,125 @@ function PlantControlPanel({
         error={watering.error}
         onRetry={watering.refresh}
       />
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">
-        <p>
-          Manual overrides are simulated for now. Once the hub identifies your pot, it will only surface the outputs
-          that are available.
-        </p>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {CONTROL_DEVICES.map((device) => (
-          <ControlToggleButton
-            key={device.id}
-            label={device.label}
-            isOn={states[device.id]}
-            onClick={() => onToggle(device.id)}
-          />
-        ))}
-      </div>
+      <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex-1">
+              <h3 className="text-base font-semibold text-slate-200">Manual Controls</h3>
+              <p className="mt-1 text-xs text-slate-400">
+                Manual overrides are simulated for now. Once the hub identifies your pot, it will only surface the
+                outputs that are available.
+              </p>
+            </div>
+            <form className="flex flex-col gap-2 sm:flex-row sm:items-center" onSubmit={handleSensorSubmit}>
+              <label className="flex flex-col text-xs text-slate-400 sm:text-right">
+                Pot ID
+                <input
+                  type="text"
+                  value={sensorPotId}
+                  onChange={(event) => setSensorPotId(event.target.value)}
+                  placeholder="e.g. pot-1"
+                  className="mt-1 min-w-[12rem] rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/60"
+                />
+              </label>
+              <button
+                type="submit"
+                title="Send an on-demand sensor_read command to the hub"
+                disabled={isSubmitDisabled}
+                className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  isSubmitDisabled
+                    ? "cursor-not-allowed border border-slate-700 bg-slate-800/70 text-slate-500"
+                    : "border border-brand-500/70 bg-brand-500/20 text-brand-100 hover:border-brand-400 hover:bg-brand-500/30"
+                }`}
+              >
+                {sensorRead.loading ? (
+                  <>
+                    <ArrowPathIcon className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    Requesting...
+                  </>
+                ) : (
+                  "Sensor Read"
+                )}
+              </button>
+            </form>
+          </div>
+          {feedback ? (
+            <div
+              role="status"
+              className={`rounded-lg border px-3 py-2 text-xs ${
+                feedback.type === "success"
+                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
+                  : "border-rose-500/50 bg-rose-500/10 text-rose-200"
+              }`}
+            >
+              {feedback.message}
+            </div>
+          ) : null}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {CONTROL_DEVICES.map((device) => (
+              <ControlToggleButton
+                key={device.id}
+                label={device.label}
+                isOn={states[device.id]}
+                onClick={() => onToggle(device.id)}
+              />
+            ))}
+            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-xs text-slate-300 sm:col-span-2 xl:col-span-3">
+              <h4 className="text-sm font-semibold text-slate-200">Sensor Snapshot</h4>
+              {sensorSnapshot ? (
+                <>
+                  <dl className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wide text-slate-500">Soil moisture</dt>
+                      <dd className="text-sm text-slate-100">{applyUnit(moistureValue, "%")}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wide text-slate-500">Temperature</dt>
+                      <dd className="text-sm text-slate-100">{applyUnit(temperatureValue, "deg C")}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wide text-slate-500">Humidity</dt>
+                      <dd className="text-sm text-slate-100">{applyUnit(humidityValue, "%")}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wide text-slate-500">Flow rate</dt>
+                      <dd className="text-sm text-slate-100">{applyUnit(flowRateValue, "L/min")}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wide text-slate-500">Valve</dt>
+                      <dd className="text-sm text-slate-100">{valveDisplay}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wide text-slate-500">Reservoir float</dt>
+                      <dd className="text-sm text-slate-100">{reservoirDisplay}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wide text-slate-500">Cutoff float</dt>
+                      <dd className="text-sm text-slate-100">{cutoffDisplay}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wide text-slate-500">Soil raw reading</dt>
+                      <dd className="text-sm text-slate-100">{soilRawDisplay}</dd>
+                    </div>
+                  </dl>
+                  <p className="mt-3 text-[11px] text-slate-500">
+                    {snapshotTimestamp ? `Received ${snapshotTimestamp}` : "Timestamp unavailable"}
+                    {sensorRead.requestId ? ` - Request ${sensorRead.requestId}` : ""}
+                    {potIdDisplay ? ` - Pot ${potIdDisplay}` : ""}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-2 text-xs text-slate-500">
+                  No on-demand snapshot yet. Enter a pot id and press Sensor Read to fetch one.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
-
 function ControlToggleButton({
   label,
   isOn,
