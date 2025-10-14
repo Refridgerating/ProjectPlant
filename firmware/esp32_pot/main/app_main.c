@@ -11,6 +11,7 @@
 
 #define FW_VERSION "0.1.0"
 #define COMMAND_TASK_STACK 3072
+#define PING_TASK_STACK 2048
 
 static const char *TAG = "app";
 
@@ -88,6 +89,16 @@ static void mqtt_task(void *arg)
     }
 }
 
+static void ping_task(void *arg)
+{
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(MQTT_PING_INTERVAL_MS));
+        if (mqtt_client) {
+            mqtt_publish_ping(mqtt_client, DEVICE_ID);
+        }
+    }
+}
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "Starting ProjectPlant ESP32 node (%s)", FW_VERSION);
@@ -107,4 +118,5 @@ void app_main(void)
     xTaskCreate(sensor_task, "sensor_task", SENSOR_TASK_STACK, NULL, SENSOR_TASK_PRIORITY, NULL);
     xTaskCreate(mqtt_task, "mqtt_task", MQTT_TASK_STACK, NULL, MQTT_TASK_PRIORITY, NULL);
     xTaskCreate(handle_command_task, "command_task", COMMAND_TASK_STACK, NULL, MQTT_TASK_PRIORITY, NULL);
+    xTaskCreate(ping_task, "ping_task", PING_TASK_STACK, NULL, MQTT_TASK_PRIORITY, NULL);
 }

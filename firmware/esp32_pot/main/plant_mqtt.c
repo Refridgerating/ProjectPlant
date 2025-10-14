@@ -15,6 +15,45 @@
 static const char *TAG = "mqtt";
 static mqtt_command_callback_t command_callback = NULL;
 static char command_topic[96];
+static char device_id_buffer[64];
+
+static bool topic_equals(const char *topic, int topic_len, const char *expected)
+{
+    if (!topic || !expected) {
+        return false;
+    }
+    size_t expected_len = strlen(expected);
+    return topic_len == (int)expected_len && strncmp(topic, expected, expected_len) == 0;
+}
+
+void mqtt_publish_ping(esp_mqtt_client_handle_t client, const char *device_id)
+{
+    if (!client || !device_id || !device_id[0]) {
+        return;
+    }
+
+    cJSON *root = cJSON_CreateObject();
+    if (!root) {
+        return;
+    }
+
+    cJSON_AddStringToObject(root, "from", device_id);
+    cJSON_AddNumberToObject(root, "timestampMs", (double)(esp_timer_get_time() / 1000ULL));
+
+    char *payload = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!payload) {
+        return;
+    }
+
+    int msg_id = esp_mqtt_client_publish(client, MQTT_PING_TOPIC, payload, 0, 0, false);
+    if (msg_id >= 0) {
+        ESP_LOGI(TAG, "Published ping: %s", payload);
+    } else {
+        ESP_LOGW(TAG, "Failed to publish ping message");
+    }
+    cJSON_free(payload);
+}
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
@@ -25,11 +64,23 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "Connected to broker");
         esp_mqtt_client_subscribe(client, command_topic, 1);
+        esp_mqtt_client_subscribe(client, MQTT_PING_TOPIC, 0);
+        if (device_id_buffer[0]) {
+            mqtt_publish_ping(client, device_id_buffer);
+        }
         break;
     case MQTT_EVENT_DATA: {
-        mqtt_command_t cmd = mqtt_parse_command(event->data, event->data_len);
-        if (command_callback && cmd.type != MQTT_CMD_UNKNOWN) {
-            command_callback(&cmd);
+        if (topic_equals(event->topic, event->topic_len, command_topic)) {
+            mqtt_command_t cmd = mqtt_parse_command(event->data, event->data_len);
+            if (command_callback && cmd.type != MQTT_CMD_UNKNOWN) {
+                command_callback(&cmd);
+            }
+        } else if (topic_equals(event->topic, event->topic_len, MQTT_PING_TOPIC)) {
+            ESP_LOGI(TAG, "Ping topic %.*s payload %.*s",
+                     event->topic_len, event->topic,
+                     event->data_len, event->data);
+        } else {
+            ESP_LOGD(TAG, "Unhandled topic %.*s", event->topic_len, event->topic);
         }
         break;
     }
@@ -46,6 +97,11 @@ esp_mqtt_client_handle_t mqtt_client_start(const char *uri,
 {
     command_callback = cb;
     snprintf(command_topic, sizeof(command_topic), COMMAND_TOPIC_FMT, device_id);
+    device_id_buffer[0] = '\0';
+    if (device_id) {
+        strncpy(device_id_buffer, device_id, sizeof(device_id_buffer) - 1);
+        device_id_buffer[sizeof(device_id_buffer) - 1] = '\0';
+    }
 
     esp_mqtt_client_config_t cfg = {
         .broker = {

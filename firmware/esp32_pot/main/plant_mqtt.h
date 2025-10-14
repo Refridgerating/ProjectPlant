@@ -37,4 +37,7 @@ void mqtt_publish_status(esp_mqtt_client_handle_t client,
                          const char *version,
                          const char *status);
 
+void mqtt_publish_ping(esp_mqtt_client_handle_t client,
+                       const char *device_id);
+
 mqtt_command_t mqtt_parse_command(const char *payload, int payload_len);

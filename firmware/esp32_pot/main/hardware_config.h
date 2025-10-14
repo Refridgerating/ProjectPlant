@@ -11,6 +11,8 @@
 #define MQTT_BROKER_URI         "mqtt://192.168.0.15:1883"
 #define MQTT_USERNAME           NULL
 #define MQTT_PASSWORD           NULL
+#define MQTT_PING_TOPIC         "lab/ping"
+#define MQTT_PING_INTERVAL_MS   30000      // send heartbeat ping every 30 s
 
 // External ADC (ADS1115) + sensor power gating
 // Wiring: ADS1115 @ 0x48 on I2C; AIN0 = soil sensor; AIN1 = battery divider (1M : 330k)
@@ -49,4 +51,3 @@
 #define SENSORS_TOPIC_FMT       "pots/%s/sensors"
 #define STATUS_TOPIC_FMT        "pots/%s/status"
 #define COMMAND_TOPIC_FMT       "pots/%s/command"
-
