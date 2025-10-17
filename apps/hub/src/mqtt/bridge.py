@@ -10,10 +10,13 @@ from typing import Any, Optional
 
 from asyncio_mqtt import Client, Message
 
+from services.pump_status import PumpStatusSnapshot, pump_status_cache
 
 LOGGER_NAME = "projectplant.hub.mqtt.bridge"
 LEGACY_FIRMWARE_TELEMETRY_FILTER = "projectplant/pots/+/telemetry"
 CANONICAL_SENSOR_TOPIC_FMT = "pots/{pot_id}/sensors"
+LEGACY_FIRMWARE_STATUS_FILTER = "projectplant/pots/+/status"
+CANONICAL_STATUS_TOPIC_FMT = "pots/{pot_id}/status"
 
 
 @dataclass(frozen=True)
@@ -59,6 +62,7 @@ class MqttBridge:
         self._started = True
         self._logger.info("Starting MQTT bridge")
         self._tasks.append(asyncio.create_task(self._forward_firmware(), name="mqtt-bridge-firmware"))
+        self._tasks.append(asyncio.create_task(self._forward_status(), name="mqtt-bridge-status"))
 
     async def stop(self) -> None:
         if not self._started:
@@ -93,6 +97,23 @@ class MqttBridge:
             except Exception:  # pragma: no cover - best effort clean-up
                 pass
 
+    async def _forward_status(self) -> None:
+        topic_filter = LEGACY_FIRMWARE_STATUS_FILTER
+        try:
+            async with self._client.filtered_messages(topic_filter) as messages:
+                await self._client.subscribe(topic_filter)
+                async for message in messages:
+                    await self._handle_status_message(message)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # pragma: no cover - unexpected failures logged for observability
+            self._logger.exception("MQTT status bridge loop crashed")
+        finally:
+            try:
+                await self._client.unsubscribe(topic_filter)
+            except Exception:  # pragma: no cover - best effort clean-up
+                pass
+
     async def _handle_firmware_message(self, message: Message) -> None:
         pot_id = _extract_pot_id(message.topic)
         if not pot_id:
@@ -108,6 +129,23 @@ class MqttBridge:
         target_topic = CANONICAL_SENSOR_TOPIC_FMT.format(pot_id=pot_id)
         await self._client.publish(target_topic, payload_json, retain=True)
         self._logger.debug("Bridged %s -> %s", message.topic, target_topic)
+
+    async def _handle_status_message(self, message: Message) -> None:
+        pot_id = _extract_pot_id(message.topic)
+        if not pot_id:
+            self._logger.debug("Ignoring firmware status with unexpected topic: %s", message.topic)
+            return
+
+        snapshot = build_status_payload(message.payload, pot_id)
+        if snapshot is None:
+            self._logger.debug("Firmware status payload for %s could not be normalized", pot_id)
+            return
+
+        pump_status_cache.update(snapshot)
+        payload_json = json.dumps(snapshot.to_dict(), separators=(",", ":"))
+        target_topic = CANONICAL_STATUS_TOPIC_FMT.format(pot_id=pot_id)
+        await self._client.publish(target_topic, payload_json, retain=True)
+        self._logger.debug("Bridged status %s -> %s", message.topic, target_topic)
 
 
 def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[NormalizedTelemetry]:
@@ -152,6 +190,52 @@ def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[Normalized
         flowRateLpm=flow_rate_lpm,
         timestamp=timestamp,
         requestId=request_id,
+    )
+
+
+def build_status_payload(raw_payload: bytes, pot_id: str) -> Optional[PumpStatusSnapshot]:
+    try:
+        decoded = raw_payload.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+    try:
+        data = json.loads(decoded)
+    except json.JSONDecodeError:
+        return None
+
+    if not isinstance(data, dict):
+        return None
+
+    status = _coerce_str(data.get("status") or data.get("state"))
+    pump_on = _coerce_bool(data.get("pump_on"))
+    if pump_on is None:
+        pump_on = _coerce_bool(data.get("pumpOn"))
+    if pump_on is None:
+        pump_on = _coerce_bool(data.get("pump"))
+    if pump_on is None and status:
+        pump_on = _infer_pump_state(status)
+
+    request_id = _coerce_str(data.get("requestId") or data.get("request_id"))
+    timestamp_ms_float = _coerce_float(data.get("timestampMs") or data.get("timestamp_ms"))
+    timestamp_ms = int(timestamp_ms_float) if timestamp_ms_float is not None else None
+    timestamp_iso = _normalize_status_timestamp(data.get("timestamp"))
+    if timestamp_iso is None and timestamp_ms_float is not None:
+        timestamp_iso = _coerce_timestamp(timestamp_ms_float)
+
+    if status is None and pump_on is None and request_id is None and timestamp_iso is None and timestamp_ms is None:
+        return None
+
+    received_at = _utc_now_iso()
+
+    return PumpStatusSnapshot(
+        pot_id=pot_id,
+        status=status,
+        pump_on=pump_on,
+        request_id=request_id,
+        timestamp=timestamp_iso,
+        timestamp_ms=timestamp_ms,
+        received_at=received_at,
     )
 
 
@@ -223,6 +307,39 @@ def _isoformat(dt: datetime) -> str:
     if iso.endswith("+00:00"):
         return iso[:-6] + "Z"
     return iso
+
+
+def _normalize_status_timestamp(value: Any) -> Optional[str]:
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        try:
+            dt = datetime.fromisoformat(stripped.replace("Z", "+00:00"))
+        except ValueError:
+            return stripped
+        return _isoformat(dt)
+    return None
+
+
+def _infer_pump_state(status: str) -> Optional[bool]:
+    lowered = status.strip().lower()
+    if not lowered:
+        return None
+
+    positive_markers = {"pump_on", "on", "running", "active", "open", "enabled"}
+    negative_markers = {"pump_off", "off", "stopped", "idle", "closed", "disabled"}
+
+    if lowered in positive_markers or lowered.endswith("_on"):
+        return True
+    if lowered in negative_markers or lowered.endswith("_off"):
+        return False
+
+    if "on" in lowered and "off" not in lowered:
+        return True
+    if "off" in lowered and "on" not in lowered:
+        return False
+    return None
 
 
 def _coerce_str(value: Any) -> Optional[str]:

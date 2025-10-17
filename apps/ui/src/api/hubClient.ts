@@ -110,6 +110,13 @@ export type RequestSensorReadOptions = {
   signal?: AbortSignal;
 };
 
+export type ControlPumpOptions = {
+  on: boolean;
+  durationMs?: number;
+  timeout?: number;
+  signal?: AbortSignal;
+};
+
 export type WateringRequestSample = {
   timestamp: string;
   temperature_c: number | null;
@@ -312,6 +319,69 @@ export async function requestSensorRead(
   const payload = (await response.json()) as SensorReadPayload;
   const requestId = response.headers.get("x-command-request-id");
   return { payload, requestId };
+}
+
+export async function controlPump(potId: string, options: ControlPumpOptions): Promise<SensorReadResponse> {
+  const trimmedId = potId.trim();
+  if (!trimmedId) {
+    throw new Error("Pot ID is required to control the pump");
+  }
+
+  const { on, durationMs, timeout, signal } = options;
+  if (typeof on !== "boolean") {
+    throw new Error("Pump command requires an on/off state");
+  }
+
+  if (durationMs !== undefined) {
+    if (Number.isNaN(durationMs) || !Number.isFinite(durationMs)) {
+      throw new Error("Pump duration must be a finite number of milliseconds");
+    }
+    if (durationMs <= 0) {
+      throw new Error("Pump duration must be greater than zero");
+    }
+  }
+
+  if (timeout !== undefined) {
+    if (Number.isNaN(timeout) || !Number.isFinite(timeout)) {
+      throw new Error("Pump timeout must be a finite number of seconds");
+    }
+    if (timeout <= 0) {
+      throw new Error("Pump timeout must be greater than zero");
+    }
+  }
+
+  const payload: Record<string, unknown> = { on };
+  if (durationMs !== undefined) {
+    payload["durationMs"] = durationMs;
+  }
+  if (timeout !== undefined) {
+    payload["timeout"] = timeout;
+  }
+
+  const url = `${apiBase()}/plant-control/${encodeURIComponent(trimmedId)}/pump`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal,
+  });
+
+  if (!response.ok) {
+    let message = `Failed to control pump (${response.status})`;
+    try {
+      const problem = await response.json();
+      if (problem && typeof problem.detail === "string") {
+        message = problem.detail;
+      }
+    } catch {
+      // ignore JSON parsing errors
+    }
+    throw new Error(message);
+  }
+
+  const payloadJson = (await response.json()) as SensorReadPayload;
+  const requestId = response.headers.get("x-command-request-id");
+  return { payload: payloadJson, requestId };
 }
 
 export async function fetchLocalWeather(

@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from config import settings
 from main import create_app
 from services.plant_lookup import plant_lookup_service
+from services.pump_status import pump_status_cache
 
 try:  # aggregator is optional in some test contexts
     from services.plant_aggregator import plant_aggregator_service
@@ -30,11 +31,13 @@ def anyio_backend() -> str:
 def _reset_plant_services() -> None:
     plant_lookup_service._suggest_cache.clear()  # type: ignore[attr-defined]
     plant_lookup_service._details_cache.clear()  # type: ignore[attr-defined]
+    pump_status_cache.clear()
     if plant_aggregator_service is not None:
         plant_aggregator_service.clear()
     yield
     plant_lookup_service._suggest_cache.clear()  # type: ignore[attr-defined]
     plant_lookup_service._details_cache.clear()  # type: ignore[attr-defined]
+    pump_status_cache.clear()
     if plant_aggregator_service is not None:
         plant_aggregator_service.clear()
 

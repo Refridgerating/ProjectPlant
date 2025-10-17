@@ -40,7 +40,8 @@ void mqtt_publish_reading(esp_mqtt_client_handle_t client,
 void mqtt_publish_status(esp_mqtt_client_handle_t client,
                          const char *device_id,
                          const char *version,
-                         const char *status);
+                         const char *status,
+                         const char *request_id);
 
 void mqtt_publish_ping(esp_mqtt_client_handle_t client,
                        const char *device_id);

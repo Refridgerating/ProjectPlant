@@ -39,15 +39,17 @@ static void handle_command_task(void *arg)
             case MQTT_CMD_PUMP_OVERRIDE:
                 ESP_LOGI(TAG, "Pump command: %s duration %u ms", cmd.pump_on ? "ON" : "OFF", (unsigned)cmd.duration_ms);
                 sensors_set_pump_state(cmd.pump_on);
+                const char *request_id = cmd.request_id[0] ? cmd.request_id : NULL;
                 if (mqtt_client) {
                     mqtt_publish_status(mqtt_client, DEVICE_ID, FW_VERSION,
-                                        cmd.pump_on ? "pump_on" : "pump_off");
+                                        cmd.pump_on ? "pump_on" : "pump_off",
+                                        request_id);
                 }
                 if (cmd.pump_on && cmd.duration_ms > 0) {
                     vTaskDelay(pdMS_TO_TICKS(cmd.duration_ms));
                     sensors_set_pump_state(false);
                     if (mqtt_client) {
-                        mqtt_publish_status(mqtt_client, DEVICE_ID, FW_VERSION, "pump_timeout_off");
+                        mqtt_publish_status(mqtt_client, DEVICE_ID, FW_VERSION, "pump_timeout_off", request_id);
                     }
                 }
                 break;
@@ -92,7 +94,7 @@ static void mqtt_task(void *arg)
     sensor_reading_t reading;
     vTaskDelay(pdMS_TO_TICKS(2000));
     if (mqtt_client) {
-        mqtt_publish_status(mqtt_client, DEVICE_ID, FW_VERSION, "online");
+        mqtt_publish_status(mqtt_client, DEVICE_ID, FW_VERSION, "online", NULL);
     }
     while (true) {
         if (measurement_queue && xQueueReceive(measurement_queue, &reading, portMAX_DELAY) == pdTRUE) {

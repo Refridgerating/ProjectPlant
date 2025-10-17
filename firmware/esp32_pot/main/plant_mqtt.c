@@ -192,7 +192,8 @@ void mqtt_publish_reading(esp_mqtt_client_handle_t client,
 void mqtt_publish_status(esp_mqtt_client_handle_t client,
                          const char *device_id,
                          const char *version,
-                         const char *status)
+                         const char *status,
+                         const char *request_id)
 {
     if (!client || !device_id || !status) {
         return;
@@ -205,6 +206,9 @@ void mqtt_publish_status(esp_mqtt_client_handle_t client,
 
     add_common_fields(root, device_id, esp_timer_get_time() / 1000ULL);
     cJSON_AddStringToObject(root, "status", status);
+    if (request_id && request_id[0]) {
+        cJSON_AddStringToObject(root, "requestId", request_id);
+    }
     if (version) {
         cJSON_AddStringToObject(root, "fwVersion", version);
     }

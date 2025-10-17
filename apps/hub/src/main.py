@@ -1,7 +1,10 @@
+import logging
+import time
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-import logging, time
+from fastapi.responses import JSONResponse
 
 from config import settings
 from api.search_router import router as search_router
@@ -18,7 +21,21 @@ if not logger.handlers:
     )
 
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.app_name, version=settings.app_version)
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        if settings.mqtt_enabled:
+            logger.info("MQTT enabled; connecting...")
+            await mqtt_startup(settings)
+        else:
+            logger.info("MQTT disabled (set MQTT_ENABLED=true to enable).")
+        try:
+            yield
+        finally:
+            await mqtt_shutdown()
+            await weather_service.close()
+            await plant_lookup_service.close()
+
+    app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=lifespan)
 
     app.add_middleware(
         CORSMiddleware,
@@ -46,20 +63,6 @@ def create_app() -> FastAPI:
 
     app.include_router(search_router)
     app.include_router(v1_router)
-
-    @app.on_event("startup")
-    async def _startup():
-        if settings.mqtt_enabled:
-            logger.info("MQTT enabled; connecting...")
-            await mqtt_startup(settings)
-        else:
-            logger.info("MQTT disabled (set MQTT_ENABLED=true to enable).")
-
-    @app.on_event("shutdown")
-    async def _shutdown():
-        await mqtt_shutdown()
-        await weather_service.close()
-        await plant_lookup_service.close()
 
     return app
 

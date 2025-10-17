@@ -17,6 +17,7 @@ import { LocalConditionsMap } from "./components/LocalConditionsMap";
 import { MyPlantsTab } from "./components/MyPlantsTab";
 import { ConnectionBadges } from "./components/ConnectionBadges";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { usePumpControl, type UsePumpControlResult } from "./hooks/usePumpControl";
 import { useSensorRead } from "./hooks/useSensorRead";
 import { getSettings } from "./settings";
 

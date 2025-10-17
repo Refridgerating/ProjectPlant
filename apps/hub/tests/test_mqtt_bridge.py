@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from mqtt.bridge import build_sensor_payload
+from mqtt.bridge import build_sensor_payload, build_status_payload
 
 
 def _encode(payload: dict) -> bytes:
@@ -54,3 +54,36 @@ def test_build_sensor_payload_returns_none_when_unusable():
 def test_build_sensor_payload_handles_invalid_json():
     normalized = build_sensor_payload(b"not-json", "pot-123")
     assert normalized is None
+
+
+def test_build_status_payload_normalizes_fields():
+    payload = {
+        "status": "pump_on",
+        "pump_on": True,
+        "requestId": "req-321",
+        "timestampMs": 1_700_000_000_000,
+    }
+    snapshot = build_status_payload(_encode(payload), "pot-status")
+    assert snapshot is not None
+    data = snapshot.to_dict()
+    assert data["potId"] == "pot-status"
+    assert data["status"] == "pump_on"
+    assert data["pumpOn"] is True
+    assert data["requestId"] == "req-321"
+    assert data["timestampMs"] == 1_700_000_000_000
+    assert data["timestamp"].endswith("Z")
+    assert data["receivedAt"].endswith("Z")
+
+
+def test_build_status_payload_inferrs_state_from_status_string():
+    payload = {"status": "pump_off"}
+    snapshot = build_status_payload(_encode(payload), "pot-off")
+    assert snapshot is not None
+    data = snapshot.to_dict()
+    assert data["pumpOn"] is False
+    assert data["status"] == "pump_off"
+
+
+def test_build_status_payload_handles_invalid_payload():
+    assert build_status_payload(b"not-json", "pot-err") is None
+    assert build_status_payload(_encode({"ignored": True}), "pot-empty") is None
