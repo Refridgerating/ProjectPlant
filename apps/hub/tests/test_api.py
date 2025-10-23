@@ -21,3 +21,5 @@ def test_v1_info(client: TestClient) -> None:
     assert payload["mqtt_enabled"] == settings.mqtt_enabled
     assert payload["mqtt_host"] == settings.mqtt_host
     assert payload["mqtt_port"] == settings.mqtt_port
+    assert payload["pot_telemetry_retention_hours"] == settings.pot_telemetry_retention_hours
+    assert payload["pot_telemetry_max_rows"] == settings.pot_telemetry_max_rows

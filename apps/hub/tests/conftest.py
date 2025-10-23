@@ -1,4 +1,5 @@
 
+import asyncio
 import sys
 from pathlib import Path
 from typing import Any, Callable, Dict
@@ -10,6 +11,8 @@ from config import settings
 from main import create_app
 from services.plant_lookup import plant_lookup_service
 from services.pump_status import pump_status_cache
+from services.telemetry import telemetry_store
+from services.plant_telemetry import plant_telemetry_store
 
 try:  # aggregator is optional in some test contexts
     from services.plant_aggregator import plant_aggregator_service
@@ -32,12 +35,16 @@ def _reset_plant_services() -> None:
     plant_lookup_service._suggest_cache.clear()  # type: ignore[attr-defined]
     plant_lookup_service._details_cache.clear()  # type: ignore[attr-defined]
     pump_status_cache.clear()
+    asyncio.run(telemetry_store.clear())
+    asyncio.run(plant_telemetry_store.clear())
     if plant_aggregator_service is not None:
         plant_aggregator_service.clear()
     yield
     plant_lookup_service._suggest_cache.clear()  # type: ignore[attr-defined]
     plant_lookup_service._details_cache.clear()  # type: ignore[attr-defined]
     pump_status_cache.clear()
+    asyncio.run(telemetry_store.clear())
+    asyncio.run(plant_telemetry_store.clear())
     if plant_aggregator_service is not None:
         plant_aggregator_service.clear()
 

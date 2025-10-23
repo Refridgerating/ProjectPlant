@@ -6,6 +6,7 @@ from .mock_router import mock_router
 from .plant_control_router import router as plant_control_router
 from .plant_router import router as plant_router
 from .weather_router import router as weather_router
+from .telemetry_router import router as telemetry_router
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
 router.include_router(mock_router)
@@ -13,6 +14,7 @@ router.include_router(plant_control_router)
 router.include_router(irrigation_router)
 router.include_router(plant_router)
 router.include_router(weather_router)
+router.include_router(telemetry_router)
 
 
 @router.get("/health")
@@ -30,4 +32,6 @@ async def info():
         "mqtt_enabled": settings.mqtt_enabled,
         "mqtt_host": settings.mqtt_host,
         "mqtt_port": settings.mqtt_port,
+        "pot_telemetry_retention_hours": settings.pot_telemetry_retention_hours,
+        "pot_telemetry_max_rows": settings.pot_telemetry_max_rows,
     }

@@ -1,10 +1,13 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, field_validator
+from pathlib import Path
 from typing import List
+
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # Load apps/hub/.env and accept env keys in any case
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
+    _env_file = Path(__file__).resolve().parent.parent / ".env"
+    model_config = SettingsConfigDict(env_file=str(_env_file), extra="ignore", case_sensitive=False)
 
     # use lowercase field names (pydantic best practice)
     app_name: str = "ProjectPlant Hub"
@@ -38,6 +41,16 @@ class Settings(BaseSettings):
     openfarm_base_url: str = Field(default="https://openfarm.cc/api/v1")
     plant_lookup_timeout: float = Field(default=6.0, ge=1.0, description="Timeout for plant enrichment HTTP calls")
     plant_lookup_cache_ttl: int = Field(default=1800, ge=0, description="Cache duration (seconds) for plant lookups")
+    pot_telemetry_db: str = Field(
+        default="data/pot_telemetry.sqlite",
+        description="SQLite database path for persisted pot telemetry samples.",
+    )
+    pot_telemetry_retention_hours: int = Field(default=168, ge=1, description="Retention window for pot telemetry")
+    pot_telemetry_max_rows: int = Field(
+        default=12_000,
+        ge=100,
+        description="Maximum number of telemetry rows to retain before pruning oldest samples.",
+    )
 
     @field_validator("cors_origins", mode="before")
     @classmethod

@@ -18,6 +18,7 @@ COMMAND_TOPIC_FMT = "pots/{pot_id}/command"
 SENSORS_TOPIC_FMT = "pots/{pot_id}/sensors"
 STATUS_TOPIC_FMT = "pots/{pot_id}/status"
 FRESHNESS_SLACK_SECONDS = 0.5
+MIN_REAL_TIMESTAMP = datetime(2020, 1, 1, tzinfo=timezone.utc).timestamp()
 
 
 class CommandServiceError(RuntimeError):
@@ -99,51 +100,104 @@ class CommandService:
         start_monotonic = time.monotonic()
         command_start_epoch = datetime.now(timezone.utc).timestamp()
 
-        async with client.filtered_messages(sensors_topic) as messages:
+        subscribe_attempts = 0
+        self._logger.info(
+            "Starting %s command for %s (requestId=%s, timeout=%.2fs)",
+            command,
+            pot_id,
+            request_id,
+            target_timeout,
+        )
+        while True:
             try:
-                await client.subscribe(sensors_topic)
-            except MqttError as exc:
-                raise CommandServiceError(f"Failed to subscribe to {sensors_topic}") from exc
-
-            try:
-                await client.publish(command_topic, payload_json, qos=1, retain=False)
-            except MqttError as exc:
-                raise CommandServiceError(f"Failed to publish {command} command to {command_topic}") from exc
-
-            deadline = start_monotonic + target_timeout
-            try:
-                while True:
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        raise CommandTimeoutError(f"Timed out waiting for sensor reading on {sensors_topic}")
+                async with client.filtered_messages(sensors_topic) as messages:
+                    try:
+                        await client.subscribe(sensors_topic)
+                        subscribe_attempts = 0
+                        self._logger.info("Subscribed to %s", sensors_topic)
+                    except MqttError as exc:
+                        subscribe_attempts += 1
+                        if subscribe_attempts >= 3:
+                            raise CommandServiceError(f"Failed to subscribe to {sensors_topic}") from exc
+                        sleep_for = min(0.5 * subscribe_attempts, 2.0)
+                        self._logger.warning(
+                            "Subscribe to %s failed (%s); retrying in %.1fs", sensors_topic, exc, sleep_for
+                        )
+                        await asyncio.sleep(sleep_for)
+                        continue
 
                     try:
-                        message = await asyncio.wait_for(messages.__anext__(), timeout=remaining)
-                    except asyncio.TimeoutError as exc:
-                        raise CommandTimeoutError(f"Timed out waiting for sensor reading on {sensors_topic}") from exc
+                        await client.publish(command_topic, payload_json, qos=1, retain=False)
+                        self._logger.info("Published %s command to %s", command, command_topic)
                     except MqttError as exc:
-                        raise CommandServiceError("MQTT error while awaiting sensor reading") from exc
+                        raise CommandServiceError(f"Failed to publish {command} command to {command_topic}") from exc
 
-                    data = self._decode_payload(message.payload)
-                    if data is None:
-                        continue
+                    deadline = start_monotonic + target_timeout
+                    try:
+                        while True:
+                            remaining = deadline - time.monotonic()
+                            if remaining <= 0:
+                                raise CommandTimeoutError(f"Timed out waiting for sensor reading on {sensors_topic}")
 
-                    timestamp = self._extract_timestamp(data)
-                    if timestamp is not None and timestamp + FRESHNESS_SLACK_SECONDS < command_start_epoch:
-                        self._logger.debug(
-                            "Ignoring stale sensor payload for %s (timestamp=%s)", pot_id, timestamp
-                        )
-                        continue
+                            try:
+                                message = await asyncio.wait_for(messages.__anext__(), timeout=remaining)
+                            except asyncio.TimeoutError as exc:
+                                raise CommandTimeoutError(f"Timed out waiting for sensor reading on {sensors_topic}") from exc
+                            except MqttError as exc:
+                                self._logger.warning("MQTT error while awaiting sensor reading: %s", exc)
+                                break
 
-                    elapsed = time.monotonic() - start_monotonic
-                    self._logger.debug("Received sensor payload for %s after %s command in %.2f s", pot_id, command, elapsed)
-                    return SensorReadResult(request_id=request_id, payload=data)
-            finally:
-                try:
-                    await client.unsubscribe(sensors_topic)
-                except MqttError:
-                    # Best-effort cleanup; log at debug to avoid noisy shutdown.
-                    self._logger.debug("Failed to unsubscribe from %s during cleanup", sensors_topic, exc_info=True)
+                            data = self._decode_payload(message.payload)
+                            if data is None:
+                                self._logger.debug("Ignored non-JSON payload on %s", sensors_topic)
+                                continue
+
+                            response_request_id = data.get("requestId") or data.get("request_id")
+                            if response_request_id and response_request_id != request_id:
+                                self._logger.warning(
+                                    "Ignoring sensor payload for %s with unmatched requestId %r (expected %s)",
+                                    pot_id,
+                                    response_request_id,
+                                    request_id,
+                                )
+                                continue
+
+                            timestamp = self._extract_timestamp(data)
+                            if timestamp is not None and timestamp + FRESHNESS_SLACK_SECONDS < command_start_epoch:
+                                self._logger.debug(
+                                    "Ignoring stale sensor payload for %s (timestamp=%s)", pot_id, timestamp
+                                )
+                                continue
+
+                            self._logger.info(
+                                "Accepting sensor payload for %s with requestId=%r timestamp=%s",
+                                pot_id,
+                                response_request_id,
+                                timestamp,
+                            )
+                            elapsed = time.monotonic() - start_monotonic
+                            self._logger.debug(
+                                "Received sensor payload for %s after %s command in %.2f s",
+                                pot_id,
+                                command,
+                                elapsed,
+                            )
+                            return SensorReadResult(request_id=request_id, payload=data)
+                    finally:
+                        try:
+                            await client.unsubscribe(sensors_topic)
+                        except MqttError:
+                            self._logger.debug(
+                                "Failed to unsubscribe from %s during cleanup", sensors_topic, exc_info=True
+                            )
+
+            except CommandTimeoutError:
+                raise
+            except CommandServiceError:
+                raise
+            except Exception as exc:  # pragma: no cover
+                self._logger.warning("Sensor read loop encountered error: %s", exc, exc_info=True)
+                await asyncio.sleep(0.5)
 
     async def send_pump_override(
         self,
@@ -248,14 +302,23 @@ class CommandService:
         ts_iso = data.get("timestamp")
         if isinstance(ts_iso, str):
             try:
-                return datetime.fromisoformat(ts_iso.replace("Z", "+00:00")).timestamp()
+                dt = datetime.fromisoformat(ts_iso.replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                timestamp = dt.timestamp()
+                if timestamp < MIN_REAL_TIMESTAMP:
+                    return None
+                return timestamp
             except ValueError:
                 self._logger.debug("Failed to parse ISO timestamp: %s", ts_iso, exc_info=True)
 
         ts_ms = data.get("timestampMs")
         if ts_ms is not None:
             try:
-                return float(ts_ms) / 1000.0
+                timestamp = float(ts_ms) / 1000.0
+                if timestamp < MIN_REAL_TIMESTAMP:
+                    return None
+                return timestamp
             except (TypeError, ValueError):
                 self._logger.debug("Failed to parse millisecond timestamp: %r", ts_ms, exc_info=True)
         return None

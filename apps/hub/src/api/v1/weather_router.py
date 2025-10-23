@@ -27,6 +27,16 @@ class WeatherTelemetry(BaseModel):
     humidity_pct: float | None = Field(default=None, description="Relative humidity %")
     pressure_hpa: float | None = Field(default=None, description="Barometric pressure in hPa")
     solar_radiation_w_m2: float | None = Field(default=None, description="Solar radiation in W/m²")
+    wind_speed_m_s: float | None = Field(default=None, description="Wind speed in m/s at observation height")
+
+class WeatherStation(BaseModel):
+    id: str | None = None
+    name: str | None = None
+    identifier: str | None = None
+    lat: float | None = None
+    lon: float | None = None
+    distance_km: float | None = Field(default=None, description="Distance from requested location in kilometers")
+
 
 class WeatherResponse(BaseModel):
     location: dict[str, float]
@@ -34,6 +44,7 @@ class WeatherResponse(BaseModel):
     coverage_hours: float
     available_windows: list[float]
     data: list[WeatherTelemetry]
+    station: WeatherStation | None = None
 
 @router.get("/local", response_model=WeatherResponse)
 async def get_local_weather(
@@ -42,7 +53,7 @@ async def get_local_weather(
     hours: float = Depends(validate_hours),
 ):
     try:
-        payload = await weather_service.get_observations(lat, lon, hours)
+        payload, station_info = await weather_service.get_observations(lat, lon, hours)
     except httpx.HTTPStatusError as exc:
         raise HTTPException(status_code=exc.response.status_code, detail="Upstream weather service error") from exc
     except Exception as exc:  # noqa: B902
@@ -55,12 +66,14 @@ async def get_local_weather(
         available_windows = [ALLOWED_WINDOWS[0]]
 
     telemetry = [WeatherTelemetry(**entry) for entry in payload]
+    station_payload = WeatherStation(**station_info) if station_info else None
     return WeatherResponse(
         location={"lat": lat, "lon": lon},
         requested_hours=hours,
         coverage_hours=coverage_hours,
         available_windows=available_windows,
         data=telemetry,
+        station=station_payload,
     )
 
 def _calculate_coverage_hours(observations: list[dict[str, object]]) -> float:

@@ -11,7 +11,7 @@ def test_settings_loads_env_file_defaults():
         "tauri://localhost",
     ]
     assert settings.mqtt_enabled is True
-    assert settings.mqtt_host == "localhost"
+    assert settings.mqtt_host == "192.168.0.15"
 
 
 def test_settings_normalizes_cors_from_string():

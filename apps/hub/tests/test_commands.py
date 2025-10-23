@@ -71,6 +71,7 @@ class FakeClient:
             {
                 "timestamp": datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
                 "moisture": 58.1,
+                "requestId": data["requestId"],
             },
             separators=(",", ":"),
         )
@@ -99,6 +100,7 @@ class MalformedClient(FakeClient):
             {
                 "timestamp": datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
                 "moisture": 61.2,
+                "requestId": data["requestId"],
             },
             separators=(",", ":"),
         )
@@ -154,6 +156,36 @@ class SilentPumpStatusClient(PumpStatusClient):
         # Do not emit matching statuses to trigger timeout.
 
 
+class MismatchedRequestClient(FakeClient):
+    async def publish(self, topic: str, payload: str, qos: int = 0, retain: bool = False) -> None:
+        self.published.append((topic, payload, qos, retain))
+        data = json.loads(payload)
+        self.request_ids.append(data["requestId"])
+        sensors_topic = topic.replace("/command", "/sensors")
+
+        queue = self._queues.setdefault(sensors_topic, asyncio.Queue())
+
+        mismatched_payload = json.dumps(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+                "moisture": 12.3,
+                "requestId": "other-request",
+            },
+            separators=(",", ":"),
+        )
+        await queue.put(StubMessage(payload=mismatched_payload.encode("utf-8")))
+
+        matching_payload = json.dumps(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+                "moisture": 64.5,
+                "requestId": data["requestId"],
+            },
+            separators=(",", ":"),
+        )
+        await queue.put(StubMessage(payload=matching_payload.encode("utf-8")))
+
+
 @pytest.mark.anyio
 async def test_request_sensor_read_publishes_command_and_returns_fresh_payload(monkeypatch):
     pot_id = "pot-123"
@@ -202,6 +234,23 @@ async def test_request_sensor_read_skips_malformed_payloads(monkeypatch):
     assert fake_client.unsubscription_history == [f"pots/{pot_id}/sensors"]
     assert fake_client.request_ids == [result.request_id]
     assert result.payload["moisture"] == pytest.approx(61.2)
+
+
+@pytest.mark.anyio
+async def test_request_sensor_read_ignores_unmatched_request_ids(monkeypatch):
+    pot_id = "pot-mismatch"
+    fake_client = MismatchedRequestClient(pot_id)
+    manager = SimpleNamespace(get_client=lambda: fake_client)
+    monkeypatch.setattr(commands_module, "get_mqtt_manager", lambda: manager)
+
+    service = CommandService(default_timeout=1.0)
+    result = await service.request_sensor_read(pot_id)
+
+    assert fake_client.subscription_history == [f"pots/{pot_id}/sensors"]
+    assert fake_client.unsubscription_history == [f"pots/{pot_id}/sensors"]
+    assert result.payload["moisture"] == pytest.approx(64.5)
+    # Ensure the requestId echoed back matches the command
+    assert result.request_id == fake_client.request_ids[0]
 
 
 @pytest.mark.anyio

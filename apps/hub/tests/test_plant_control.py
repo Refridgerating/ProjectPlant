@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import asyncio
+import json
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 from fastapi.testclient import TestClient
 
+from main import create_app
+from services import commands as commands_module
 from services.commands import CommandServiceError, CommandTimeoutError, SensorReadResult, command_service
 from services.pump_status import PumpStatusSnapshot, pump_status_cache
 
@@ -57,6 +64,98 @@ def test_sensor_read_endpoint_service_error(client: TestClient, monkeypatch: pyt
     assert response.status_code == 503
     assert response.json() == {"detail": "MQTT manager is not connected"}
     mock.assert_awaited_once()
+
+
+class _EndpointMessageStream:
+    def __init__(self, queue: asyncio.Queue[bytes]) -> None:
+        self._queue = queue
+
+    async def __aenter__(self) -> "_EndpointMessageStream":
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        return None
+
+    def __aiter__(self) -> "_EndpointMessageStream":
+        return self
+
+    async def __anext__(self):
+        payload = await self._queue.get()
+        return SimpleNamespace(payload=payload)
+
+
+class _EndpointFakeClient:
+    def __init__(self, pot_id: str) -> None:
+        self.pot_id = pot_id
+        self._queues: dict[str, asyncio.Queue[bytes]] = {}
+        self.subscription_history: list[str] = []
+        self.unsubscription_history: list[str] = []
+        self.published: list[tuple[str, str, int, bool]] = []
+        self.request_ids: list[str] = []
+
+    def filtered_messages(self, topic: str) -> _EndpointMessageStream:
+        queue = self._queues.setdefault(topic, asyncio.Queue())
+        return _EndpointMessageStream(queue)
+
+    async def subscribe(self, topic: str) -> None:
+        self.subscription_history.append(topic)
+
+    async def unsubscribe(self, topic: str) -> None:
+        self.unsubscription_history.append(topic)
+
+    async def publish(self, topic: str, payload: str, qos: int = 0, retain: bool = False) -> None:
+        self.published.append((topic, payload, qos, retain))
+        data = json.loads(payload)
+        request_id = data["requestId"]
+        self.request_ids.append(request_id)
+
+        sensors_topic = topic.replace("/command", "/sensors")
+        queue = self._queues.setdefault(sensors_topic, asyncio.Queue())
+
+        stale_payload = json.dumps(
+            {
+                "potId": self.pot_id,
+                "timestamp": (datetime.now(timezone.utc) - timedelta(seconds=12)).isoformat().replace("+00:00", "Z"),
+                "moisture": 41.0,
+                "temperature": 20.5,
+                "valveOpen": False,
+            },
+            separators=(",", ":"),
+        )
+        fresh_payload = json.dumps(
+            {
+                "potId": self.pot_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+                "moisture": 58.1,
+                "temperature": 21.7,
+                "valveOpen": False,
+                "requestId": request_id,
+            },
+            separators=(",", ":"),
+        )
+        await queue.put(stale_payload.encode("utf-8"))
+        await queue.put(fresh_payload.encode("utf-8"))
+
+
+@pytest.mark.anyio
+async def test_sensor_read_endpoint_integration_round_trip(monkeypatch: pytest.MonkeyPatch, settings_override) -> None:
+    pot_id = "pot-integration"
+    fake_client = _EndpointFakeClient(pot_id)
+    manager = SimpleNamespace(get_client=lambda: fake_client)
+    monkeypatch.setattr(commands_module, "get_mqtt_manager", lambda: manager)
+
+    # ensure MQTT startup not attempted during app creation
+    settings_override(mqtt_enabled=False)
+    app = create_app()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as async_client:
+        response = await async_client.post(f"/api/v1/plant-control/{pot_id}/sensor-read", params={"timeout": "1.5"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["moisture"] == pytest.approx(58.1)
+    assert response.headers["X-Command-Request-Id"] == fake_client.request_ids[0]
 
 
 def test_control_pump_endpoint_success(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
