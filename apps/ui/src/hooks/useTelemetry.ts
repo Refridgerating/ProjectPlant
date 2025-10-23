@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { fetchMockTelemetry, TelemetrySample } from "../api/hubClient";
+import { fetchLiveTelemetry, fetchMockTelemetry, TelemetrySample } from "../api/hubClient";
+import { RuntimeMode } from "../settings";
+
+type UseTelemetryOptions = {
+  mode: RuntimeMode;
+  samples?: number;
+  hours?: number;
+};
 
 type State = {
   data: TelemetrySample[];
@@ -7,15 +14,26 @@ type State = {
   error: string | null;
 };
 
-export function useMockTelemetry(samples = 24) {
+function normalizeSamples(data: TelemetrySample[]): TelemetrySample[] {
+  return [...data].sort((a, b) => {
+    const at = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const bt = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return at - bt;
+  });
+}
+
+export function useTelemetry({ mode, samples = 24, hours = 24 }: UseTelemetryOptions) {
   const [{ data, loading, error }, setState] = useState<State>({ data: [], loading: true, error: null });
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
       setState((prev) => ({ ...prev, loading: true, error: null }));
       try {
-        const telemetry = await fetchMockTelemetry({ samples }, signal);
-        setState({ data: telemetry, loading: false, error: null });
+        const telemetry =
+          mode === "live"
+            ? await fetchLiveTelemetry({ hours, limit: samples }, signal)
+            : await fetchMockTelemetry({ samples }, signal);
+        setState({ data: normalizeSamples(telemetry), loading: false, error: null });
       } catch (err) {
         if (signal?.aborted) {
           return;
@@ -24,7 +42,7 @@ export function useMockTelemetry(samples = 24) {
         setState({ data: [], loading: false, error: message });
       }
     },
-    [samples]
+    [mode, samples, hours]
   );
 
   useEffect(() => {
@@ -40,6 +58,6 @@ export function useMockTelemetry(samples = 24) {
     latest,
     loading,
     error,
-    refresh: () => load()
+    refresh: () => load(),
   };
 }

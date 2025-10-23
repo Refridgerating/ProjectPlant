@@ -6,6 +6,8 @@ export type HubInfo = {
   mqtt_enabled: boolean;
   mqtt_host: string;
   mqtt_port: number;
+  pot_telemetry_retention_hours: number;
+  pot_telemetry_max_rows: number;
 };
 
 export type TelemetrySample = {
@@ -14,13 +16,26 @@ export type TelemetrySample = {
   humidity_pct: number | null;
   pressure_hpa: number | null;
   solar_radiation_w_m2: number | null;
+  moisture_pct?: number | null;
+  wind_speed_m_s?: number | null;
   station?: string | null;
+  source?: string | null;
+};
+
+export type WeatherStation = {
+  id: string | null;
+  name: string | null;
+  identifier: string | null;
+  lat: number | null;
+  lon: number | null;
+  distanceKm: number | null;
 };
 
 export type WeatherSeries = {
   samples: TelemetrySample[];
   coverageHours: number;
   availableWindows: number[];
+  station: WeatherStation | null;
 };
 
 export type WateringPlantProfile = {
@@ -279,7 +294,169 @@ export async function fetchMockTelemetry(
     throw new Error(`Failed to load mock telemetry (${response.status})`);
   }
   const payload = (await response.json()) as { data: TelemetrySample[] };
-  return payload.data;
+  return payload.data.map((sample) => ({
+    ...sample,
+    temperature_c: sample.temperature_c ?? null,
+    humidity_pct: sample.humidity_pct ?? null,
+    pressure_hpa: sample.pressure_hpa ?? null,
+    solar_radiation_w_m2: sample.solar_radiation_w_m2 ?? null,
+    moisture_pct: sample.moisture_pct ?? null,
+    wind_speed_m_s: sample.wind_speed_m_s ?? null,
+    station: sample.station ?? null,
+    source: sample.source ?? null,
+  }));
+}
+
+export async function fetchLiveTelemetry(
+  params?: { hours?: number; limit?: number },
+  signal?: AbortSignal
+): Promise<TelemetrySample[]> {
+  const search = new URLSearchParams();
+  if (params?.hours) {
+    search.set("hours", params.hours.toString());
+  }
+  if (params?.limit) {
+    search.set("limit", params.limit.toString());
+  }
+  const requestUrl = `${apiBase()}/telemetry/live${search.toString() ? `?${search}` : ""}`;
+  const response = await fetch(requestUrl, { signal });
+  if (!response.ok) {
+    throw new Error(`Failed to load live telemetry (${response.status})`);
+  }
+  const payload = (await response.json()) as { data?: TelemetrySample[] };
+  return (payload.data ?? []).map((entry) => ({
+    timestamp: entry.timestamp ?? "",
+    temperature_c: entry.temperature_c ?? null,
+    humidity_pct: entry.humidity_pct ?? null,
+    pressure_hpa: entry.pressure_hpa ?? null,
+    solar_radiation_w_m2: entry.solar_radiation_w_m2 ?? null,
+    moisture_pct: entry.moisture_pct ?? null,
+    wind_speed_m_s: entry.wind_speed_m_s ?? null,
+    station: entry.station ?? null,
+    source: entry.source ?? null,
+  }));
+}
+
+export async function fetchPotTelemetry(
+  potId: string,
+  params?: { hours?: number; limit?: number },
+  signal?: AbortSignal
+): Promise<TelemetrySample[]> {
+  const trimmed = potId.trim();
+  if (!trimmed) {
+    return [];
+  }
+  const search = new URLSearchParams();
+  if (params?.hours) {
+    search.set("hours", params.hours.toString());
+  }
+  if (params?.limit) {
+    search.set("limit", params.limit.toString());
+  }
+  const requestUrl = `${apiBase()}/telemetry/pots/${encodeURIComponent(trimmed)}${
+    search.toString() ? `?${search}` : ""
+  }`;
+  const response = await fetch(requestUrl, { signal });
+  if (response.status === 404) {
+    return [];
+  }
+  if (!response.ok) {
+    throw new Error(`Failed to load pot telemetry (${response.status})`);
+  }
+  const payload = (await response.json()) as { data?: Array<Record<string, unknown>> };
+  const samples = Array.isArray(payload.data) ? payload.data : [];
+  return samples.map((entry) => ({
+    timestamp: typeof entry["timestamp"] === "string" ? entry["timestamp"] : "",
+    temperature_c: _readNumber(entry["temperature_c"] ?? entry["temperature"]),
+    humidity_pct: _readNumber(entry["humidity_pct"] ?? entry["humidity"]),
+    pressure_hpa: _readNumber(entry["pressure_hpa"] ?? entry["pressure"]),
+    solar_radiation_w_m2: _readNumber(entry["solar_radiation_w_m2"] ?? entry["solar"]),
+    moisture_pct: _readNumber(entry["moisture_pct"] ?? entry["moisture"]),
+    wind_speed_m_s: _readNumber(entry["wind_speed_m_s"] ?? entry["wind"]),
+    station: typeof entry["potId"] === "string" ? entry["potId"] : null,
+    source: typeof entry["source"] === "string" ? entry["source"] : null,
+  }));
+}
+
+type PotTelemetryExportOptions = {
+  hours?: number;
+  limit?: number;
+  format?: "csv";
+  signal?: AbortSignal;
+};
+
+export async function exportPotTelemetry(
+  potId: string,
+  { hours, limit, format = "csv", signal }: PotTelemetryExportOptions = {}
+): Promise<{ blob: Blob; filename: string }> {
+  const trimmed = potId.trim();
+  if (!trimmed) {
+    throw new Error("Pot identifier is required for export");
+  }
+  const search = new URLSearchParams();
+  if (hours != null) {
+    search.set("hours", hours.toString());
+  }
+  if (limit != null) {
+    search.set("limit", limit.toString());
+  }
+  if (format) {
+    search.set("format", format);
+  }
+  const requestUrl = `${apiBase()}/telemetry/pots/${encodeURIComponent(trimmed)}/export${
+    search.toString() ? `?${search}` : ""
+  }`;
+  const response = await fetch(requestUrl, { signal });
+  if (!response.ok) {
+    let message = `Failed to export pot telemetry (${response.status})`;
+    try {
+      const payload = await response.json();
+      if (payload && typeof payload["detail"] === "string") {
+        message = payload["detail"];
+      }
+    } catch {
+      // ignore parse failure and fall back to generic message
+    }
+    throw new Error(message);
+  }
+  const blob = await response.blob();
+  const filename =
+    _parseContentDispositionFilename(response.headers.get("content-disposition")) ??
+    `pot-${trimmed}-telemetry.${format === "csv" ? "csv" : "dat"}`;
+  return { blob, filename };
+}
+
+function _readNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function _parseContentDispositionFilename(header: string | null): string | undefined {
+  if (!header) {
+    return undefined;
+  }
+  const starMatch = header.match(/filename\*=([^;]+)/i);
+  if (starMatch?.[1]) {
+    const raw = starMatch[1].trim();
+    const [, value = raw] = raw.split("''");
+    const unquoted = value.replace(/^["']|["']$/g, "");
+    try {
+      return decodeURIComponent(unquoted);
+    } catch {
+      return unquoted;
+    }
+  }
+  const match = header.match(/filename="?([^";]+)"?/i);
+  if (match?.[1]) {
+    return match[1].trim().replace(/^["']|["']$/g, "");
+  }
+  return undefined;
 }
 
 export async function requestSensorRead(
@@ -401,11 +578,30 @@ export async function fetchLocalWeather(
     data: TelemetrySample[];
     coverage_hours: number;
     available_windows: number[];
+    station?: {
+      id?: string | null;
+      name?: string | null;
+      identifier?: string | null;
+      lat?: number | null;
+      lon?: number | null;
+      distance_km?: number | null;
+    } | null;
   };
+  const station = payload.station
+    ? {
+        id: payload.station.id ?? null,
+        name: payload.station.name ?? null,
+        identifier: payload.station.identifier ?? null,
+        lat: payload.station.lat ?? null,
+        lon: payload.station.lon ?? null,
+        distanceKm: payload.station.distance_km ?? null,
+      }
+    : null;
   return {
     samples: payload.data ?? [],
     coverageHours: payload.coverage_hours ?? 0,
     availableWindows: payload.available_windows ?? [],
+    station,
   };
 }
 

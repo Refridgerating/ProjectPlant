@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSettings, setSettings, type UiSettings, discoverServer, testRestConnection } from "../settings";
+import { CollapsibleTile } from "./CollapsibleTile";
 
 export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [settings, setLocal] = useState<UiSettings>(() => getSettings());
@@ -70,8 +71,15 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
           </button>
         </div>
 
-        <section className="space-y-3">
-          <h3 className="text-sm font-semibold text-slate-200">Mode</h3>
+        <CollapsibleTile
+          id="settings-mode"
+          title="Mode"
+          subtitle="Choose between demo and live operation."
+          className="border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300"
+          bodyClassName="mt-3 space-y-3"
+          titleClassName="text-sm font-semibold text-slate-200"
+          subtitleClassName="text-xs text-slate-400"
+        >
           <div className="flex gap-2">
             <button
               type="button"
@@ -92,11 +100,18 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
               Live
             </button>
           </div>
-          <p className="text-xs text-slate-400">Switch between demo and live operation.</p>
-        </section>
+          <p className="text-xs text-slate-400">Demo mode uses mocked data; live mode connects to your hub.</p>
+        </CollapsibleTile>
 
-        <section className="mt-6 space-y-3">
-          <h3 className="text-sm font-semibold text-slate-200">Server</h3>
+        <CollapsibleTile
+          id="settings-server"
+          title="Server"
+          subtitle="Edit the REST base URL and discover nearby hubs."
+          className="mt-6 border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300"
+          bodyClassName="mt-3 space-y-3"
+          titleClassName="text-sm font-semibold text-slate-200"
+          subtitleClassName="text-xs text-slate-400"
+        >
           <div className="flex gap-2">
             <input
               type="text"
@@ -127,10 +142,17 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
             {testResult ? <span className="text-xs text-slate-400">{testResult}</span> : null}
           </div>
           <p className="text-xs text-slate-400">Discovered host/IP can be edited. Testing checks /api/v1/info.</p>
-        </section>
+        </CollapsibleTile>
 
-        <section className="mt-6 space-y-3">
-          <h3 className="text-sm font-semibold text-slate-200">MQTT Credentials</h3>
+        <CollapsibleTile
+          id="settings-mqtt"
+          title="MQTT Credentials"
+          subtitle="Stored locally; update when your broker credentials change."
+          className="mt-6 border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300"
+          bodyClassName="mt-3 space-y-3"
+          titleClassName="text-sm font-semibold text-slate-200"
+          subtitleClassName="text-xs text-slate-400"
+        >
           <div className="flex flex-col gap-2">
             <label className="text-xs text-slate-400">Username</label>
             <input
@@ -150,10 +172,17 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
             />
           </div>
           <p className="text-xs text-slate-400">Values are stored locally and masked.</p>
-        </section>
+        </CollapsibleTile>
 
-        <section className="mt-6 space-y-3">
-          <h3 className="text-sm font-semibold text-slate-200">Setup</h3>
+        <CollapsibleTile
+          id="settings-setup"
+          title="Setup"
+          subtitle="Relaunch the provisioning wizard."
+          className="mt-6 border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300"
+          bodyClassName="mt-3 space-y-3"
+          titleClassName="text-sm font-semibold text-slate-200"
+          subtitleClassName="text-xs text-slate-400"
+        >
           <button
             type="button"
             onClick={() => {
@@ -168,7 +197,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
             Re-run setup wizard
           </button>
           <p className="text-xs text-slate-400">Opens the provisioning wizard (if available).</p>
-        </section>
+        </CollapsibleTile>
 
         <div className="mt-8 flex items-center justify-end gap-2">
           <button

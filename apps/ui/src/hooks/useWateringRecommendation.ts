@@ -57,7 +57,7 @@ export function useWateringRecommendation(
         humidity_pct: sample.humidity_pct ?? null,
         pressure_hpa: sample.pressure_hpa ?? null,
         solar_radiation_w_m2: sample.solar_radiation_w_m2 ?? null,
-        wind_speed_m_s: null,
+        wind_speed_m_s: sample.wind_speed_m_s ?? null,
       }));
   }, [samples]);
 

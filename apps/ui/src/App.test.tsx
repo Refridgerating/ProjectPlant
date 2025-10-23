@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, vi } from "vitest";
 import App from "./App";
@@ -64,6 +64,7 @@ function createDeferred<T>() {
 }
 
 describe("App", () => {
+  let fetchPotTelemetryMock: ReturnType<typeof vi.spyOn>;
   const mockInfo = {
     name: "ProjectPlant Hub",
     version: "0.1.0",
@@ -72,6 +73,8 @@ describe("App", () => {
     mqtt_enabled: true,
     mqtt_host: "localhost",
     mqtt_port: 1883,
+    pot_telemetry_retention_hours: 168,
+    pot_telemetry_max_rows: 200_000,
   };
 
   const mockTelemetry = [
@@ -81,17 +84,29 @@ describe("App", () => {
       humidity_pct: 55.2,
       pressure_hpa: 1010.5,
       solar_radiation_w_m2: 450,
+      wind_speed_m_s: 1.75,
       station: "sensor-1",
+      source: "sensor",
     },
   ];
 
   beforeEach(() => {
     vi.spyOn(hubClient, "fetchHubInfo").mockResolvedValue(mockInfo);
     vi.spyOn(hubClient, "fetchMockTelemetry").mockResolvedValue(mockTelemetry);
+    vi.spyOn(hubClient, "fetchLiveTelemetry").mockResolvedValue(mockTelemetry);
+    fetchPotTelemetryMock = vi.spyOn(hubClient, "fetchPotTelemetry").mockResolvedValue([]);
     vi.spyOn(hubClient, "fetchLocalWeather").mockResolvedValue({
       samples: mockTelemetry,
       coverageHours: 1.5,
       availableWindows: [0.5, 1, 2],
+      station: {
+        id: "https://api.weather.gov/stations/KXYZ",
+        name: "Mock Station",
+        identifier: "KXYZ",
+        lat: 38.85,
+        lon: -77.04,
+        distanceKm: 4.2,
+      },
     });
     vi.spyOn(hubClient, "fetchWateringRecommendation").mockResolvedValue(mockWateringRecommendation);
 
@@ -140,8 +155,8 @@ describe("App", () => {
     expect(screen.getByText(/0\.1\.0/)).toBeInTheDocument();
     expect(screen.getByText(/broker localhost:1883/i)).toBeInTheDocument();
 
-    const plantTab = screen.getByRole("button", { name: /plant conditions/i });
-    const localTab = screen.getByRole("button", { name: /local area conditions/i });
+    const [plantTab] = screen.getAllByRole("button", { name: /plant conditions/i });
+    const [localTab] = screen.getAllByRole("button", { name: /local area conditions/i });
     expect(plantTab).toBeInTheDocument();
     expect(localTab).toBeInTheDocument();
 
@@ -152,6 +167,7 @@ describe("App", () => {
 
     await waitFor(() => expect(hubClient.fetchLocalWeather).toHaveBeenCalled());
     expect(await screen.findByRole("heading", { name: /local area conditions/i })).toBeInTheDocument();
+    expect(await screen.findByText("Wind Speed: 1.75 m/s")).toBeInTheDocument();
   });
 
   it("requests sensor snapshot and renders metrics", async () => {
@@ -171,6 +187,19 @@ describe("App", () => {
       },
       requestId: "req-42",
     };
+    fetchPotTelemetryMock.mockResolvedValue([
+      {
+        timestamp: response.payload.timestamp,
+        temperature_c: response.payload.temperature,
+        humidity_pct: response.payload.humidity,
+        pressure_hpa: null,
+        solar_radiation_w_m2: null,
+        moisture_pct: response.payload.moisture,
+        wind_speed_m_s: null,
+        station: "pot-55",
+        source: "test",
+      },
+    ]);
     const deferred = createDeferred<SensorReadResponse>();
     const requestSensorReadMock = vi.spyOn(hubClient, "requestSensorRead").mockReturnValueOnce(deferred.promise);
 
@@ -179,6 +208,7 @@ describe("App", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /plant control/i }));
     await waitFor(() => expect(screen.getByRole("heading", { name: /manual controls/i })).toBeInTheDocument());
+    expect(screen.getByRole("heading", { name: /penman-monteith equation/i })).toBeInTheDocument();
 
     const input = screen.getByLabelText(/pot id/i);
     await userEvent.type(input, " pot-55 ");
@@ -208,6 +238,35 @@ describe("App", () => {
     expect(screen.getByText(/Pot pot-55/)).toBeInTheDocument();
     expect(screen.getByText(/Reservoir low/)).toBeInTheDocument();
     expect(screen.getByText(/Cutoff OK/)).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(fetchPotTelemetryMock).toHaveBeenCalledWith(
+        "pot-55",
+        expect.objectContaining({ hours: 24, limit: 86_400 }),
+        expect.any(AbortSignal)
+      )
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /plant conditions/i }));
+    const seriesSelect = await screen.findByLabelText(/Series/i);
+    expect(seriesSelect).toHaveValue("pot-55");
+    const rangeSelect = await screen.findByLabelText(/^Range$/i);
+    expect(rangeSelect).toHaveValue("1d");
+    const initialRangeBadges = await screen.findAllByText(/Last 24 hours/i);
+    expect(initialRangeBadges.length).toBeGreaterThan(0);
+    const telemetryTable = await screen.findByRole("table");
+    expect(within(telemetryTable).getByText("55.5")).toBeInTheDocument();
+    expect(within(telemetryTable).getByText("22.7")).toBeInTheDocument();
+
+    const initialFetchCount = fetchPotTelemetryMock.mock.calls.length;
+    await userEvent.selectOptions(rangeSelect, "5m");
+    await waitFor(() => expect(fetchPotTelemetryMock.mock.calls.length).toBeGreaterThan(initialFetchCount));
+    const lastCall = fetchPotTelemetryMock.mock.calls[fetchPotTelemetryMock.mock.calls.length - 1];
+    expect(lastCall?.[0]).toBe("pot-55");
+    expect(lastCall?.[1]).toMatchObject({ hours: 5 / 60, limit: 300 });
+    expect(lastCall?.[2]).toBeInstanceOf(AbortSignal);
+    const updatedRangeBadges = await screen.findAllByText(/Last 5 minutes/i);
+    expect(updatedRangeBadges.length).toBeGreaterThan(0);
   });
 
   it("shows error feedback when sensor read fails", async () => {
@@ -220,6 +279,7 @@ describe("App", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /plant control/i }));
     await waitFor(() => expect(screen.getByRole("heading", { name: /manual controls/i })).toBeInTheDocument());
+    expect(screen.getByRole("heading", { name: /penman-monteith equation/i })).toBeInTheDocument();
 
     const input = screen.getByLabelText(/pot id/i);
     await userEvent.type(input, " pot-88 ");

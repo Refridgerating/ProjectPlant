@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
+#include <time.h>
 
 #include "cJSON.h"
 #include "esp_err.h"
@@ -11,11 +13,15 @@
 #include "esp_timer.h"
 
 #include "hardware_config.h"
+#include "time_sync.h"
 
 static const char *TAG = "mqtt";
 static mqtt_command_callback_t command_callback = NULL;
 static char command_topic[96];
 static char device_id_buffer[64];
+static const uint64_t MIN_VALID_TIMESTAMP_MS = 1609459200ULL * 1000ULL;
+
+static uint64_t current_epoch_ms(void);
 
 static bool topic_equals(const char *topic, int topic_len, const char *expected)
 {
@@ -38,7 +44,7 @@ void mqtt_publish_ping(esp_mqtt_client_handle_t client, const char *device_id)
     }
 
     cJSON_AddStringToObject(root, "from", device_id);
-    cJSON_AddNumberToObject(root, "timestampMs", (double)(esp_timer_get_time() / 1000ULL));
+    cJSON_AddNumberToObject(root, "timestampMs", (double)current_epoch_ms());
 
     char *payload = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -137,11 +143,60 @@ static inline bool is_valid_float(float value)
     return !isnan(value) && !isinf(value);
 }
 
+static uint64_t current_epoch_ms(void)
+{
+    struct timeval now;
+    if (time_sync_is_time_valid() && gettimeofday(&now, NULL) == 0) {
+        return ((uint64_t)now.tv_sec * 1000ULL) + ((uint64_t)now.tv_usec / 1000ULL);
+    }
+    return (uint64_t)(esp_timer_get_time() / 1000ULL);
+}
+
+static bool format_iso8601_timestamp(uint64_t timestamp_ms, char *buffer, size_t buffer_len)
+{
+    if (!buffer || buffer_len == 0) {
+        return false;
+    }
+
+    time_t seconds = (time_t)(timestamp_ms / 1000ULL);
+    struct tm tm_utc;
+    if (gmtime_r(&seconds, &tm_utc) == NULL) {
+        return false;
+    }
+
+    unsigned millis = (unsigned)(timestamp_ms % 1000ULL);
+    int written = snprintf(
+        buffer,
+        buffer_len,
+        "%04d-%02d-%02dT%02d:%02d:%02d.%03uZ",
+        tm_utc.tm_year + 1900,
+        tm_utc.tm_mon + 1,
+        tm_utc.tm_mday,
+        tm_utc.tm_hour,
+        tm_utc.tm_min,
+        tm_utc.tm_sec,
+        millis
+    );
+    return written > 0 && (size_t)written < buffer_len;
+}
+
 static void add_common_fields(cJSON *root, const char *device_id, uint64_t timestamp_ms)
 {
     cJSON_AddStringToObject(root, "potId", device_id);
-    if (timestamp_ms > 0) {
-        cJSON_AddNumberToObject(root, "timestampMs", (double)timestamp_ms);
+    uint64_t effective_ts = timestamp_ms;
+    if (effective_ts == 0) {
+        effective_ts = current_epoch_ms();
+    } else if (effective_ts < MIN_VALID_TIMESTAMP_MS) {
+        uint64_t now_ms = current_epoch_ms();
+        if (now_ms >= MIN_VALID_TIMESTAMP_MS) {
+            effective_ts = now_ms;
+        }
+    }
+
+    cJSON_AddNumberToObject(root, "timestampMs", (double)effective_ts);
+    char iso_timestamp[32];
+    if (format_iso8601_timestamp(effective_ts, iso_timestamp, sizeof(iso_timestamp))) {
+        cJSON_AddStringToObject(root, "timestamp", iso_timestamp);
     }
 }
 
@@ -204,7 +259,7 @@ void mqtt_publish_status(esp_mqtt_client_handle_t client,
         return;
     }
 
-    add_common_fields(root, device_id, esp_timer_get_time() / 1000ULL);
+    add_common_fields(root, device_id, current_epoch_ms());
     cJSON_AddStringToObject(root, "status", status);
     if (request_id && request_id[0]) {
         cJSON_AddStringToObject(root, "requestId", request_id);

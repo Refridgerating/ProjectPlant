@@ -10,24 +10,24 @@ type PageShellProps = {
 
 export function PageShell({ title, subtitle, actions, children }: PageShellProps) {
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+    <div className="min-h-screen bg-[#041510] text-emerald-50">
+      <header className="border-b border-emerald-900/40 bg-[rgba(7,31,21,0.88)] shadow-[0_10px_30px_rgba(6,24,17,0.55)] backdrop-blur">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
           <div>
             <div className="flex items-center gap-3">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-500/20 text-brand-300">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-200 shadow-inner shadow-emerald-900/50">
                 <Bars3Icon className="h-6 w-6" aria-hidden="true" />
               </span>
               <div>
-                <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-                {subtitle ? <p className="text-sm text-slate-400">{subtitle}</p> : null}
+                <h1 className="text-xl font-semibold tracking-tight text-emerald-50">{title}</h1>
+                {subtitle ? <p className="text-sm text-emerald-200/70">{subtitle}</p> : null}
               </div>
             </div>
           </div>
           {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-6 py-10">
+      <main className="w-full px-6 py-12">
         {children}
       </main>
     </div>

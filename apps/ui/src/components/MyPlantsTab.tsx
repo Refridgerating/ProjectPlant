@@ -8,6 +8,7 @@ import {
   IrrigationZone,
 } from "../api/hubClient";
 import { usePlantCatalog } from "../hooks/usePlantCatalog";
+import { CollapsibleTile } from "./CollapsibleTile";
 
 type FormState = {
   nickname: string;
@@ -478,75 +479,76 @@ export function MyPlantsTab() {
 
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-        <header className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-100">Add a plant</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Search for a species to pull taxonomy, imagery, and care guidance. Smart pots auto-detect their vessel; garden plants can be linked to an irrigation zone.
-            </p>
-          </div>
-          {detectionState.model ? (
-            <div className="rounded-lg border border-cyan-500/50 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
+    <div className="space-y-6 text-emerald-100/85">
+      <CollapsibleTile
+        id="my-plants-add"
+        title="Add a plant"
+        subtitle="Search for a species to pull taxonomy, imagery, and care guidance. Smart pots auto-detect their vessel; garden plants can be linked to an irrigation zone."
+        className="p-6 text-emerald-100/85"
+        bodyClassName="mt-6 space-y-4"
+        titleClassName="text-lg font-semibold text-emerald-50"
+        subtitleClassName="text-sm text-emerald-200/70"
+        actions={
+          detectionState.model ? (
+            <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-xs text-emerald-100">
               <p className="font-semibold">Detected pot</p>
               <p>{detectionState.model.name}</p>
             </div>
-          ) : null}
-        </header>
-
-        <form className="mt-6 grid gap-5 lg:grid-cols-2" onSubmit={handleSubmit}>
+          ) : null
+        }
+      >
+        <form className="grid gap-5 lg:grid-cols-2" onSubmit={handleSubmit}>
           <div className="space-y-4">
-            <label className="block text-sm text-slate-300">
-              <span className="mb-1 block font-medium text-slate-200">Plant nickname</span>
+            <label className="block text-sm text-emerald-200/75">
+              <span className="mb-1 block font-medium text-emerald-50">Plant nickname</span>
               <input
                 value={form.nickname}
                 onChange={(event) => setForm((prev) => ({ ...prev, nickname: event.target.value }))}
                 placeholder="Living room monstera"
-                className="w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                className="w-full rounded-lg border border-emerald-600/40 bg-[rgba(6,24,16,0.88)] px-3 py-2 text-sm text-emerald-50 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
               />
             </label>
-            <label className="block text-sm text-slate-300">
-              <span className="mb-1 block font-medium text-slate-200">Species</span>
+            <label className="block text-sm text-emerald-200/75">
+              <span className="mb-1 block font-medium text-emerald-50">Species</span>
               <input
                 value={form.species}
                 onChange={(event) => handleSpeciesChange(event.target.value)}
                 placeholder="Monstera deliciosa"
-                className="w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                className="w-full rounded-lg border border-emerald-600/40 bg-[rgba(6,24,16,0.88)] px-3 py-2 text-sm text-emerald-50 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
                 autoComplete="off"
               />
             </label>
             {suggestionsLoading ? (
-              <div className="rounded-lg border border-slate-800 bg-slate-900/80 p-3 text-xs text-slate-400">
+              <div className="rounded-lg border border-emerald-800/40 bg-[rgba(6,24,16,0.78)] p-3 text-xs text-emerald-200/70">
                 Searching botanical records...
               </div>
             ) : suggestions.length ? (
-              <ul className="rounded-lg border border-slate-800 bg-slate-900/80 text-xs text-slate-300">
+              <ul className="rounded-lg border border-emerald-800/40 bg-[rgba(6,24,16,0.78)] text-xs text-emerald-200/75">
                 {suggestions.map((item) => (
                   <li key={`${item.id}-${item.scientific_name}`}>
                     <button
                       type="button"
-                      className="w-full px-3 py-2 text-left hover:bg-slate-800/80"
+                      className="w-full px-3 py-2 text-left hover:bg-[rgba(9,39,25,0.7)]"
                       onClick={() => void handleSuggestionClick(item)}
                     >
                       <div className="flex items-start gap-3">
-                        <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-md border border-slate-700 bg-slate-800/60">
+                        <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-md border border-emerald-700/50 bg-[rgba(7,31,21,0.7)]">
                           {item.image_url ? (
                             <img src={item.image_url} alt={item.common_name ?? item.scientific_name} className="h-full w-full object-cover" />
                           ) : (
-                            <div className="flex h-full w-full items-center justify-center text-[10px] uppercase tracking-wide text-slate-500">
+                            <div className="flex h-full w-full items-center justify-center text-[10px] uppercase tracking-wide text-emerald-200/60">
                               No image
                             </div>
                           )}
                         </div>
                         <div className="flex flex-1 flex-col gap-1">
                           <div className="flex items-center justify-between gap-3">
-                            <p className="font-semibold text-slate-100">{item.common_name ?? item.scientific_name}</p>
-                            <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">
+                            <p className="font-semibold text-emerald-50">{item.common_name ?? item.scientific_name}</p>
+                            <span className="rounded-full border border-emerald-700/50 px-2 py-0.5 text-[10px] uppercase tracking-wide text-emerald-200/70">
                               {item.sources && item.sources.length ? item.sources.join(" + ") : "guide"}
                             </span>
                           </div>
-                          <p className="text-[11px] uppercase tracking-wide text-slate-400">{item.scientific_name}</p>
+                          <p className="text-[11px] uppercase tracking-wide text-emerald-200/70">{item.scientific_name}</p>
                         </div>
                       </div>
                     </button>
@@ -556,8 +558,8 @@ export function MyPlantsTab() {
             ) : null}
 
             <div className="space-y-3">
-              <span className="block text-sm font-medium text-slate-200">Location</span>
-              <div className="inline-flex rounded-lg border border-slate-700 bg-slate-900/60 p-1 text-xs font-semibold">
+              <span className="block text-sm font-medium text-emerald-50">Location</span>
+              <div className="inline-flex rounded-lg border border-emerald-700/40 bg-[rgba(6,24,16,0.75)] p-1 text-xs font-semibold text-emerald-200/80">
                 {LOCATION_OPTIONS.map((option) => (
                   <button
                     key={option.id}
@@ -565,8 +567,8 @@ export function MyPlantsTab() {
                     onClick={() => handleLocationChange(option.id)}
                     className={`rounded-md px-3 py-2 transition-colors ${
                       form.locationType === option.id
-                        ? "bg-brand-500/20 text-brand-100 shadow"
-                        : "text-slate-400 hover:text-slate-100"
+                        ? "border border-emerald-400/60 bg-emerald-500/20 text-emerald-50 shadow shadow-emerald-900/40"
+                        : "text-emerald-200/60 hover:text-emerald-50"
                     }`}
                   >
                     {option.label}
@@ -576,13 +578,13 @@ export function MyPlantsTab() {
             </div>
 
             {form.locationType === "smart_pot" ? (
-              <div className="space-y-2 text-sm text-slate-300">
+              <div className="space-y-2 text-sm text-emerald-200/75">
                 <label className="block">
-                  <span className="mb-1 block font-medium text-slate-200">Pot model</span>
+                  <span className="mb-1 block font-medium text-emerald-50">Pot model</span>
                   <select
                     value={form.potModel ?? ""}
                     onChange={(event) => setForm((prev) => ({ ...prev, potModel: event.target.value || null }))}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                    className="w-full rounded-lg border border-emerald-700/45 bg-[rgba(4,18,12,0.85)] px-3 py-2 text-emerald-50 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
                   >
                     <option value="">Auto detect</option>
                     {potModels.map((model) => (
@@ -592,7 +594,7 @@ export function MyPlantsTab() {
                     ))}
                   </select>
                 </label>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-emerald-200/60">
                   {detectionState.pending
                     ? "Scanning smart pot sensors..."
                     : detectionState.model
@@ -601,12 +603,12 @@ export function MyPlantsTab() {
                 </p>
               </div>
             ) : (
-              <label className="block text-sm text-slate-300">
-                <span className="mb-1 block font-medium text-slate-200">Irrigation zone</span>
+              <label className="block text-sm text-emerald-200/75">
+                <span className="mb-1 block font-medium text-emerald-50">Irrigation zone</span>
                 <select
                   value={form.irrigationZoneId ?? ""}
                   onChange={(event) => setForm((prev) => ({ ...prev, irrigationZoneId: event.target.value || null }))}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                  className="w-full rounded-lg border border-emerald-700/45 bg-[rgba(4,18,12,0.85)] px-3 py-2 text-emerald-50 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
                 >
                   <option value="">Select a zone</option>
                   {irrigationZones.map((zone) => (
@@ -618,21 +620,21 @@ export function MyPlantsTab() {
               </label>
             )}
 
-            <label className="block text-sm text-slate-300">
-              <span className="mb-1 block font-medium text-slate-200">Plant photo</span>
+            <label className="block text-sm text-emerald-200/75">
+              <span className="mb-1 block font-medium text-emerald-50">Plant photo</span>
               <input
                 type="file"
                 accept="image/*"
                 onChange={handleFileUpload}
-                className="w-full text-xs text-slate-400 file:mr-3 file:rounded-md file:border-0 file:bg-brand-500/20 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-brand-100 hover:file:bg-brand-500/30"
+                className="w-full text-xs text-emerald-200/70 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-500/15 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-emerald-100 hover:file:bg-emerald-500/25"
               />
-              <p className="mt-1 text-xs text-slate-500">Optional. Remote imagery is used when available.</p>
+              <p className="mt-1 text-xs text-emerald-200/60">Optional. Remote imagery is used when available.</p>
             </label>
           </div>
 
           <div className="space-y-4">
             {previewImage ? (
-              <div className="relative flex min-h-[260px] items-center justify-center overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60">
+              <div className="relative flex min-h-[260px] items-center justify-center overflow-hidden rounded-xl border border-emerald-800/40 bg-[rgba(4,18,12,0.85)]">
                 <button
                   type="button"
                   onClick={openLightbox}
@@ -650,7 +652,7 @@ export function MyPlantsTab() {
                     <button
                       type="button"
                       onClick={() => cycleGallery(-1)}
-                      className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-700 bg-slate-900/60 text-slate-200 hover:border-slate-500 hover:text-white"
+                      className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-emerald-700/45 bg-[rgba(6,24,16,0.78)] text-emerald-50 hover:border-emerald-500/60 hover:text-emerald-50"
                       aria-label="Previous photo"
                     >
                       {'<'}
@@ -658,7 +660,7 @@ export function MyPlantsTab() {
                     <button
                       type="button"
                       onClick={() => cycleGallery(1)}
-                      className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-700 bg-slate-900/60 text-slate-200 hover:border-slate-500 hover:text-white"
+                      className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-emerald-700/45 bg-[rgba(6,24,16,0.78)] text-emerald-50 hover:border-emerald-500/60 hover:text-emerald-50"
                       aria-label="Next photo"
                     >
                       {'>'}
@@ -666,13 +668,13 @@ export function MyPlantsTab() {
                   </>
                 ) : null}
                 {previewLabel ? (
-                  <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-slate-900/80 px-3 py-1 text-[11px] uppercase tracking-wide text-slate-300">
+                  <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-[rgba(5,22,15,0.85)] px-3 py-1 text-[11px] uppercase tracking-wide text-emerald-200/75">
                     {previewLabel}
                   </div>
                 ) : null}
               </div>
             ) : (
-              <div className="flex min-h-[260px] items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-900/40 text-xs text-slate-500">
+              <div className="flex min-h-[260px] items-center justify-center rounded-xl border border-dashed border-emerald-700/45 bg-[rgba(5,22,15,0.55)] text-xs text-emerald-200/60">
                 Plant preview will appear here
               </div>
             )}
@@ -686,7 +688,7 @@ export function MyPlantsTab() {
                       setActiveImageIndex(index);
                       setIsLightboxOpen(false);
                     }}
-                    className={`relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-md border ${index === activeImageIndex ? 'border-brand-400 shadow shadow-brand-500/40' : 'border-slate-700 hover:border-slate-500'}`}
+                    className={`relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-md border ${index === activeImageIndex ? 'border-emerald-400/60 shadow shadow-emerald-900/40' : 'border-emerald-700/45 hover:border-emerald-500/60'}`}
                     aria-label={image.label || `Preview image ${index + 1}`}
                   >
                     <img src={image.url} alt={image.label || `Preview image ${index + 1}`} className="h-full w-full object-cover" />
@@ -696,7 +698,7 @@ export function MyPlantsTab() {
             ) : null}
 
             {loadingDetail ? (
-              <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 text-sm text-slate-300">
+              <div className="rounded-xl border border-emerald-800/40 bg-[rgba(5,22,15,0.65)] p-4 text-sm text-emerald-200/75">
                 Fetching plant profile...
               </div>
             ) : detail ? (
@@ -704,7 +706,7 @@ export function MyPlantsTab() {
             ) : detailError ? (
               <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-200">{detailError}</div>
             ) : (
-              <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 text-sm text-slate-400">
+              <div className="rounded-xl border border-emerald-800/40 bg-[rgba(5,22,15,0.65)] p-4 text-sm text-emerald-200/70">
                 Enter a species name to see taxonomy, imagery, and guidance.
               </div>
             )}
@@ -723,24 +725,31 @@ export function MyPlantsTab() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex items-center justify-center rounded-lg border border-brand-500/60 bg-brand-500/20 px-4 py-2 text-sm font-semibold text-brand-100 transition-colors hover:bg-brand-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center rounded-lg border border-emerald-500/60 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-50 transition-colors hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? "Saving..." : "Save plant"}
             </button>
-            {statusMessage ? <p className="text-xs text-slate-400">{statusMessage}</p> : null}
+            {statusMessage ? <p className="text-xs text-emerald-200/70">{statusMessage}</p> : null}
           </div>
         </form>
-      </section>
+      </CollapsibleTile>
 
-      <section className="space-y-4">
-        <header className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-slate-100">My plants</h3>
-          <button type="button" onClick={refresh} className="text-xs font-semibold text-slate-400 hover:text-slate-100">
-            Refresh list
+      <CollapsibleTile
+        id="my-plants-list"
+        title="My plants"
+        subtitle="Browse, refresh, or update the plants linked to ProjectPlant."
+        className="border border-emerald-800/40 bg-[rgba(6,24,16,0.78)] p-6 text-sm text-emerald-200/75"
+        bodyClassName="mt-4"
+        titleClassName="text-base font-semibold text-emerald-50"
+        subtitleClassName="text-xs text-emerald-200/70"
+        actions={
+          <button type="button" onClick={refresh} className="text-xs font-semibold text-emerald-200/60 hover:text-emerald-50">
+            Refresh
           </button>
-        </header>
+        }
+      >
         {loading ? (
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">Loading catalog...</div>
+          <div className="rounded-xl border border-emerald-800/40 bg-[rgba(6,24,16,0.78)] p-4 text-sm text-emerald-200/75">Loading catalog...</div>
         ) : error ? (
           <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-200">{error}</div>
         ) : plants.length ? (
@@ -750,21 +759,21 @@ export function MyPlantsTab() {
             ))}
           </div>
         ) : (
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 text-sm text-slate-300">
+          <div className="rounded-xl border border-emerald-800/40 bg-[rgba(6,24,16,0.78)] p-6 text-sm text-emerald-200/75">
             No plants yet. Add your first plant to see it here with taxonomy and care guidance.
           </div>
         )}
-      </section>
+      </CollapsibleTile>
       {isLightboxOpen && activeImage ? (
-        <div className="fixed inset-0 z-50 flex flex-col bg-slate-950/95" onClick={closeLightbox}>
-          <div className="flex items-center justify-between px-6 py-4 text-slate-200" onClick={(event) => event.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex flex-col bg-[rgba(2,10,6,0.95)]" onClick={closeLightbox}>
+          <div className="flex items-center justify-between px-6 py-4 text-emerald-50" onClick={(event) => event.stopPropagation()}>
             <p className="text-sm font-semibold">
               {previewTitle}
             </p>
             <button
               type="button"
               onClick={closeLightbox}
-              className="rounded-md border border-slate-700 bg-slate-900/80 px-3 py-1 text-xs font-semibold text-slate-200 hover:border-slate-500 hover:text-white"
+              className="rounded-md border border-emerald-700/45 bg-[rgba(5,22,15,0.85)] px-3 py-1 text-xs font-semibold text-emerald-50 hover:border-emerald-500/60 hover:text-emerald-50"
             >
               Close
             </button>
@@ -780,7 +789,7 @@ export function MyPlantsTab() {
                 <button
                   type="button"
                   onClick={() => cycleGallery(-1)}
-                  className="absolute left-6 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-slate-700 bg-slate-900/60 text-slate-200 hover:border-slate-500 hover:text-white"
+                  className="absolute left-6 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-emerald-700/45 bg-[rgba(6,24,16,0.78)] text-emerald-50 hover:border-emerald-500/60 hover:text-emerald-50"
                   aria-label="Previous photo"
                 >
                   {'<'}
@@ -788,7 +797,7 @@ export function MyPlantsTab() {
                 <button
                   type="button"
                   onClick={() => cycleGallery(1)}
-                  className="absolute right-6 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-slate-700 bg-slate-900/60 text-slate-200 hover:border-slate-500 hover:text-white"
+                  className="absolute right-6 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-emerald-700/45 bg-[rgba(6,24,16,0.78)] text-emerald-50 hover:border-emerald-500/60 hover:text-emerald-50"
                   aria-label="Next photo"
                 >
                   {'>'}
@@ -797,7 +806,7 @@ export function MyPlantsTab() {
             ) : null}
           </div>
           {activeImage?.label ? (
-            <div className="px-6 pb-6 text-center text-xs text-slate-300" onClick={(event) => event.stopPropagation()}>
+            <div className="px-6 pb-6 text-center text-xs text-emerald-200/75" onClick={(event) => event.stopPropagation()}>
               {activeImage.label}
             </div>
           ) : null}
@@ -810,31 +819,35 @@ export function MyPlantsTab() {
 function BotanicalSnippet({ detail }: { detail: PlantDetails }) {
   const summaryText = sanitizeSummary(detail.summary);
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300">
-      <header className="space-y-1">
-        <h3 className="text-base font-semibold text-slate-100">{detail.scientific_name}</h3>
-        {detail.common_name ? <p className="text-xs uppercase tracking-wide text-slate-400">{detail.common_name}</p> : null}
-      </header>
-      {summaryText ? <p className="mt-3 text-xs text-slate-400">{summaryText}</p> : null}
-      <dl className="mt-3 grid gap-2 text-xs text-slate-400 sm:grid-cols-2">
+    <CollapsibleTile
+      id="my-plants-botanical-snippet"
+      title={detail.scientific_name}
+      subtitle={detail.common_name ?? undefined}
+      className="border border-emerald-800/40 bg-[rgba(6,24,16,0.82)] p-4 text-sm text-emerald-200/75"
+      bodyClassName="mt-3 space-y-3"
+      titleClassName="text-base font-semibold text-emerald-50"
+      subtitleClassName="text-xs uppercase tracking-wide text-emerald-200/70"
+    >
+      {summaryText ? <p className="text-xs text-emerald-200/70">{summaryText}</p> : null}
+      <dl className="grid gap-2 text-xs text-emerald-200/70 sm:grid-cols-2">
         {detail.taxonomy.family ? <SnippetRow label="Family" value={detail.taxonomy.family} /> : null}
         {detail.taxonomy.genus ? <SnippetRow label="Genus" value={detail.taxonomy.genus} /> : null}
         {detail.rank ? <SnippetRow label="Rank" value={detail.rank} /> : null}
         {detail.sources.length ? <SnippetRow label="Sources" value={detail.sources.join(", ")} /> : null}
       </dl>
       {detail.synonyms.length ? (
-        <div className="mt-3 text-xs text-slate-400">
-          <p className="font-semibold text-slate-200">Synonyms</p>
+        <div className="mt-3 text-xs text-emerald-200/70">
+          <p className="font-semibold text-emerald-50">Synonyms</p>
           <p>{detail.synonyms.join(", ")}</p>
         </div>
       ) : null}
       {detail.distribution.length ? (
-        <div className="mt-2 text-xs text-slate-400">
-          <p className="font-semibold text-slate-200">Distribution</p>
+        <div className="mt-2 text-xs text-emerald-200/70">
+          <p className="font-semibold text-emerald-50">Distribution</p>
           <p>{detail.distribution.join(", ")}</p>
         </div>
       ) : null}
-    </section>
+    </CollapsibleTile>
   );
 }
 
@@ -856,110 +869,122 @@ function ManualCareEditor({
     : "Species-specific care was not available. Enter instructions so ProjectPlant can automate the routine.";
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300">
-      <div className="flex items-start justify-between">
-        <h3 className="text-sm font-semibold text-slate-200">Customise care</h3>
-        {baseProfile && onReset ? (
+    <CollapsibleTile
+      id="my-plants-manual-care"
+      title="Customise care"
+      subtitle={description}
+      className="border border-emerald-800/40 bg-[rgba(6,24,16,0.82)] p-4 text-sm text-emerald-200/75"
+      bodyClassName="mt-3 space-y-3"
+      titleClassName="text-sm font-semibold text-emerald-50"
+      subtitleClassName="text-xs text-emerald-200/70"
+      actions={
+        baseProfile && onReset ? (
           <button
             type="button"
             onClick={onReset}
             disabled={!hasOverrides}
-            className="rounded-md border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 hover:border-slate-600 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-md border border-emerald-700/45 px-3 py-1 text-xs font-semibold text-emerald-50 hover:border-emerald-500/60 hover:text-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Reset suggestions
           </button>
-        ) : null}
-      </div>
-      <p className="mt-1 text-xs text-slate-400">{description}</p>
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
-        <label className="text-xs uppercase tracking-wide text-slate-500">
+        ) : null
+      }
+    >
+      <div className="grid gap-3 md:grid-cols-2">
+        <label className="text-xs uppercase tracking-wide text-emerald-200/60">
           Light
           <input
             value={manualCare.light}
             onChange={(event) => onChange("light", event.target.value)}
             placeholder="Bright indirect"
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+            className="mt-1 w-full rounded-lg border border-emerald-700/45 bg-[rgba(4,18,12,0.85)] px-3 py-2 text-emerald-50 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
           />
         </label>
-        <label className="text-xs uppercase tracking-wide text-slate-500">
+        <label className="text-xs uppercase tracking-wide text-emerald-200/60">
           Water
           <input
             value={manualCare.water}
             onChange={(event) => onChange("water", event.target.value)}
             placeholder="Allow top inch to dry"
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+            className="mt-1 w-full rounded-lg border border-emerald-700/45 bg-[rgba(4,18,12,0.85)] px-3 py-2 text-emerald-50 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
           />
         </label>
-        <label className="text-xs uppercase tracking-wide text-slate-500">
+        <label className="text-xs uppercase tracking-wide text-emerald-200/60">
           Humidity
           <input
             value={manualCare.humidity}
             onChange={(event) => onChange("humidity", event.target.value)}
             placeholder="60-70%"
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+            className="mt-1 w-full rounded-lg border border-emerald-700/45 bg-[rgba(4,18,12,0.85)] px-3 py-2 text-emerald-50 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
           />
         </label>
         <div className="grid grid-cols-2 gap-3">
-          <label className="text-xs uppercase tracking-wide text-slate-500">
+          <label className="text-xs uppercase tracking-wide text-emerald-200/60">
             Temp low (deg C)
             <input
               value={manualCare.tempLow}
               onChange={(event) => onChange("tempLow", event.target.value)}
               placeholder="18"
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+              className="mt-1 w-full rounded-lg border border-emerald-700/45 bg-[rgba(4,18,12,0.85)] px-3 py-2 text-emerald-50 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
             />
           </label>
-          <label className="text-xs uppercase tracking-wide text-slate-500">
+          <label className="text-xs uppercase tracking-wide text-emerald-200/60">
             Temp high (deg C)
             <input
               value={manualCare.tempHigh}
               onChange={(event) => onChange("tempHigh", event.target.value)}
               placeholder="26"
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+              className="mt-1 w-full rounded-lg border border-emerald-700/45 bg-[rgba(4,18,12,0.85)] px-3 py-2 text-emerald-50 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
             />
           </label>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <label className="text-xs uppercase tracking-wide text-slate-500">
+          <label className="text-xs uppercase tracking-wide text-emerald-200/60">
             pH low
             <input
               value={manualCare.phLow}
               onChange={(event) => onChange("phLow", event.target.value)}
               placeholder="6"
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+              className="mt-1 w-full rounded-lg border border-emerald-700/45 bg-[rgba(4,18,12,0.85)] px-3 py-2 text-emerald-50 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
             />
           </label>
-          <label className="text-xs uppercase tracking-wide text-slate-500">
+          <label className="text-xs uppercase tracking-wide text-emerald-200/60">
             pH high
             <input
               value={manualCare.phHigh}
               onChange={(event) => onChange("phHigh", event.target.value)}
               placeholder="7"
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+              className="mt-1 w-full rounded-lg border border-emerald-700/45 bg-[rgba(4,18,12,0.85)] px-3 py-2 text-emerald-50 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
             />
           </label>
         </div>
       </div>
-      <label className="mt-3 block text-xs uppercase tracking-wide text-slate-500">
+      <label className="mt-3 block text-xs uppercase tracking-wide text-emerald-200/60">
         Notes
         <textarea
           value={manualCare.notes}
           onChange={(event) => onChange("notes", event.target.value)}
           placeholder="Add fertiliser reminders, pruning notes, etc."
           rows={3}
-          className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+          className="mt-1 w-full rounded-lg border border-emerald-700/45 bg-[rgba(4,18,12,0.85)] px-3 py-2 text-emerald-50 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
         />
       </label>
-    </section>
+    </CollapsibleTile>
   );
 }
 
 function CareSummary({ care, title }: { care: PlantCareProfile; title: string }) {
   return (
-    <section className="rounded-xl border border-brand-500/40 bg-brand-500/10 p-4 text-sm text-brand-50">
-      <h3 className="text-sm font-semibold text-brand-100">{title}</h3>
-      {care.warning ? <p className="mt-1 text-xs text-amber-200">{care.warning}</p> : null}
-      <dl className="mt-3 space-y-2">
+    <CollapsibleTile
+      id={`my-plants-care-summary-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+      title={title}
+      subtitle={care.warning ?? "Suggested regimen sourced from ProjectPlant or OpenFarm."}
+      className="border border-emerald-500/40 bg-emerald-500/15 p-4 text-sm text-emerald-100"
+      bodyClassName="mt-3 space-y-2"
+      titleClassName="text-sm font-semibold text-emerald-100"
+      subtitleClassName="text-xs text-emerald-200/70"
+    >
+      <dl className="space-y-2">
         <InfoRow label="Sun" value={care.light} />
         <InfoRow label="Watering" value={care.water} />
         {care.soil ? <InfoRow label="Soil" value={care.soil} /> : null}
@@ -970,18 +995,18 @@ function CareSummary({ care, title }: { care: PlantCareProfile; title: string })
         <InfoRow label="pH" value={`${care.ph_range[0]}-${care.ph_range[1]}`} />
         {care.notes ? <InfoRow label="Notes" value={care.notes} /> : null}
       </dl>
-      <p className="mt-2 text-[11px] uppercase tracking-wide text-brand-200/70">
+      <p className="mt-2 text-[11px] uppercase tracking-wide text-emerald-200/70">
         Source: {care.source ?? "ProjectPlant defaults"} ({care.level})
       </p>
-    </section>
+    </CollapsibleTile>
   );
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-wide text-brand-200/80">{label}</p>
-      <p className="text-sm text-brand-50">{value}</p>
+      <p className="text-[11px] uppercase tracking-wide text-emerald-200/80">{label}</p>
+      <p className="text-sm text-emerald-100">{value}</p>
     </div>
   );
 }
@@ -997,45 +1022,45 @@ function PlantCard({ plant, potModels, zones }: { plant: PlantRecord; potModels:
   const summaryText = sanitizeSummary(plant.summary);
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60">
+    <div className="flex flex-col overflow-hidden rounded-xl border border-emerald-800/40 bg-[rgba(6,24,16,0.78)]">
       {cardImage ? (
         <img src={cardImage} alt={plant.nickname} className="h-40 w-full object-cover" />
       ) : (
-        <div className="flex h-40 items-center justify-center bg-slate-900/80 text-xs text-slate-500">No photo</div>
+        <div className="flex h-40 items-center justify-center bg-[rgba(5,22,15,0.85)] text-xs text-emerald-200/60">No photo</div>
       )}
-      <div className="space-y-3 p-4 text-sm text-slate-300">
+      <div className="space-y-3 p-4 text-sm text-emerald-200/75">
         <div className="flex items-center justify-between">
-          <p className="text-base font-semibold text-slate-100">{plant.nickname}</p>
-          <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[11px] uppercase tracking-wide text-slate-400">
+          <p className="text-base font-semibold text-emerald-50">{plant.nickname}</p>
+          <span className="rounded-full border border-emerald-700/45 px-2 py-0.5 text-[11px] uppercase tracking-wide text-emerald-200/70">
             {plant.location_type === "smart_pot" ? "Smart Pot" : "Garden"}
           </span>
         </div>
-        <p className="text-xs text-slate-400">{plant.species}</p>
-        <dl className="space-y-1 text-xs text-slate-400">
+        <p className="text-xs text-emerald-200/70">{plant.species}</p>
+        <dl className="space-y-1 text-xs text-emerald-200/70">
           <div className="flex justify-between gap-4">
-            <dt className="text-slate-500">Pot model</dt>
-            <dd className="text-slate-200">{potName}</dd>
+            <dt className="text-emerald-200/60">Pot model</dt>
+            <dd className="text-emerald-50">{potName}</dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt className="text-slate-500">Irrigation zone</dt>
-            <dd className="text-slate-200">{zoneName}</dd>
+            <dt className="text-emerald-200/60">Irrigation zone</dt>
+            <dd className="text-emerald-50">{zoneName}</dd>
           </div>
         </dl>
         {Object.keys(plant.taxonomy).length ? (
-          <div className="rounded-lg border border-slate-800 bg-slate-900/80 p-3 text-xs text-slate-300">
-            <p className="font-semibold text-slate-100">Taxonomy</p>
+          <div className="rounded-lg border border-emerald-800/40 bg-[rgba(5,22,15,0.85)] p-3 text-xs text-emerald-200/75">
+            <p className="font-semibold text-emerald-50">Taxonomy</p>
             <ul className="mt-2 space-y-1">
               {Object.entries(plant.taxonomy).map(([key, value]) => (
                 <li key={key} className="flex justify-between gap-2">
-                  <span className="text-slate-500 capitalize">{key}</span>
-                  <span className="text-slate-200">{value}</span>
+                  <span className="text-emerald-200/60 capitalize">{key}</span>
+                  <span className="text-emerald-50">{value}</span>
                 </li>
               ))}
             </ul>
           </div>
         ) : null}
-        <div className="rounded-lg border border-slate-800 bg-slate-900/80 p-3 text-xs text-slate-300">
-          <p className="font-semibold text-slate-100">Ideal conditions ({plant.care_level})</p>
+        <div className="rounded-lg border border-emerald-800/40 bg-[rgba(5,22,15,0.85)] p-3 text-xs text-emerald-200/75">
+          <p className="font-semibold text-emerald-50">Ideal conditions ({plant.care_level})</p>
           <ul className="mt-2 space-y-1">
             <li>Light: {plant.ideal_conditions.light}</li>
             <li>Water: {plant.ideal_conditions.water}</li>
@@ -1048,10 +1073,10 @@ function PlantCard({ plant, potModels, zones }: { plant: PlantRecord; potModels:
           </ul>
           {plant.care_warning ? <p className="mt-2 text-[11px] text-amber-300">{plant.care_warning}</p> : null}
           {plant.care_source ? (
-            <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-500">Source: {plant.care_source}</p>
+            <p className="mt-1 text-[10px] uppercase tracking-wide text-emerald-200/60">Source: {plant.care_source}</p>
           ) : null}
         </div>
-        {summaryText ? <p className="text-xs text-slate-400">{summaryText}</p> : null}
+        {summaryText ? <p className="text-xs text-emerald-200/70">{summaryText}</p> : null}
       </div>
     </div>
   );
@@ -1060,8 +1085,8 @@ function PlantCard({ plant, potModels, zones }: { plant: PlantRecord; potModels:
 function SnippetRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-4">
-      <span className="text-slate-500">{label}</span>
-      <span className="text-slate-200">{value}</span>
+      <span className="text-emerald-200/60">{label}</span>
+      <span className="text-emerald-50">{value}</span>
     </div>
   );
 }

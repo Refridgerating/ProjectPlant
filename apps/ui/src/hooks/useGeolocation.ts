@@ -3,6 +3,7 @@
 type Coordinates = {
   lat: number;
   lon: number;
+  accuracy: number | null;
 };
 
 type GeolocationStatus = "idle" | "pending" | "granted" | "denied" | "unsupported" | "error";
@@ -30,8 +31,14 @@ export function useGeolocation() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const { latitude, longitude } = position.coords;
-        setState({ status: "granted", coords: { lat: latitude, lon: longitude }, error: null });
+        const { latitude, longitude, accuracy } = position.coords;
+        const parsedAccuracy =
+          typeof accuracy === "number" && Number.isFinite(accuracy) ? accuracy : null;
+        setState({
+          status: "granted",
+          coords: { lat: latitude, lon: longitude, accuracy: parsedAccuracy },
+          error: null,
+        });
       },
       (err) => {
         const message = err.message || "Unable to retrieve location.";

@@ -7,6 +7,7 @@
 #include "hardware_config.h"
 #include "plant_mqtt.h"
 #include "sensors.h"
+#include "time_sync.h"
 #include "wifi.h"
 
 #define FW_VERSION "0.1.0"
@@ -121,9 +122,20 @@ void app_main(void)
 
     sensors_init();
 
-    if (wifi_init_sta(WIFI_SSID, WIFI_PASS) != ESP_OK) {
+    esp_err_t wifi_result = wifi_init_sta(WIFI_SSID, WIFI_PASS);
+    if (wifi_result != ESP_OK) {
         ESP_LOGE(TAG, "Wi-Fi connection failed; retry after delay");
         vTaskDelay(pdMS_TO_TICKS(5000));
+    } else {
+        if (time_sync_init() == ESP_OK) {
+            if (!time_sync_wait_for_valid(pdMS_TO_TICKS(15000))) {
+                ESP_LOGW(TAG, "Time sync timed out; timestamps may be inaccurate");
+            } else {
+                ESP_LOGI(TAG, "Time synchronized successfully");
+            }
+        } else {
+            ESP_LOGW(TAG, "Failed to initialize time sync; timestamps may be inaccurate");
+        }
     }
 
     measurement_queue = xQueueCreate(1, sizeof(sensor_reading_t));

@@ -9,7 +9,6 @@
 #define ADS1115_REG_CONFIG      0x01
 
 static const char *TAG = "ads1115";
-static bool driver_installed = false;
 static i2c_port_t active_port = I2C_NUM_0;
 
 static esp_err_t ads1115_write_reg(uint8_t reg, uint16_t value)
@@ -30,31 +29,9 @@ static esp_err_t ads1115_read_reg(uint8_t reg, uint8_t *buf, size_t len)
 
 esp_err_t ads1115_init(i2c_port_t port, gpio_num_t sda_gpio, gpio_num_t scl_gpio)
 {
+    (void)sda_gpio;
+    (void)scl_gpio;
     active_port = port;
-
-    i2c_config_t conf = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = sda_gpio,
-        .scl_io_num = scl_gpio,
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = 100000,
-        .clk_flags = 0,
-    };
-
-    esp_err_t err = i2c_param_config(port, &conf);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "i2c_param_config failed: %s", esp_err_to_name(err));
-        return err;
-    }
-    if (!driver_installed) {
-        err = i2c_driver_install(port, conf.mode, 0, 0, 0);
-        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-            ESP_LOGE(TAG, "i2c_driver_install failed: %s", esp_err_to_name(err));
-            return err;
-        }
-        driver_installed = true;
-    }
     return ESP_OK;
 }
 
@@ -80,17 +57,40 @@ esp_err_t ads1115_read_single_ended(uint8_t channel, ads1115_pga_t pga, int16_t 
     cfg |= (0x04u << 5);               // DR = 128 SPS
     cfg |= 0x0003;                     // disable comparator
 
-    esp_err_t err = ads1115_write_reg(ADS1115_REG_CONFIG, cfg);
-    if (err != ESP_OK) return err;
+    // Retry logic with exponential backoff for transient I2C errors
+    const int max_retries = 3;
+    esp_err_t err = ESP_OK;
+    
+    for (int attempt = 0; attempt < max_retries; attempt++) {
+        err = ads1115_write_reg(ADS1115_REG_CONFIG, cfg);
+        if (err == ESP_OK) break;
+        ESP_LOGW(TAG, "Config write failed (attempt %d/%d): %s", attempt + 1, max_retries, esp_err_to_name(err));
+        vTaskDelay(pdMS_TO_TICKS(10 * (1 << attempt))); // exponential backoff: 10, 20, 40ms
+    }
+    
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "ADS1115 channel %d config write exhausted retries", channel);
+        return err;
+    }
 
-    // Wait for conversion (128 SPS ~7.8ms); give margin
-    vTaskDelay(pdMS_TO_TICKS(10));
+    // Wait for conversion (128 SPS ~7.8ms); add margin for clock variance
+    vTaskDelay(pdMS_TO_TICKS(15));
 
     uint8_t raw[2];
-    err = ads1115_read_reg(ADS1115_REG_CONVERSION, raw, sizeof raw);
-    if (err != ESP_OK) return err;
+    for (int attempt = 0; attempt < max_retries; attempt++) {
+        err = ads1115_read_reg(ADS1115_REG_CONVERSION, raw, sizeof raw);
+        if (err == ESP_OK) break;
+        ESP_LOGW(TAG, "Conversion read failed (attempt %d/%d): %s", attempt + 1, max_retries, esp_err_to_name(err));
+        vTaskDelay(pdMS_TO_TICKS(10 * (1 << attempt))); // exponential backoff
+    }
+    
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "ADS1115 channel %d conversion read exhausted retries", channel);
+        return err;
+    }
 
     *out_counts = (int16_t)((raw[0] << 8) | raw[1]);
+    ESP_LOGD(TAG, "Channel %d: raw=%d (0x%04x)", channel, *out_counts, (uint16_t)*out_counts);
     return ESP_OK;
 }
 

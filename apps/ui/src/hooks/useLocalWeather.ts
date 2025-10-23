@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchLocalWeather, TelemetrySample, WeatherSeries } from "../api/hubClient";
+import { fetchLocalWeather, TelemetrySample, WeatherSeries, WeatherStation } from "../api/hubClient";
 
 type Coordinates = {
   lat: number;
@@ -13,12 +13,13 @@ type LocalWeatherState = {
   error: string | null;
   coverageHours: number;
   availableWindows: number[];
+  station: WeatherStation | null;
 };
 
 export function useLocalWeather(location: Coordinates | null, hours: number, options?: { maxSamples?: number }) {
   const maxSamples = options?.maxSamples ?? 24;
   const controllerRef = useRef<AbortController | null>(null);
-  const [{ data, latest, loading, error, coverageHours, availableWindows }, setState] =
+  const [{ data, latest, loading, error, coverageHours, availableWindows, station }, setState] =
     useState<LocalWeatherState>({
       data: [],
       latest: null,
@@ -26,6 +27,7 @@ export function useLocalWeather(location: Coordinates | null, hours: number, opt
       error: null,
       coverageHours: 0,
       availableWindows: [],
+      station: null,
     });
 
   const load = useCallback(
@@ -38,6 +40,7 @@ export function useLocalWeather(location: Coordinates | null, hours: number, opt
           error: null,
           coverageHours: 0,
           availableWindows: [],
+          station: null,
         });
         return;
       }
@@ -57,6 +60,7 @@ export function useLocalWeather(location: Coordinates | null, hours: number, opt
           error: null,
           coverageHours: series.coverageHours,
           availableWindows: series.availableWindows,
+          station: series.station ?? null,
         });
       } catch (err) {
         if (signal?.aborted) {
@@ -90,6 +94,7 @@ export function useLocalWeather(location: Coordinates | null, hours: number, opt
     error,
     coverageHours,
     availableWindows,
+    station,
     refresh,
   };
 }

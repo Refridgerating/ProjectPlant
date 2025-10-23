@@ -1,8 +1,11 @@
 #include "sensors.h"
 
 #include <math.h>
+#include <string.h>
+#include <sys/time.h>
 
 #include "driver/gpio.h"
+#include "driver/i2c.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -12,16 +15,62 @@
 #include "hardware_config.h"
 #include "aht10.h"
 #include "ads1115.h"
+#include "time_sync.h"
 
 static const char *TAG = "sensors";
 static bool pump_state = false;
+static bool i2c_ready = false;
+
+static esp_err_t ensure_i2c_bus(void)
+{
+    if (i2c_ready) {
+        return ESP_OK;
+    }
+
+    i2c_config_t conf = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = I2C_SDA_GPIO,
+        .scl_io_num = I2C_SCL_GPIO,
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master.clk_speed = 100000,
+        .clk_flags = 0,
+    };
+
+    esp_err_t err = i2c_param_config(I2C_PORT_NUM, &conf);
+    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+        ESP_LOGE(TAG, "I2C param config failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    err = i2c_driver_install(I2C_PORT_NUM, conf.mode, 0, 0, 0);
+    if (err != ESP_OK) {
+        if (err == ESP_ERR_INVALID_STATE || err == ESP_FAIL) {
+            ESP_LOGW(TAG, "I2C driver already installed on port %d", I2C_PORT_NUM);
+        } else {
+            ESP_LOGE(TAG, "I2C driver install failed: %s", esp_err_to_name(err));
+            return err;
+        }
+    } else {
+        ESP_LOGI(TAG, "I2C driver installed on port %d", I2C_PORT_NUM);
+    }
+
+    i2c_ready = true;
+    return ESP_OK;
+}
 
 static float soil_to_percent(uint16_t raw)
 {
-    // Generic mapping: higher raw => wetter; normalize to 0..100%.
-    // ADS1115 single-ended full-scale = 32767 counts.
-    const float max_raw = 32767.0f;
-    float pct = 100.0f * (1.0f - ((float)raw / max_raw));
+    // Calibrated linear mapping: higher counts = drier soil.
+    const float dry = (float)SOIL_SENSOR_RAW_DRY;
+    const float wet = (float)SOIL_SENSOR_RAW_WET;
+    const float span = dry - wet;
+
+    if (span <= 0.0f) {
+        return 0.0f;
+    }
+
+    float pct = ((dry - (float)raw) / span) * 100.0f;
     if (pct < 0.0f) {
         pct = 0.0f;
     } else if (pct > 100.0f) {
@@ -90,6 +139,11 @@ void sensors_init(void)
     };
     gpio_config(&float_cfg);
 
+    if (ensure_i2c_bus() != ESP_OK) {
+        ESP_LOGE(TAG, "I2C bus init failed; sensors unavailable");
+        return;
+    }
+
     // Power sensors to initialize I2C devices
     gpio_set_level(SENSOR_EN_GPIO, 1);
     vTaskDelay(pdMS_TO_TICKS(SENSOR_POWER_ON_DELAY_MS));
@@ -113,25 +167,44 @@ void sensors_collect(sensor_reading_t *out)
         return;
     }
 
+    if (!i2c_ready && ensure_i2c_bus() != ESP_OK) {
+        ESP_LOGE(TAG, "I2C bus unavailable during collection");
+        memset(out, 0, sizeof(*out));
+        out->temperature_c = NAN;
+        out->humidity_pct = NAN;
+        return;
+    }
+
     // Power sensors
     gpio_set_level(SENSOR_EN_GPIO, 1);
-    vTaskDelay(pdMS_TO_TICKS(SENSOR_POWER_ON_DELAY_MS));
+    vTaskDelay(pdMS_TO_TICKS(SENSOR_POWER_ON_DELAY_MS + 50)); // extra margin for ADC settling
 
     // Soil moisture via ADS1115 (AIN0)
     int32_t acc = 0;
+    int valid_samples = 0;
     for (int i = 0; i < SOIL_SAMPLES; ++i) {
         int16_t sample = 0;
         esp_err_t err = ads1115_read_single_ended(SOIL_ADC_CHANNEL, ADS1115_PGA_4096, &sample);
         if (err != ESP_OK) {
-            ESP_LOGW(TAG, "ADS1115 read failed: %s", esp_err_to_name(err));
-            sample = 0;
+            ESP_LOGW(TAG, "ADS1115 read failed (sample %d/%d): %s", i + 1, SOIL_SAMPLES, esp_err_to_name(err));
+            vTaskDelay(pdMS_TO_TICKS(20)); // back off before retry
+            continue;
         }
         if (sample < 0) sample = 0; // single-ended should be >= 0
         acc += sample;
+        valid_samples++;
         vTaskDelay(pdMS_TO_TICKS(5));
     }
-    out->soil_raw = (uint16_t)(acc / SOIL_SAMPLES);
-    out->soil_percent = soil_to_percent(out->soil_raw);
+    
+    if (valid_samples == 0) {
+        ESP_LOGE(TAG, "ADS1115: no valid samples collected");
+        out->soil_raw = 0;
+        out->soil_percent = 0.0f;
+    } else {
+        out->soil_raw = (uint16_t)(acc / valid_samples);
+        out->soil_percent = soil_to_percent(out->soil_raw);
+        ESP_LOGD(TAG, "Soil: %d valid samples, raw=%u, percent=%.1f%%", valid_samples, out->soil_raw, out->soil_percent);
+    }
 
     // Float switches (active-low); valid only when sensors are powered
     out->water_low = gpio_get_level(WATER_REFILL_GPIO) == 0;      // refill indicator
@@ -153,7 +226,15 @@ void sensors_collect(sensor_reading_t *out)
         sensors_set_pump_state(false);
     }
     out->pump_is_on = sensors_get_pump_state();
-    out->timestamp_ms = esp_timer_get_time() / 1000ULL;
+
+    uint64_t timestamp_ms = esp_timer_get_time() / 1000ULL;
+    if (time_sync_is_time_valid()) {
+        struct timeval now;
+        if (gettimeofday(&now, NULL) == 0) {
+            timestamp_ms = ((uint64_t)now.tv_sec * 1000ULL) + ((uint64_t)now.tv_usec / 1000ULL);
+        }
+    }
+    out->timestamp_ms = timestamp_ms;
 
     // Power sensors off
     gpio_set_level(SENSOR_EN_GPIO, 0);

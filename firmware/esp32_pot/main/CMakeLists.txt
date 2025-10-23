@@ -4,6 +4,7 @@ idf_component_register(
         "sensors.c"
         "plant_mqtt.c"
         "wifi.c"
+        "time_sync.c"
         "aht10.c"
         "ads1115.c"
     INCLUDE_DIRS "."

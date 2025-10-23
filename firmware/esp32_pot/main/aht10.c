@@ -10,7 +10,6 @@
 #define AHT10_CMD_TRIGGER  0xAC
 
 static const char *TAG = "aht10";
-static bool driver_installed = false;
 static i2c_port_t active_port = I2C_NUM_0;
 
 static esp_err_t aht10_write_bytes(const uint8_t *data, size_t len)
@@ -25,31 +24,9 @@ static esp_err_t aht10_read_bytes(uint8_t *data, size_t len)
 
 esp_err_t aht10_init(i2c_port_t port, gpio_num_t sda_gpio, gpio_num_t scl_gpio)
 {
+    (void)sda_gpio;
+    (void)scl_gpio;
     active_port = port;
-
-    i2c_config_t conf = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = sda_gpio,
-        .scl_io_num = scl_gpio,
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = 100000,
-        .clk_flags = 0,
-    };
-
-    esp_err_t err = i2c_param_config(port, &conf);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "i2c_param_config failed: %s", esp_err_to_name(err));
-        return err;
-    }
-    if (!driver_installed) {
-        err = i2c_driver_install(port, conf.mode, 0, 0, 0);
-        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-            ESP_LOGE(TAG, "i2c_driver_install failed: %s", esp_err_to_name(err));
-            return err;
-        }
-        driver_installed = true;
-    }
 
     // Soft reset then quick calibration
     uint8_t reset = AHT10_CMD_RESET;

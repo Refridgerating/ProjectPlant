@@ -1,8 +1,5 @@
-﻿import { TelemetrySample } from "../api/hubClient";
-
-function formatNumber(value: number, options?: Intl.NumberFormatOptions) {
-  return new Intl.NumberFormat("en-US", options).format(value);
-}
+import { TelemetrySample } from "../api/hubClient";
+import { CollapsibleTile } from "./CollapsibleTile";
 
 function formatTimestamp(value: string) {
   const date = new Date(value);
@@ -16,27 +13,56 @@ type TelemetrySummaryProps = {
 export function TelemetrySummary({ latest }: TelemetrySummaryProps) {
   if (!latest) {
     return (
-      <section className="rounded-xl border border-dashed border-slate-800 bg-slate-900/40 p-6 text-sm text-slate-400">
-        <h2 className="text-base font-semibold text-slate-200">Latest Conditions</h2>
-        <p className="mt-2">Waiting for simulated readings…</p>
-      </section>
+      <CollapsibleTile
+        id="plant-conditions-latest"
+        title="Latest Conditions"
+        subtitle="Waiting for sensor readings."
+        className="border border-dashed border-emerald-600/45 bg-[rgba(7,29,19,0.68)] p-6 text-sm text-emerald-200/70"
+        bodyClassName="mt-4"
+      >
+        <p>We will display the latest snapshot once telemetry starts streaming.</p>
+      </CollapsibleTile>
     );
   }
 
+  const temperatureDisplay =
+    latest.temperature_c != null
+      ? `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(latest.temperature_c)} deg C`
+      : "--";
+  const humidityDisplay =
+    latest.humidity_pct != null
+      ? `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(latest.humidity_pct)} %`
+      : "--";
+  const pressureDisplay =
+    latest.pressure_hpa != null
+      ? `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(latest.pressure_hpa)} hPa`
+      : "--";
+  const solarDisplay =
+    latest.solar_radiation_w_m2 != null
+      ? `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(latest.solar_radiation_w_m2)} W/m^2`
+      : "--";
+
   return (
-    <section className="grid gap-4 rounded-xl border border-slate-800 bg-slate-900/70 p-6 md:grid-cols-4">
-      <header className="md:col-span-4">
-        <h2 className="text-base font-semibold text-slate-200">Latest Conditions</h2>
-        <p className="text-sm text-slate-400">{formatTimestamp(latest.timestamp)}</p>
-      </header>
-      <Metric label="Temperature" value={`${formatNumber(latest.temperature_c, { maximumFractionDigits: 1 })} °C`} />
-      <Metric label="Humidity" value={`${formatNumber(latest.humidity_pct, { maximumFractionDigits: 1 })} %`} />
-      <Metric label="Pressure" value={`${formatNumber(latest.pressure_hpa, { maximumFractionDigits: 1 })} hPa`} />
+    <CollapsibleTile
+      id="plant-conditions-latest"
+      title="Latest Conditions"
+      subtitle={formatTimestamp(latest.timestamp)}
+      className="p-6 text-sm text-emerald-100/85"
+      bodyClassName="mt-4 grid gap-4 md:grid-cols-5"
+    >
       <Metric
-        label="Solar Radiation"
-        value={`${formatNumber(latest.solar_radiation_w_m2, { maximumFractionDigits: 0 })} W/m²`}
+        label="Soil Moisture"
+        value={
+          latest.moisture_pct != null
+            ? `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(latest.moisture_pct)} %`
+            : "--"
+        }
       />
-    </section>
+      <Metric label="Temperature" value={temperatureDisplay} />
+      <Metric label="Humidity" value={humidityDisplay} />
+      <Metric label="Pressure" value={pressureDisplay} />
+      <Metric label="Solar Radiation" value={solarDisplay} />
+    </CollapsibleTile>
   );
 }
 
@@ -47,9 +73,9 @@ type MetricProps = {
 
 function Metric({ label, value }: MetricProps) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-4">
-      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-slate-100">{value}</p>
+    <div className="rounded-2xl border border-emerald-800/40 bg-[rgba(6,24,16,0.75)] p-4 shadow-inner shadow-emerald-950/40">
+      <p className="text-xs uppercase tracking-wide text-emerald-200/60">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-emerald-50">{value}</p>
     </div>
   );
 }

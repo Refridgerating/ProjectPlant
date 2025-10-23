@@ -21,13 +21,17 @@
 #define BATTERY_ADC_CHANNEL     0           // ADS1115 AIN1
 #define SOIL_SAMPLES            16
 
+// Soil moisture calibration (ADS1115 counts)
+#define SOIL_SENSOR_RAW_DRY     17040       // Completely dry soil
+#define SOIL_SENSOR_RAW_WET     7507        // Waterlogged soil
+
 // Pump control GPIO (drives IRLZ44N gate via 100Ω)
 #define PUMP_GPIO               GPIO_NUM_23 // Matches wiring: GPIO23 → MOSFET gate
 
 // Sensor power switch (P-MOSFET FQP27P06 via 2N3904)
 // Logic: drive HIGH to enable sensors (pull P-MOSFET gate low via NPN)
 #define SENSOR_EN_GPIO          GPIO_NUM_27
-#define SENSOR_POWER_ON_DELAY_MS 100        // allow sensors/I2C to power-stabilize
+#define SENSOR_POWER_ON_DELAY_MS 150        // allow sensors/I2C to power-stabilize and I2C settle
 
 // Water level float switches (active-low), external 100k pull-ups to 3V3_SW
 // On ESP32: GPIO34/35 are input-only and have no internal pull-ups; rely on external pull-ups.

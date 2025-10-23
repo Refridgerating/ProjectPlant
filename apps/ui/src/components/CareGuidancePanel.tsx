@@ -1,6 +1,7 @@
 import type { CareProfile, GuidanceBlock } from "@projectplant/care-engine";
 import { useCareGuidance } from "../hooks/useCareGuidance";
 import classNames from "classnames";
+import { CollapsibleTile } from "./CollapsibleTile";
 
 type CareGuidancePanelProps = {
   profile: CareProfile | null;
@@ -14,37 +15,42 @@ export function CareGuidancePanel({ profile, className, title = "Care Guidance P
 
   if (!profile || !hasData) {
     return (
-      <section
-        className={classNames(
-          "rounded-xl border border-slate-800 bg-slate-900/50 p-4 text-sm text-slate-400",
-          className
-        )}
+      <CollapsibleTile
+        id="care-guidance-panel"
+        title={title}
+        subtitle="No structured guidance available yet."
+        className={classNames("border border-slate-800 bg-slate-900/50 p-4 text-sm text-slate-400", className)}
+        bodyClassName="mt-3"
+        titleClassName="text-sm font-semibold text-slate-200"
+        subtitleClassName="text-xs text-slate-400"
       >
-        No structured guidance available yet.
-      </section>
+        <p>We will surface plant-specific care tasks as soon as the inference engine produces structured recommendations.</p>
+      </CollapsibleTile>
     );
   }
 
   return (
-    <section
+    <CollapsibleTile
+      id="care-guidance-panel"
+      title={title}
+      subtitle={profile.taxon.canonicalName}
       className={classNames(
-        "space-y-4 rounded-xl border border-brand-500/40 bg-brand-500/10 p-4 text-sm text-brand-50",
+        "space-y-0 border border-brand-500/40 bg-brand-500/10 p-4 text-sm text-brand-50",
         className
       )}
-    >
-      <header className="flex items-center justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold text-brand-100">{title}</h3>
-          <p className="text-xs text-brand-200/70">{profile.taxon.canonicalName}</p>
-        </div>
+      bodyClassName="mt-4 space-y-4"
+      titleClassName="text-sm font-semibold text-brand-100"
+      subtitleClassName="text-xs text-brand-200/70"
+      actions={
         <span className="rounded-full border border-brand-500/50 px-2 py-0.5 text-[11px] uppercase tracking-wide text-brand-200/80">
           {profile.metadata.inferenceVersion}
         </span>
-      </header>
+      }
+    >
       <GuidanceSection title="General" blocks={general} />
       <GuidanceSection title="Indoor" blocks={indoor} emptyHint="No indoor-specific advice yet." />
       <GuidanceSection title="Outdoor" blocks={outdoor} emptyHint="No outdoor-specific advice yet." />
-    </section>
+    </CollapsibleTile>
   );
 }
 
