@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from config import settings
 from api.search_router import router as search_router
 from api.v1.router import router as v1_router
+from api.etkc_router import router as etkc_router
 from mqtt.client import startup as mqtt_startup, shutdown as mqtt_shutdown
 from services.weather import weather_service
 from services.plant_lookup import plant_lookup_service
@@ -63,6 +64,7 @@ def create_app() -> FastAPI:
 
     app.include_router(search_router)
     app.include_router(v1_router)
+    app.include_router(etkc_router)
 
     return app
 

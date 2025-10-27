@@ -7,6 +7,9 @@
 #include <sys/time.h>
 #include <time.h>
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
 #include "cJSON.h"
 #include "esp_err.h"
 #include "esp_log.h"
@@ -23,6 +26,40 @@ static const uint64_t MIN_VALID_TIMESTAMP_MS = 1609459200ULL * 1000ULL;
 
 static uint64_t current_epoch_ms(void);
 
+static void log_stack_metrics(const char *label)
+{
+#if defined(INCLUDE_uxTaskGetStackHighWaterMark) && (INCLUDE_uxTaskGetStackHighWaterMark == 1)
+    UBaseType_t watermark_words = uxTaskGetStackHighWaterMark(NULL);
+    ESP_LOGD(TAG, "%s high-water mark: %lu words (%lu bytes)",
+             label,
+             (unsigned long)watermark_words,
+             (unsigned long)watermark_words * sizeof(StackType_t));
+#else
+    ESP_LOGD(TAG, "%s high-water mark unavailable", label);
+#endif
+
+#if defined(__GNUC__)
+    void *frames[4] = {0};
+    int depth = 0;
+    for (; depth < (int)(sizeof(frames) / sizeof(frames[0])); ++depth) {
+        void *frame = __builtin_frame_address(depth);
+        if (!frame) {
+            break;
+        }
+        frames[depth] = frame;
+    }
+    ESP_LOGD(TAG, "%s call depth approx %d frames: %p %p %p %p",
+             label,
+             depth,
+             frames[0],
+             frames[1],
+             frames[2],
+             frames[3]);
+#else
+    (void)label;
+#endif
+}
+
 static bool topic_equals(const char *topic, int topic_len, const char *expected)
 {
     if (!topic || !expected) {
@@ -38,27 +75,41 @@ void mqtt_publish_ping(esp_mqtt_client_handle_t client, const char *device_id)
         return;
     }
 
+    log_stack_metrics("mqtt_publish_ping:entry");
+    const size_t local_bytes = sizeof(cJSON *) + sizeof(char *) + sizeof(int);
+    ESP_LOGD(TAG, "mqtt_publish_ping locals estimate: %u bytes", (unsigned)local_bytes);
+
     cJSON *root = cJSON_CreateObject();
     if (!root) {
         return;
     }
 
     cJSON_AddStringToObject(root, "from", device_id);
-    cJSON_AddNumberToObject(root, "timestampMs", (double)current_epoch_ms());
+    log_stack_metrics("mqtt_publish_ping:before current_epoch_ms");
+    uint64_t timestamp_ms = current_epoch_ms();
+    log_stack_metrics("mqtt_publish_ping:after current_epoch_ms");
+    cJSON_AddNumberToObject(root, "timestampMs", (double)timestamp_ms);
 
+    log_stack_metrics("mqtt_publish_ping:before cJSON_PrintUnformatted");
     char *payload = cJSON_PrintUnformatted(root);
+    log_stack_metrics("mqtt_publish_ping:after cJSON_PrintUnformatted");
     cJSON_Delete(root);
     if (!payload) {
         return;
     }
 
+    ESP_LOGD(TAG, "mqtt_publish_ping payload length: %u", (unsigned)strlen(payload));
+
+    log_stack_metrics("mqtt_publish_ping:before esp_mqtt_client_publish");
     int msg_id = esp_mqtt_client_publish(client, MQTT_PING_TOPIC, payload, 0, 0, false);
+    log_stack_metrics("mqtt_publish_ping:after esp_mqtt_client_publish");
     if (msg_id >= 0) {
         ESP_LOGI(TAG, "Published ping: %s", payload);
     } else {
         ESP_LOGW(TAG, "Failed to publish ping message");
     }
     cJSON_free(payload);
+    log_stack_metrics("mqtt_publish_ping:exit");
 }
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
@@ -145,11 +196,18 @@ static inline bool is_valid_float(float value)
 
 static uint64_t current_epoch_ms(void)
 {
+    log_stack_metrics("current_epoch_ms:entry");
     struct timeval now;
     if (time_sync_is_time_valid() && gettimeofday(&now, NULL) == 0) {
-        return ((uint64_t)now.tv_sec * 1000ULL) + ((uint64_t)now.tv_usec / 1000ULL);
+        uint64_t ts = ((uint64_t)now.tv_sec * 1000ULL) + ((uint64_t)now.tv_usec / 1000ULL);
+        ESP_LOGD(TAG, "current_epoch_ms synced timestamp: %llu", (unsigned long long)ts);
+        log_stack_metrics("current_epoch_ms:exit");
+        return ts;
     }
-    return (uint64_t)(esp_timer_get_time() / 1000ULL);
+    uint64_t fallback = (uint64_t)(esp_timer_get_time() / 1000ULL);
+    ESP_LOGD(TAG, "current_epoch_ms fallback timestamp: %llu", (unsigned long long)fallback);
+    log_stack_metrics("current_epoch_ms:exit");
+    return fallback;
 }
 
 static bool format_iso8601_timestamp(uint64_t timestamp_ms, char *buffer, size_t buffer_len)

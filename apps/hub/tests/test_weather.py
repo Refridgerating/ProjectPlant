@@ -73,7 +73,13 @@ def test_weather_endpoint_success(client: TestClient, respx_mock) -> None:
     assert payload["station"]["name"] == "Ronald Reagan National"
     assert payload["station"]["distance_km"] == pytest.approx(6.227, abs=0.05)
     assert payload["data"], "should include at least one observation"
+    assert payload["sources"] == ["noaa_nws"]
     entry = payload["data"][0]
+    assert entry["source"] == "noaa_nws"
+    assert entry["temperature_c"] == pytest.approx(22.0)
+    assert entry["humidity_pct"] == pytest.approx(60.0)
+    assert entry["solar_radiation_w_m2"] == pytest.approx(420.0)
+    assert entry["pressure_hpa"] == pytest.approx(1008.0, rel=1e-3)
     assert entry["wind_speed_m_s"] is not None
     assert entry["wind_speed_m_s"] == pytest.approx(5.0)
 

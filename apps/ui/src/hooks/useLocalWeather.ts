@@ -14,12 +14,13 @@ type LocalWeatherState = {
   coverageHours: number;
   availableWindows: number[];
   station: WeatherStation | null;
+  sources: string[];
 };
 
 export function useLocalWeather(location: Coordinates | null, hours: number, options?: { maxSamples?: number }) {
   const maxSamples = options?.maxSamples ?? 24;
   const controllerRef = useRef<AbortController | null>(null);
-  const [{ data, latest, loading, error, coverageHours, availableWindows, station }, setState] =
+  const [{ data, latest, loading, error, coverageHours, availableWindows, station, sources }, setState] =
     useState<LocalWeatherState>({
       data: [],
       latest: null,
@@ -28,6 +29,7 @@ export function useLocalWeather(location: Coordinates | null, hours: number, opt
       coverageHours: 0,
       availableWindows: [],
       station: null,
+      sources: [],
     });
 
   const load = useCallback(
@@ -41,6 +43,7 @@ export function useLocalWeather(location: Coordinates | null, hours: number, opt
           coverageHours: 0,
           availableWindows: [],
           station: null,
+          sources: [],
         });
         return;
       }
@@ -61,6 +64,7 @@ export function useLocalWeather(location: Coordinates | null, hours: number, opt
           coverageHours: series.coverageHours,
           availableWindows: series.availableWindows,
           station: series.station ?? null,
+          sources: series.sources ?? [],
         });
       } catch (err) {
         if (signal?.aborted) {
@@ -95,6 +99,7 @@ export function useLocalWeather(location: Coordinates | null, hours: number, opt
     coverageHours,
     availableWindows,
     station,
+    sources,
     refresh,
   };
 }

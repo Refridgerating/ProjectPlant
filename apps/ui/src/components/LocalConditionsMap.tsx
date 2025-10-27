@@ -25,6 +25,26 @@ const DEFAULT_ZOOM = 13;
 const MIN_ZOOM = 3;
 const MAX_ZOOM = 18;
 
+const SOURCE_LABELS: Record<string, string> = {
+  nasa_power: "NASA POWER",
+  noaa_nws: "NOAA NWS",
+};
+
+function formatSourceTag(tag: string): string {
+  const normalized = tag.trim().toLowerCase();
+  if (!normalized) {
+    return "";
+  }
+  const mapped = SOURCE_LABELS[normalized];
+  if (mapped) {
+    return mapped;
+  }
+  return normalized
+    .split(/[_\s]+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function metersToLatDelta(meters: number): number {
   return meters / METERS_PER_DEGREE_LAT;
 }
@@ -78,11 +98,13 @@ export function LocalConditionsMap({
   lon,
   accuracy,
   station,
+  sources,
 }: {
   lat: number;
   lon: number;
   accuracy?: number | null;
   station?: WeatherStation | null;
+  sources?: string[] | null;
 }) {
   const isInteractive =
     typeof window !== "undefined" &&
@@ -121,6 +143,16 @@ export function LocalConditionsMap({
     }
     return 0;
   }, [lat, lon, stationDistanceKm, stationLat, stationLon]);
+
+  const sourcesDisplay = useMemo(() => {
+    if (!sources || sources.length === 0) {
+      return null;
+    }
+    const labels = sources
+      .map((source) => formatSourceTag(source))
+      .filter((label) => label.length > 0);
+    return labels.length ? labels.join(" + ") : null;
+  }, [sources]);
 
   const bounds = useMemo<LatLngBoundsExpression>(() => {
     const accuracyLatDelta = metersToLatDelta(accuracyRadiusMeters);
@@ -265,7 +297,7 @@ export function LocalConditionsMap({
                     <Tooltip direction="top" offset={[0, -6]}>
                       {`Reporting station${stationLabel ? `: ${stationLabel}` : ""}${
                         stationDistanceDisplay ? ` • ${stationDistanceDisplay}` : ""
-                      }`}
+                      }${sourcesDisplay ? ` • Sources: ${sourcesDisplay}` : ""}`}
                     </Tooltip>
                   </CircleMarker>
                 ) : null}
@@ -285,6 +317,11 @@ export function LocalConditionsMap({
               <span className="text-[11px] font-medium text-emerald-200/70">
                 Station: {stationLabel}
                 {stationDistanceDisplay ? ` • ${stationDistanceDisplay}` : ""}
+              </span>
+            ) : null}
+            {sourcesDisplay ? (
+              <span className="text-[11px] font-medium text-emerald-200/70">
+                Data sources: {sourcesDisplay}
               </span>
             ) : null}
             <span className="text-[11px] font-medium text-emerald-200/70">Coverage ring ≈ 25 mi²</span>

@@ -13,9 +13,19 @@ export type HubInfo = {
 export type TelemetrySample = {
   timestamp: string;
   temperature_c: number | null;
+  temperature_max_c?: number | null;
+  temperature_min_c?: number | null;
+  dewpoint_c?: number | null;
   humidity_pct: number | null;
+  specific_humidity_g_kg?: number | null;
   pressure_hpa: number | null;
+  pressure_kpa?: number | null;
+  solar_radiation_mj_m2_h?: number | null;
+  solar_radiation_clear_mj_m2_h?: number | null;
+  solar_radiation_diffuse_mj_m2_h?: number | null;
+  solar_radiation_direct_mj_m2_h?: number | null;
   solar_radiation_w_m2: number | null;
+  precip_mm_h?: number | null;
   moisture_pct?: number | null;
   wind_speed_m_s?: number | null;
   station?: string | null;
@@ -36,6 +46,7 @@ export type WeatherSeries = {
   coverageHours: number;
   availableWindows: number[];
   station: WeatherStation | null;
+  sources: string[];
 };
 
 export type WateringPlantProfile = {
@@ -578,6 +589,7 @@ export async function fetchLocalWeather(
     data: TelemetrySample[];
     coverage_hours: number;
     available_windows: number[];
+    sources?: string[] | null;
     station?: {
       id?: string | null;
       name?: string | null;
@@ -602,6 +614,9 @@ export async function fetchLocalWeather(
     coverageHours: payload.coverage_hours ?? 0,
     availableWindows: payload.available_windows ?? [],
     station,
+    sources: Array.isArray(payload.sources)
+      ? payload.sources.map((source) => source.trim()).filter((source) => source.length > 0)
+      : [],
   };
 }
 
@@ -715,6 +730,64 @@ export async function fetchPlants(signal?: AbortSignal): Promise<PlantRecord[]> 
     throw new Error(`Failed to load plants (${response.status})`);
   }
   return (await response.json()) as PlantRecord[];
+}
+
+export type EtkcMetric = {
+  ts: number;
+  ET0_mm: number;
+  ETc_model_mm: number;
+  ETc_obs_mm: number | null;
+  Kcb_struct: number;
+  Kcb_eff: number;
+  c_aero: number;
+  Ke: number;
+  Ks: number;
+  De_mm: number;
+  Dr_mm: number;
+  REW_mm: number;
+  tau_e_h: number;
+  need_irrigation: boolean;
+  recommend_mm: number;
+};
+
+export async function fetchEtkcMetrics(
+  plantId: string,
+  sinceIso?: string,
+  signal?: AbortSignal
+): Promise<EtkcMetric[]> {
+  const trimmed = plantId.trim();
+  if (!trimmed) {
+    throw new Error("Plant identifier is required");
+  }
+  const params = new URLSearchParams();
+  if (sinceIso) {
+    params.set("since", sinceIso);
+  }
+  const response = await fetch(
+    `${apiBase()}/etkc/metrics/${encodeURIComponent(trimmed)}${params.toString() ? `?${params}` : ""}`,
+    { signal }
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to load ETkc metrics (${response.status})`);
+  }
+  const payload = (await response.json()) as Array<Record<string, unknown>>;
+  return payload.map((item) => ({
+    ts: typeof item["ts"] === "number" ? (item["ts"] as number) : Number(item["ts"] ?? 0),
+    ET0_mm: Number(item["ET0_mm"] ?? 0),
+    ETc_model_mm: Number(item["ETc_model_mm"] ?? 0),
+    ETc_obs_mm: item["ETc_obs_mm"] === null || item["ETc_obs_mm"] === undefined ? null : Number(item["ETc_obs_mm"]),
+    Kcb_struct: Number(item["Kcb_struct"] ?? 0),
+    Kcb_eff: Number(item["Kcb_eff"] ?? 0),
+    c_aero: Number(item["c_aero"] ?? 0),
+    Ke: Number(item["Ke"] ?? 0),
+    Ks: Number(item["Ks"] ?? 0),
+    De_mm: Number(item["De_mm"] ?? 0),
+    Dr_mm: Number(item["Dr_mm"] ?? 0),
+    REW_mm: Number(item["REW_mm"] ?? 0),
+    tau_e_h: Number(item["tau_e_h"] ?? 0),
+    need_irrigation: Boolean(item["need_irrigation"]),
+    recommend_mm: Number(item["recommend_mm"] ?? 0),
+  }));
 }
 
 export async function createPlant(

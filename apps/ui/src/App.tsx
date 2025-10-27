@@ -18,8 +18,10 @@ import { MyPlantsTab } from "./components/MyPlantsTab";
 import { ConnectionBadges } from "./components/ConnectionBadges";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { PenmanMonteithEquation } from "./components/PenmanMonteithEquation";
+import { WaterModelSection } from "./components/WaterModelSection";
 import { CollapsibleTile } from "./components/CollapsibleTile";
 import { useSensorRead } from "./hooks/useSensorRead";
+import { usePumpControl } from "./hooks/usePumpControl";
 import { TelemetrySample, SensorReadPayload, exportPotTelemetry, fetchPotTelemetry } from "./api/hubClient";
 import { getSettings, RuntimeMode } from "./settings";
 
@@ -101,6 +103,26 @@ function formatMaybeNumber(value: number | null | undefined, fractionDigits: num
     return "-";
   }
   return value.toFixed(fractionDigits);
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  nasa_power: "NASA POWER",
+  noaa_nws: "NOAA NWS",
+};
+
+function formatSourceTag(tag: string): string {
+  const normalized = tag.trim().toLowerCase();
+  if (!normalized) {
+    return "";
+  }
+  const mapped = SOURCE_LABELS[normalized];
+  if (mapped) {
+    return mapped;
+  }
+  return normalized
+    .split(/[_\s]+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function LoadingState({ message = "Loading hub status..." }: { message?: string }) {
@@ -341,14 +363,29 @@ export default function App() {
     coverageHours,
     availableWindows,
     station: localStation,
+    sources: localSources,
     refresh: refreshLocal,
   } = useLocalWeather(geolocation.coords, localRange, { maxSamples: 200 });
+  const latestSourceDisplay = useMemo(() => {
+    const tags = localSources.length
+      ? localSources
+      : (localLatest?.source ?? "")
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter((tag) => tag.length > 0);
+    if (!tags.length) {
+      return null;
+    }
+    const labels = tags.map((tag) => formatSourceTag(tag));
+    const unique = Array.from(new Set(labels.filter((label) => label.length > 0)));
+    return unique.length ? unique.join(" + ") : null;
+  }, [localSources, localLatest?.source]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [serverHint, setServerHint] = useState<string>(initialSettings.serverBaseUrl);
   const [potTelemetryTicker, setPotTelemetryTicker] = useState(0);
   const [telemetryExporting, setTelemetryExporting] = useState(false);
   const [telemetryExportStatus, setTelemetryExportStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
-  const telemetryExportTimeoutRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const telemetryExportTimeoutRef = useRef<number | null>(null);
 
   const showTelemetryExportStatus = useCallback(
     (status: { type: "success" | "error"; message: string } | null) => {
@@ -889,6 +926,7 @@ export default function App() {
               lon={geolocation.coords.lon}
               accuracy={geolocation.coords.accuracy}
               station={localStation}
+              sources={localSources}
             />
           ) : null}
         </div>
@@ -907,6 +945,7 @@ export default function App() {
     localLatest,
     localLoading,
     localWeather,
+    localSources,
     refreshLocal,
     displayTelemetry,
     telemetrySource,
@@ -1026,6 +1065,7 @@ export default function App() {
             {activeChartTab === "plant" ? (
               <>
                 <TelemetrySummary latest={displayLatest} />
+                <WaterModelSection plantId={telemetrySource === "mock" ? undefined : telemetrySource} />
                 <div className="grid gap-6 lg:grid-cols-3">
                   <div className="space-y-6 lg:col-span-2">
                     <MqttDiagnostics info={data} />
@@ -1050,9 +1090,29 @@ export default function App() {
                 <ul className="space-y-1">
                   <li>Temperature: {formatMaybeNumber(localLatest?.temperature_c, 1)} deg C</li>
                   <li>Humidity: {formatMaybeNumber(localLatest?.humidity_pct, 1)} %</li>
-                  <li>Pressure: {formatMaybeNumber(localLatest?.pressure_hpa, 1)} hPa</li>
+                  <li>Pressure (hPa): {formatMaybeNumber(localLatest?.pressure_hpa, 1)} hPa</li>
+                  <li>Pressure (kPa): {formatMaybeNumber(localLatest?.pressure_kpa ?? null, 2)} kPa</li>
                   <li>Solar Radiation: {formatMaybeNumber(localLatest?.solar_radiation_w_m2, 1)} W/m^2</li>
+                  <li>
+                    Solar Radiation (MJ/m^2/h):
+                    {" "}
+                    {formatMaybeNumber(localLatest?.solar_radiation_mj_m2_h ?? null, 2)} MJ/m^2/h
+                  </li>
+                  <li>
+                    Solar Clear (MJ/m^2/h):{" "}
+                    {formatMaybeNumber(localLatest?.solar_radiation_clear_mj_m2_h ?? null, 2)} MJ/m^2/h
+                  </li>
+                  <li>
+                    Solar Diffuse (MJ/m^2/h):{" "}
+                    {formatMaybeNumber(localLatest?.solar_radiation_diffuse_mj_m2_h ?? null, 2)} MJ/m^2/h
+                  </li>
+                  <li>
+                    Solar Direct (MJ/m^2/h):{" "}
+                    {formatMaybeNumber(localLatest?.solar_radiation_direct_mj_m2_h ?? null, 2)} MJ/m^2/h
+                  </li>
                   <li>Wind Speed: {formatMaybeNumber(localLatest?.wind_speed_m_s, 2)} m/s</li>
+                  <li>Precipitation: {formatMaybeNumber(localLatest?.precip_mm_h ?? null, 3)} mm/h</li>
+                  <li>Data Sources: {latestSourceDisplay ?? "-"}</li>
                 </ul>
               </CollapsibleTile>
             ) : null}
@@ -1078,6 +1138,16 @@ function PlantControlPanel({
 }) {
   const [sensorPotId, setSensorPotId] = useState("");
   const sensorRead = useSensorRead();
+  const {
+    isOn: pumpIsOn,
+    pending: pumpPending,
+    requestId: pumpRequestId,
+    lastConfirmedAt: pumpLastConfirmedAt,
+    feedback: pumpFeedback,
+    clearFeedback: clearPumpFeedback,
+    toggle: togglePump,
+    syncTelemetry: syncPumpTelemetry,
+  } = usePumpControl();
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const lastRequestIdRef = useRef<string | null>(null);
 
@@ -1144,6 +1214,14 @@ function PlantControlPanel({
     return () => clearTimeout(timer);
   }, [feedback]);
 
+  useEffect(() => {
+    if (!pumpFeedback) {
+      return;
+    }
+    const timer = setTimeout(() => clearPumpFeedback(), 5000);
+    return () => clearTimeout(timer);
+  }, [pumpFeedback, clearPumpFeedback]);
+
   const handleSensorSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = sensorPotId.trim();
@@ -1161,6 +1239,15 @@ function PlantControlPanel({
 
   const sensorSnapshot = sensorRead.data;
   const trimmedPotId = sensorPotId.trim();
+  useEffect(() => {
+    if (!sensorSnapshot) {
+      return;
+    }
+    syncPumpTelemetry({
+      ...sensorSnapshot,
+      requestId: sensorRead.requestId ?? null,
+    });
+  }, [sensorSnapshot, sensorRead.requestId, syncPumpTelemetry]);
   const isSubmitDisabled = sensorRead.loading || !trimmedPotId;
   const snapshotTimestamp = sensorSnapshot
     ? snapshotTimestampLabel(sensorSnapshot.timestamp, sensorSnapshot.timestampMs ?? null)
@@ -1182,6 +1269,31 @@ function PlantControlPanel({
   const reservoirDisplay = describeWaterLow(sensorSnapshot?.waterLow);
   const cutoffDisplay = describeWaterCutoff(sensorSnapshot?.waterCutoff);
   const potIdDisplay = sensorSnapshot?.potId ? sensorSnapshot.potId : null;
+  const pumpStatusLabel = pumpPending
+    ? "Pending"
+    : pumpIsOn === null
+      ? "Unknown"
+      : pumpIsOn
+        ? "On"
+        : "Off";
+  const pumpHelper = (() => {
+    if (!trimmedPotId) {
+      return "Enter a pot id above to enable pump control.";
+    }
+    if (pumpPending) {
+      return "Awaiting confirmation from the hub...";
+    }
+    if (pumpLastConfirmedAt) {
+      return pumpRequestId
+        ? `Last confirmed ${pumpLastConfirmedAt} · Request ${pumpRequestId}`
+        : `Last confirmed ${pumpLastConfirmedAt}`;
+    }
+    return "Tap to toggle the pump.";
+  })();
+  const pumpButtonDisabled = !trimmedPotId || pumpPending;
+  const handlePumpToggle = useCallback(() => {
+    void togglePump({ potId: trimmedPotId });
+  }, [togglePump, trimmedPotId]);
 
   return (
     <div className="space-y-4">
@@ -1242,15 +1354,44 @@ function PlantControlPanel({
               {feedback.message}
             </div>
           ) : null}
+          {pumpFeedback ? (
+            <div
+              role="status"
+              className={`rounded-lg border px-3 py-2 text-xs ${
+                pumpFeedback.type === "success"
+                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
+                  : pumpFeedback.type === "error"
+                    ? "border-rose-500/50 bg-rose-500/10 text-rose-200"
+                    : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200/80"
+              }`}
+            >
+              {pumpFeedback.message}
+            </div>
+          ) : null}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {CONTROL_DEVICES.map((device) => (
-              <ControlToggleButton
-                key={device.id}
-                label={device.label}
-                isOn={states[device.id]}
-                onClick={() => onToggle(device.id)}
-              />
-            ))}
+            {CONTROL_DEVICES.map((device) => {
+              if (device.id === "pump") {
+                return (
+                  <ControlToggleButton
+                    key={device.id}
+                    label={device.label}
+                    isOn={pumpIsOn ?? false}
+                    status={pumpStatusLabel}
+                    helper={pumpHelper}
+                    disabled={pumpButtonDisabled}
+                    onClick={handlePumpToggle}
+                  />
+                );
+              }
+              return (
+                <ControlToggleButton
+                  key={device.id}
+                  label={device.label}
+                  isOn={states[device.id]}
+                  onClick={() => onToggle(device.id)}
+                />
+              );
+            })}
             <div className="rounded-2xl border border-emerald-800/40 bg-[rgba(5,23,16,0.82)] p-4 text-xs text-emerald-100/80 shadow-inner shadow-emerald-950/40 sm:col-span-2 xl:col-span-3">
               <h4 className="text-sm font-semibold text-emerald-50">Sensor Snapshot</h4>
               {sensorSnapshot ? (
@@ -1300,8 +1441,8 @@ function PlantControlPanel({
                   No on-demand snapshot yet. Enter a pot id and press Sensor Read to fetch one.
                 </p>
               )}
-            </div>
           </div>
+        </div>
       </CollapsibleTile>
     </div>
   );
@@ -1310,34 +1451,43 @@ function ControlToggleButton({
   label,
   isOn,
   onClick,
+  disabled = false,
+  status,
+  helper,
 }: {
   label: string;
   isOn: boolean;
   onClick: () => void;
+  disabled?: boolean;
+  status?: string;
+  helper?: string;
 }) {
-  const buttonClasses = isOn
+  const active = isOn;
+  const statusText = status ?? (active ? "On" : "Off");
+  const helperText = helper ?? (active ? "Manual override engaged" : "Tap to enable manual control");
+  const buttonClasses = active
     ? "border-emerald-400/80 bg-emerald-500/20 text-emerald-100 shadow shadow-emerald-900/40 hover:border-emerald-300"
     : "border-emerald-900/40 bg-[rgba(7,28,19,0.72)] text-emerald-100/70 hover:border-emerald-700/40 hover:text-emerald-100";
-  const statusClasses = isOn
+  const statusClasses = active
     ? "border border-emerald-400/60 bg-emerald-500/20 text-emerald-100"
     : "border border-emerald-800/40 bg-[rgba(6,24,16,0.78)] text-emerald-200/60";
-  const helperClasses = isOn ? "text-emerald-200/80" : "text-emerald-200/60";
+  const helperClasses = disabled ? "text-emerald-200/50" : active ? "text-emerald-200/80" : "text-emerald-200/60";
+  const disabledClasses = disabled ? "cursor-not-allowed opacity-60" : "";
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex h-28 flex-col justify-between rounded-xl border px-4 py-3 text-left transition-colors ${buttonClasses}`}
+      disabled={disabled}
+      className={`flex h-28 flex-col justify-between rounded-xl border px-4 py-3 text-left transition-colors ${buttonClasses} ${disabledClasses}`}
     >
       <div className="flex items-center justify-between">
         <span className="text-base font-semibold">{label}</span>
-        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusClasses}`}>
-          {isOn ? "On" : "Off"}
+        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusClasses} ${disabled ? "opacity-70" : ""}`}>
+          {statusText}
         </span>
       </div>
-      <p className={`text-xs ${helperClasses}`}>
-        {isOn ? "Manual override engaged" : "Tap to enable manual control"}
-      </p>
+      <p className={`text-xs ${helperClasses}`}>{helperText}</p>
     </button>
   );
 }

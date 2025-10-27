@@ -90,6 +90,12 @@ export function TelemetryChart({
   const minTime = chartData[0].timeValue ?? 0;
   const maxTime = chartData[chartData.length - 1].timeValue ?? minTime;
 
+  const hasSolarAllSky = chartData.some((sample) => sample.solar_radiation_mj_m2_h != null);
+  const hasSolarClear = chartData.some((sample) => sample.solar_radiation_clear_mj_m2_h != null);
+  const hasSolarDiffuse = chartData.some((sample) => sample.solar_radiation_diffuse_mj_m2_h != null);
+  const hasSolarDirect = chartData.some((sample) => sample.solar_radiation_direct_mj_m2_h != null);
+  const hasSolarEnergy = hasSolarAllSky || hasSolarClear || hasSolarDiffuse || hasSolarDirect;
+
   return (
     <CollapsibleTile
       id={safeId}
@@ -131,13 +137,31 @@ export function TelemetryChart({
               tick={{ fontSize: 12, fill: "#bbf7d0" }}
               domain={[0, "auto"]}
               label={{
-                value: "Pressure / Solar",
+                value: "Pressure (hPa) / Solar (W/m²)",
                 angle: 90,
                 position: "insideRight",
                 fill: "#a7f3d0",
                 offset: 10,
               }}
             />
+            {hasSolarEnergy ? (
+              <YAxis
+                yAxisId="energy"
+                orientation="right"
+                axisLine={false}
+                tickLine={false}
+                stroke="#f97316"
+                tick={{ fontSize: 12, fill: "#fed7aa" }}
+                domain={[0, "auto"]}
+                label={{
+                  value: "Solar (MJ/m²/h)",
+                  angle: 90,
+                  position: "insideRight",
+                  fill: "#fdba74",
+                  offset: -5,
+                }}
+              />
+            ) : null}
             <Tooltip
               contentStyle={{ background: "#052016", borderColor: "#10402a", color: "#ecfdf5" }}
               labelFormatter={(value) => formatTick(Number(value))}
@@ -162,7 +186,60 @@ export function TelemetryChart({
               stroke="#f59e0b"
               strokeWidth={2}
               yAxisId="right"
+              connectNulls
+              dot={false}
             />
+            {hasSolarAllSky ? (
+              <Line
+                type="monotone"
+                dataKey="solar_radiation_mj_m2_h"
+                name="Solar (MJ/m^2/h)"
+                stroke="#fb923c"
+                strokeWidth={2}
+                yAxisId="energy"
+                connectNulls
+                dot={false}
+              />
+            ) : null}
+            {hasSolarClear ? (
+              <Line
+                type="monotone"
+                dataKey="solar_radiation_clear_mj_m2_h"
+                name="Solar Clear (MJ/m^2/h)"
+                stroke="#fcd34d"
+                strokeWidth={2}
+                strokeDasharray="6 2"
+                yAxisId="energy"
+                connectNulls
+                dot={false}
+              />
+            ) : null}
+            {hasSolarDiffuse ? (
+              <Line
+                type="monotone"
+                dataKey="solar_radiation_diffuse_mj_m2_h"
+                name="Solar Diffuse (MJ/m^2/h)"
+                stroke="#fde68a"
+                strokeWidth={2}
+                strokeDasharray="4 3"
+                yAxisId="energy"
+                connectNulls
+                dot={false}
+              />
+            ) : null}
+            {hasSolarDirect ? (
+              <Line
+                type="monotone"
+                dataKey="solar_radiation_direct_mj_m2_h"
+                name="Solar Direct (MJ/m^2/h)"
+                stroke="#f97316"
+                strokeWidth={2}
+                strokeDasharray="2 2"
+                yAxisId="energy"
+                connectNulls
+                dot={false}
+              />
+            ) : null}
             <Line
               type="monotone"
               dataKey="wind_speed_m_s"

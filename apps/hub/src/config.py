@@ -33,6 +33,16 @@ class Settings(BaseSettings):
     weather_request_timeout: float = Field(default=5.0, ge=1.0, description="Timeout in seconds for weather HTTP calls")
     weather_cache_ttl: int = Field(default=300, ge=0, description="Cache duration (seconds) for weather responses")
     weather_base_url: str = Field(default="https://api.weather.gov", description="Base URL for weather provider")
+    nasa_power_base_url: str = Field(
+        default="https://power.larc.nasa.gov",
+        description="Base URL for NASA POWER API",
+    )
+
+    environment_sensor_freshness_minutes: float = Field(
+        default=15.0,
+        ge=0.0,
+        description="Maximum age in minutes for local environment sensor data before falling back to external sources.",
+    )
 
     # Plant lookup APIs
     trefle_token: str | None = Field(default=None, description="Token for Trefle API access")

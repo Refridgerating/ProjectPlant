@@ -4,6 +4,7 @@ import asyncio
 import json
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from typing import Callable, Optional
 from unittest.mock import AsyncMock
 
 import pytest
@@ -67,8 +68,8 @@ def test_sensor_read_endpoint_service_error(client: TestClient, monkeypatch: pyt
 
 
 class _EndpointMessageStream:
-    def __init__(self, queue: asyncio.Queue[bytes]) -> None:
-        self._queue = queue
+    def __init__(self, queue_factory: Callable[[], asyncio.Queue[SimpleNamespace]]) -> None:
+        self._queue_factory = queue_factory
 
     async def __aenter__(self) -> "_EndpointMessageStream":
         return self
@@ -80,28 +81,36 @@ class _EndpointMessageStream:
         return self
 
     async def __anext__(self):
-        payload = await self._queue.get()
-        return SimpleNamespace(payload=payload)
+        queue = self._queue_factory()
+        return await queue.get()
 
 
 class _EndpointFakeClient:
     def __init__(self, pot_id: str) -> None:
         self.pot_id = pot_id
-        self._queues: dict[str, asyncio.Queue[bytes]] = {}
+        self._queues: dict[str, asyncio.Queue[SimpleNamespace]] = {}
         self.subscription_history: list[str] = []
         self.unsubscription_history: list[str] = []
         self.published: list[tuple[str, str, int, bool]] = []
         self.request_ids: list[str] = []
+        self._current_topic: Optional[str] = None
 
-    def filtered_messages(self, topic: str) -> _EndpointMessageStream:
-        queue = self._queues.setdefault(topic, asyncio.Queue())
-        return _EndpointMessageStream(queue)
+    def messages(self) -> _EndpointMessageStream:
+        return _EndpointMessageStream(self._active_queue)
+
+    def _active_queue(self) -> asyncio.Queue[SimpleNamespace]:
+        if self._current_topic is None:
+            raise RuntimeError("No active subscription")
+        return self._queues.setdefault(self._current_topic, asyncio.Queue())
 
     async def subscribe(self, topic: str) -> None:
         self.subscription_history.append(topic)
+        self._current_topic = topic
 
     async def unsubscribe(self, topic: str) -> None:
         self.unsubscription_history.append(topic)
+        if self._current_topic == topic:
+            self._current_topic = None
 
     async def publish(self, topic: str, payload: str, qos: int = 0, retain: bool = False) -> None:
         self.published.append((topic, payload, qos, retain))
@@ -133,8 +142,8 @@ class _EndpointFakeClient:
             },
             separators=(",", ":"),
         )
-        await queue.put(stale_payload.encode("utf-8"))
-        await queue.put(fresh_payload.encode("utf-8"))
+        await queue.put(SimpleNamespace(topic=sensors_topic, payload=stale_payload.encode("utf-8")))
+        await queue.put(SimpleNamespace(topic=sensors_topic, payload=fresh_payload.encode("utf-8")))
 
 
 @pytest.mark.anyio

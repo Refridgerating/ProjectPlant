@@ -55,6 +55,47 @@ async def test_telemetry_store_records_samples():
     assert samples[1].pressure_hpa == pytest.approx(1012.4)
 
 
+@pytest.mark.anyio
+async def test_telemetry_store_latest_matching_prefers_fresh_sensor():
+    await telemetry_store.clear()
+    now = datetime.now(timezone.utc)
+
+    await telemetry_store.record_environment(
+        timestamp=now - timedelta(minutes=10),
+        temperature_c=20.0,
+        humidity_pct=55.0,
+        source="sensor",
+    )
+    await telemetry_store.record_environment(
+        timestamp=now - timedelta(minutes=5),
+        temperature_c=21.0,
+        humidity_pct=48.0,
+        source="weather",
+    )
+
+    sensor_sample = await telemetry_store.latest_matching(
+        source_filter=("sensor",),
+        max_age=timedelta(minutes=15),
+        require=("temperature_c", "humidity_pct"),
+    )
+    assert sensor_sample is not None
+    assert sensor_sample.source == "sensor"
+
+    stale_sensor = await telemetry_store.latest_matching(
+        source_filter=("sensor",),
+        max_age=timedelta(minutes=5),
+        require=("temperature_c", "humidity_pct"),
+    )
+    assert stale_sensor is None
+
+    fallback = await telemetry_store.latest_matching(
+        max_age=timedelta(minutes=6),
+        require=("temperature_c", "humidity_pct"),
+    )
+    assert fallback is not None
+    assert fallback.source == "weather"
+
+
 def test_get_live_telemetry_endpoint(client):
     asyncio.run(telemetry_store.clear())
     asyncio.run(telemetry_store.record_environment(temperature_c=23.4, humidity_pct=51.2))
@@ -77,7 +118,7 @@ async def test_pot_telemetry_store_round_trip(tmp_path):
     )
     await store.record(
         pot_id="pot-1",
-        timestamp="2025-10-24T01:00:00Z",
+        timestamp=None,
         timestamp_ms=None,
         moisture=47.8,
         temperature=22.1,
@@ -87,7 +128,7 @@ async def test_pot_telemetry_store_round_trip(tmp_path):
     )
     await store.record(
         pot_id="pot-1",
-        timestamp="2025-10-24T01:05:00Z",
+        timestamp=None,
         timestamp_ms=None,
         moisture=48.2,
         temperature=22.0,
@@ -107,8 +148,8 @@ def test_get_pot_telemetry_endpoint(client, tmp_path):
         asyncio.run(
             test_store.record(
                 pot_id="pot-42",
-                timestamp="2025-10-24T01:10:00Z",
-                timestamp_ms=1_700_000_000_000,
+                    timestamp=None,
+                    timestamp_ms=None,
                 moisture=52.1,
                 temperature=21.9,
                 humidity=55.0,

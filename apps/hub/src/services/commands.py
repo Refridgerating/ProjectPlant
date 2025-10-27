@@ -60,10 +60,34 @@ class CommandService:
         if duration_ms is not None and duration_ms <= 0:
             raise ValueError("duration_ms must be greater than zero")
 
-        payload: dict[str, Any] = {"on": on}
-        if duration_ms is not None:
-            payload["durationMs"] = duration_ms
-        return await self._execute_command(pot_id, command="pump", command_payload=payload, timeout=timeout)
+        duration_int: Optional[int]
+        if duration_ms is None:
+            duration_int = None
+        else:
+            duration_int = int(duration_ms)
+
+        overall_start = time.monotonic()
+        pump_result = await self.send_pump_override(
+            pot_id,
+            pump_on=on,
+            duration_ms=duration_int,
+            timeout=timeout,
+        )
+
+        sensor_timeout: Optional[float] = None
+        if timeout is not None:
+            elapsed = time.monotonic() - overall_start
+            remaining = timeout - elapsed
+            if remaining <= 0:
+                raise CommandTimeoutError(
+                    f"Timed out waiting for sensor reading after pump command for {pot_id}"
+                )
+            sensor_timeout = remaining
+
+        sensor_result = await self.request_sensor_read(pot_id, timeout=sensor_timeout)
+        payload = dict(sensor_result.payload)
+        payload["requestId"] = pump_result.request_id
+        return SensorReadResult(request_id=pump_result.request_id, payload=payload)
 
     async def _execute_command(
         self,
@@ -110,7 +134,7 @@ class CommandService:
         )
         while True:
             try:
-                async with client.filtered_messages(sensors_topic) as messages:
+                async with client.messages() as messages:
                     try:
                         await client.subscribe(sensors_topic)
                         subscribe_attempts = 0
@@ -146,6 +170,13 @@ class CommandService:
                             except MqttError as exc:
                                 self._logger.warning("MQTT error while awaiting sensor reading: %s", exc)
                                 break
+
+                            topic_value = getattr(message, "topic", sensors_topic)
+                            if hasattr(topic_value, "matches"):
+                                if not topic_value.matches(sensors_topic):
+                                    continue
+                            elif str(topic_value) != sensors_topic:
+                                continue
 
                             data = self._decode_payload(message.payload)
                             if data is None:
@@ -242,7 +273,7 @@ class CommandService:
 
         start_monotonic = time.monotonic()
 
-        async with client.filtered_messages(status_topic) as messages:
+        async with client.messages() as messages:
             try:
                 await client.subscribe(status_topic)
             except MqttError as exc:
@@ -266,6 +297,13 @@ class CommandService:
                         raise CommandTimeoutError(f"Timed out waiting for status update on {status_topic}") from exc
                     except MqttError as exc:
                         raise CommandServiceError("MQTT error while awaiting status update") from exc
+
+                    topic_value = getattr(message, "topic", status_topic)
+                    if hasattr(topic_value, "matches"):
+                        if not topic_value.matches(status_topic):
+                            continue
+                    elif str(topic_value) != status_topic:
+                        continue
 
                     data = self._decode_payload(message.payload)
                     if data is None:

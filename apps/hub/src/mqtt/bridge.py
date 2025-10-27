@@ -6,9 +6,10 @@ import logging
 import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Awaitable, Callable, Optional
 
-from asyncio_mqtt import Client, Message
+from asyncio_mqtt import Client, Message, MqttCodeError, MqttError
+from paho.mqtt.client import topic_matches_sub
 
 from services.pump_status import PumpStatusSnapshot, pump_status_cache
 from services.telemetry import telemetry_store
@@ -20,6 +21,16 @@ CANONICAL_SENSOR_TOPIC_FMT = "pots/{pot_id}/sensors"
 CANONICAL_SENSOR_FILTER = "pots/+/sensors"
 LEGACY_FIRMWARE_STATUS_FILTER = "projectplant/pots/+/status"
 CANONICAL_STATUS_TOPIC_FMT = "pots/{pot_id}/status"
+
+
+def _topic_matches(topic: Any, wildcard: str) -> bool:
+    if hasattr(topic, "matches"):
+        try:
+            return topic.matches(wildcard)
+        except ValueError:
+            # Fall back to string matching for invalid combinations
+            pass
+    return topic_matches_sub(wildcard, str(topic))
 
 
 @dataclass(frozen=True)
@@ -66,11 +77,19 @@ class NormalizedTelemetry:
 class MqttBridge:
     """Bridges firmware MQTT topics into the SDK-friendly namespace."""
 
-    def __init__(self, client: Client, *, logger: Optional[logging.Logger] = None) -> None:
+    def __init__(
+        self,
+        client: Client,
+        *,
+        logger: Optional[logging.Logger] = None,
+        on_disconnect: Optional[Callable[[str, BaseException | None], Awaitable[None]]] = None,
+    ) -> None:
         self._client = client
         self._logger = logger or logging.getLogger(LOGGER_NAME)
         self._tasks: list[asyncio.Task[None]] = []
         self._started = False
+        self._on_disconnect = on_disconnect
+        self._backoff_seconds = 1.0
 
     async def start(self) -> None:
         if self._started:
@@ -101,20 +120,22 @@ class MqttBridge:
         topic_filter = LEGACY_FIRMWARE_TELEMETRY_FILTER
         while self._started:
             try:
-                async with self._client.filtered_messages(topic_filter) as messages:
+                async with self._client.messages() as messages:
                     await self._client.subscribe(topic_filter)
                     async for message in messages:
+                        if not _topic_matches(message.topic, topic_filter):
+                            continue
                         await self._handle_firmware_message(message)
+                        self._reset_backoff()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # pragma: no cover - unexpected failures logged for observability
-                self._logger.warning("MQTT firmware bridge loop interrupted: %s", exc)
-                await asyncio.sleep(1.0)
+                await self._handle_loop_exception("firmware bridge", exc)
             finally:
                 try:
                     await self._client.unsubscribe(topic_filter)
-                except Exception:  # pragma: no cover - best effort clean-up
-                    pass
+                except Exception as exc:  # pragma: no cover - best effort clean-up
+                    await self._handle_unsubscribe_error("firmware bridge", exc)
 
         self._logger.debug("Firmware bridge task exiting")
 
@@ -122,20 +143,22 @@ class MqttBridge:
         topic_filter = LEGACY_FIRMWARE_STATUS_FILTER
         while self._started:
             try:
-                async with self._client.filtered_messages(topic_filter) as messages:
+                async with self._client.messages() as messages:
                     await self._client.subscribe(topic_filter)
                     async for message in messages:
+                        if not _topic_matches(message.topic, topic_filter):
+                            continue
                         await self._handle_status_message(message)
+                        self._reset_backoff()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # pragma: no cover - unexpected failures logged for observability
-                self._logger.warning("MQTT status bridge loop interrupted: %s", exc)
-                await asyncio.sleep(1.0)
+                await self._handle_loop_exception("status bridge", exc)
             finally:
                 try:
                     await self._client.unsubscribe(topic_filter)
-                except Exception:  # pragma: no cover - best effort clean-up
-                    pass
+                except Exception as exc:  # pragma: no cover - best effort clean-up
+                    await self._handle_unsubscribe_error("status bridge", exc)
 
         self._logger.debug("Status bridge task exiting")
 
@@ -143,22 +166,66 @@ class MqttBridge:
         topic_filter = CANONICAL_SENSOR_FILTER
         while self._started:
             try:
-                async with self._client.filtered_messages(topic_filter) as messages:
+                async with self._client.messages() as messages:
                     await self._client.subscribe(topic_filter)
                     async for message in messages:
+                        if not _topic_matches(message.topic, topic_filter):
+                            continue
                         await self._handle_canonical_sensor_message(message)
+                        self._reset_backoff()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # pragma: no cover - unexpected failures logged for observability
-                self._logger.warning("MQTT canonical sensor loop interrupted: %s", exc)
-                await asyncio.sleep(1.0)
+                await self._handle_loop_exception("canonical sensor", exc)
             finally:
                 try:
                     await self._client.unsubscribe(topic_filter)
-                except Exception:  # pragma: no cover - best effort clean-up
-                    pass
+                except Exception as exc:  # pragma: no cover - best effort clean-up
+                    await self._handle_unsubscribe_error("canonical sensor", exc)
 
         self._logger.debug("Canonical sensor capture exiting")
+
+    async def _handle_loop_exception(self, context: str, exc: Exception) -> None:
+        if self._is_not_connected_error(exc):
+            await self._notify_disconnect(context, exc)
+            return
+        self._logger.warning("MQTT %s loop interrupted: %s", context, exc)
+        await asyncio.sleep(1.0)
+
+    async def _handle_unsubscribe_error(self, context: str, exc: Exception) -> None:
+        if self._is_not_connected_error(exc):
+            await self._notify_disconnect(f"{context} unsubscribe", exc)
+            return
+        self._logger.debug("Failed to unsubscribe in %s: %s", context, exc)
+
+    async def _notify_disconnect(self, context: str, exc: BaseException | None) -> None:
+        if not self._started:
+            return
+        self._logger.warning("MQTT %s detected disconnect: %s", context, exc)
+        if self._on_disconnect is not None:
+            try:
+                await self._on_disconnect(context, exc)
+            except Exception as callback_exc:  # pragma: no cover - defensive logging
+                self._logger.debug("Disconnect callback failed: %s", callback_exc)
+        if not self._started:
+            return
+        delay = self._backoff_seconds
+        if delay > 0 and self._started:
+            await asyncio.sleep(delay)
+        self._backoff_seconds = min(self._backoff_seconds * 2.0, 30.0)
+
+    def _reset_backoff(self) -> None:
+        self._backoff_seconds = 1.0
+
+    @staticmethod
+    def _is_not_connected_error(exc: Exception) -> bool:
+        if isinstance(exc, MqttCodeError):
+            rc = exc.rc
+            if isinstance(rc, int) and rc in {4, 7}:
+                return True
+        if isinstance(exc, MqttError):
+            return "Disconnected" in str(exc)
+        return False
 
     async def _handle_firmware_message(self, message: Message) -> None:
         pot_id = _extract_pot_id(message.topic)
@@ -225,7 +292,9 @@ class MqttBridge:
             # Skip messages that originated from the bridge to avoid duplicates
             return
 
-        timestamp_ms_float = _coerce_float(data.get("timestampMs") or data.get("timestamp_ms"))
+        timestamp_ms_float = _coerce_float(data.get("timestampMs"))
+        if timestamp_ms_float is None:
+            timestamp_ms_float = _coerce_float(data.get("timestamp_ms"))
         timestamp_iso = _coerce_str(data.get("timestamp"))
         if timestamp_iso:
             try:
@@ -242,17 +311,42 @@ class MqttBridge:
 
         timestamp_ms_int = int(round(timestamp_ms_float)) if timestamp_ms_float is not None else None
 
-        moisture = _coerce_float(data.get("moisture") or data.get("moisture_pct"))
-        temperature = _coerce_float(data.get("temperature") or data.get("temperature_c"))
-        humidity = _coerce_float(data.get("humidity") or data.get("humidity_pct"))
-        pressure = _coerce_float(data.get("pressure_hpa") or data.get("pressure"))
-        solar = _coerce_float(data.get("solar_radiation_w_m2") or data.get("solar"))
-        wind = _coerce_float(data.get("wind_speed_m_s") or data.get("wind"))
-        valve_open = _coerce_bool(data.get("valveOpen") or data.get("valve_open"))
-        flow_rate = _coerce_float(data.get("flowRateLpm") or data.get("flow_rate_lpm"))
+        moisture = _coerce_float(data.get("moisture"))
+        if moisture is None:
+            moisture = _coerce_float(data.get("moisture_pct"))
+
+        temperature = _coerce_float(data.get("temperature"))
+        if temperature is None:
+            temperature = _coerce_float(data.get("temperature_c"))
+
+        humidity = _coerce_float(data.get("humidity"))
+        if humidity is None:
+            humidity = _coerce_float(data.get("humidity_pct"))
+
+        pressure = _coerce_float(data.get("pressure_hpa"))
+        if pressure is None:
+            pressure = _coerce_float(data.get("pressure"))
+
+        solar = _coerce_float(data.get("solar_radiation_w_m2"))
+        if solar is None:
+            solar = _coerce_float(data.get("solar"))
+
+        wind = _coerce_float(data.get("wind_speed_m_s"))
+        if wind is None:
+            wind = _coerce_float(data.get("wind"))
+
+        valve_open = _coerce_bool(data.get("valveOpen"))
+        if valve_open is None:
+            valve_open = _coerce_bool(data.get("valve_open"))
+
+        flow_rate = _coerce_float(data.get("flowRateLpm"))
+        if flow_rate is None:
+            flow_rate = _coerce_float(data.get("flow_rate_lpm"))
         water_low = _coerce_bool(data.get("waterLow"))
         water_cutoff = _coerce_bool(data.get("waterCutoff"))
-        soil_raw = _coerce_float(data.get("soilRaw") or data.get("soil_raw"))
+        soil_raw = _coerce_float(data.get("soilRaw"))
+        if soil_raw is None:
+            soil_raw = _coerce_float(data.get("soil_raw"))
 
         try:
             timestamp_dt = datetime.fromisoformat(timestamp_iso.replace("Z", "+00:00"))
@@ -340,9 +434,13 @@ def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[Normalized
     if pump_on is None:
         pump_on = _coerce_bool(data.get("valveOpen"))
 
-    request_id = _coerce_str(data.get("requestId") or data.get("request_id"))
+    request_id = _coerce_str(data.get("requestId"))
+    if request_id is None:
+        request_id = _coerce_str(data.get("request_id"))
 
-    timestamp_ms_float = _coerce_float(data.get("timestampMs") or data.get("timestamp_ms"))
+    timestamp_ms_float = _coerce_float(data.get("timestampMs"))
+    if timestamp_ms_float is None:
+        timestamp_ms_float = _coerce_float(data.get("timestamp_ms"))
     timestamp_iso = None
     raw_timestamp = _coerce_str(data.get("timestamp"))
     if raw_timestamp:
@@ -366,9 +464,17 @@ def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[Normalized
         # Nothing usable in this payload
         return None
 
-    water_low = _coerce_bool(data.get("waterLow") or data.get("water_low"))
-    water_cutoff = _coerce_bool(data.get("waterCutoff") or data.get("water_cutoff"))
-    soil_raw = _coerce_float(data.get("soilRaw") or data.get("soil_raw"))
+    water_low = _coerce_bool(data.get("waterLow"))
+    if water_low is None:
+        water_low = _coerce_bool(data.get("water_low"))
+
+    water_cutoff = _coerce_bool(data.get("waterCutoff"))
+    if water_cutoff is None:
+        water_cutoff = _coerce_bool(data.get("water_cutoff"))
+
+    soil_raw = _coerce_float(data.get("soilRaw"))
+    if soil_raw is None:
+        soil_raw = _coerce_float(data.get("soil_raw"))
 
     moisture = _round_or_default(soil_pct, 0.0, digits=1)
     temperature = _round_or_default(temperature_c, 0.0, digits=1)
@@ -408,7 +514,9 @@ def build_status_payload(raw_payload: bytes, pot_id: str) -> Optional[PumpStatus
     if not isinstance(data, dict):
         return None
 
-    status = _coerce_str(data.get("status") or data.get("state"))
+    status = _coerce_str(data.get("status"))
+    if status is None:
+        status = _coerce_str(data.get("state"))
     pump_on = _coerce_bool(data.get("pump_on"))
     if pump_on is None:
         pump_on = _coerce_bool(data.get("pumpOn"))
@@ -417,8 +525,12 @@ def build_status_payload(raw_payload: bytes, pot_id: str) -> Optional[PumpStatus
     if pump_on is None and status:
         pump_on = _infer_pump_state(status)
 
-    request_id = _coerce_str(data.get("requestId") or data.get("request_id"))
-    timestamp_ms_float = _coerce_float(data.get("timestampMs") or data.get("timestamp_ms"))
+    request_id = _coerce_str(data.get("requestId"))
+    if request_id is None:
+        request_id = _coerce_str(data.get("request_id"))
+    timestamp_ms_float = _coerce_float(data.get("timestampMs"))
+    if timestamp_ms_float is None:
+        timestamp_ms_float = _coerce_float(data.get("timestamp_ms"))
     timestamp_ms = int(timestamp_ms_float) if timestamp_ms_float is not None else None
     timestamp_iso = _normalize_status_timestamp(data.get("timestamp"))
     if timestamp_iso is None and timestamp_ms_float is not None:
@@ -440,15 +552,15 @@ def build_status_payload(raw_payload: bytes, pot_id: str) -> Optional[PumpStatus
     )
 
 
-def _extract_pot_id(topic: str) -> Optional[str]:
-    parts = topic.split("/")
+def _extract_pot_id(topic: Any) -> Optional[str]:
+    parts = str(topic).split("/")
     if len(parts) >= 4 and parts[0] == "projectplant" and parts[1] == "pots":
         return parts[2]
     return None
 
 
-def _extract_canonical_pot_id(topic: str) -> Optional[str]:
-    parts = topic.split("/")
+def _extract_canonical_pot_id(topic: Any) -> Optional[str]:
+    parts = str(topic).split("/")
     if len(parts) >= 3 and parts[0] == "pots" and parts[2] == "sensors":
         return parts[1]
     return None

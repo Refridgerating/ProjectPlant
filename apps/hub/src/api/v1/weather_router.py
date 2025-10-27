@@ -1,4 +1,4 @@
-﻿import httpx
+import httpx
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -23,11 +23,22 @@ def validate_hours(hours: float = Query(6.0, description="Lookback window in hou
 class WeatherTelemetry(BaseModel):
     timestamp: str | None = None
     station: str | None = None
-    temperature_c: float | None = Field(default=None, description="Ambient temperature in °C")
+    temperature_c: float | None = Field(default=None, description="Ambient temperature in degC")
+    temperature_max_c: float | None = Field(default=None, description="Hourly maximum temperature in degC (NASA POWER)")
+    temperature_min_c: float | None = Field(default=None, description="Hourly minimum temperature in degC (NASA POWER)")
+    dewpoint_c: float | None = Field(default=None, description="Dew point temperature in degC")
     humidity_pct: float | None = Field(default=None, description="Relative humidity %")
+    specific_humidity_g_kg: float | None = Field(default=None, description="Specific humidity in g/kg derived from NASA POWER")
     pressure_hpa: float | None = Field(default=None, description="Barometric pressure in hPa")
-    solar_radiation_w_m2: float | None = Field(default=None, description="Solar radiation in W/m²")
+    pressure_kpa: float | None = Field(default=None, description="Barometric pressure in kPa (NASA POWER)")
+    solar_radiation_mj_m2_h: float | None = Field(default=None, description="Shortwave solar radiation in MJ/m^2/h (NASA POWER)")
+    solar_radiation_clear_mj_m2_h: float | None = Field(default=None, description="Clear sky shortwave radiation in MJ/m^2/h (NASA POWER)")
+    solar_radiation_diffuse_mj_m2_h: float | None = Field(default=None, description="Diffuse shortwave radiation in MJ/m^2/h (NASA POWER)")
+    solar_radiation_direct_mj_m2_h: float | None = Field(default=None, description="Direct shortwave radiation in MJ/m^2/h (NASA POWER)")
+    solar_radiation_w_m2: float | None = Field(default=None, description="Solar radiation in W/m^2")
     wind_speed_m_s: float | None = Field(default=None, description="Wind speed in m/s at observation height")
+    precip_mm_h: float | None = Field(default=None, description="Precipitation rate in mm/h (NASA POWER)")
+    source: str | None = Field(default=None, description="Comma-delimited data sources contributing to this record")
 
 class WeatherStation(BaseModel):
     id: str | None = None
@@ -45,6 +56,7 @@ class WeatherResponse(BaseModel):
     available_windows: list[float]
     data: list[WeatherTelemetry]
     station: WeatherStation | None = None
+    sources: list[str] = Field(default_factory=list, description="Unique data providers contributing to this series")
 
 @router.get("/local", response_model=WeatherResponse)
 async def get_local_weather(
@@ -67,6 +79,14 @@ async def get_local_weather(
 
     telemetry = [WeatherTelemetry(**entry) for entry in payload]
     station_payload = WeatherStation(**station_info) if station_info else None
+    sources = sorted(
+        {
+            part.strip()
+            for entry in payload
+            for part in (entry.get("source") or "").split(",")
+            if part and part.strip()
+        }
+    )
     return WeatherResponse(
         location={"lat": lat, "lon": lon},
         requested_hours=hours,
@@ -74,6 +94,7 @@ async def get_local_weather(
         available_windows=available_windows,
         data=telemetry,
         station=station_payload,
+        sources=sources,
     )
 
 def _calculate_coverage_hours(observations: list[dict[str, object]]) -> float:

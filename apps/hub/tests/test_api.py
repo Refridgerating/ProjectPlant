@@ -23,3 +23,9 @@ def test_v1_info(client: TestClient) -> None:
     assert payload["mqtt_port"] == settings.mqtt_port
     assert payload["pot_telemetry_retention_hours"] == settings.pot_telemetry_retention_hours
     assert payload["pot_telemetry_max_rows"] == settings.pot_telemetry_max_rows
+
+
+def test_etkc_metrics_endpoint(client: TestClient) -> None:
+    response = client.get("/api/v1/etkc/metrics/test-pot")
+    assert response.status_code == 200
+    assert response.json() == []

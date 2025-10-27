@@ -80,9 +80,9 @@ _mqtt_connected: bool = False
 _mqtt_task: Optional[asyncio.Task] = None
 
 
-def _parse_device_id_from_state_topic(topic: str) -> Optional[str]:
+def _parse_device_id_from_state_topic(topic: object) -> Optional[str]:
     # Expect pattern: plant/{DEVICE_ID}/state
-    parts = topic.split("/")
+    parts = str(topic).split("/")
     if len(parts) == 3 and parts[0] == "plant" and parts[2] == "state":
         return parts[1]
     return None
@@ -110,7 +110,7 @@ async def _mqtt_loop():
 
                     async for message in messages:
                         payload = message.payload.decode(errors="ignore").strip().lower()
-                        topic = message.topic
+                        topic = str(message.topic)
                         retained = bool(message.retain)
                         device_id = _parse_device_id_from_state_topic(topic)
                         if not device_id:

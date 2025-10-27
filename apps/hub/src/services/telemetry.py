@@ -4,7 +4,7 @@ import asyncio
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Deque, List, Optional
+from typing import Deque, List, Optional, Sequence
 
 
 def _ensure_utc(timestamp: Optional[datetime] = None) -> datetime:
@@ -134,6 +134,34 @@ class TelemetryStore:
     async def latest(self) -> Optional[EnvironmentSample]:
         async with self._lock:
             return self._samples[-1] if self._samples else None
+
+    async def latest_matching(
+        self,
+        *,
+        source_filter: Optional[Sequence[str]] = None,
+        max_age: Optional[timedelta] = None,
+        require: Optional[Sequence[str]] = None,
+    ) -> Optional[EnvironmentSample]:
+        async with self._lock:
+            snapshot = list(self._samples)
+
+        if not snapshot:
+            return None
+
+        now = datetime.now(timezone.utc)
+        allowed_sources = set(source_filter) if source_filter is not None else None
+        required = tuple(require or ())
+
+        for sample in reversed(snapshot):
+            if allowed_sources is not None and sample.source not in allowed_sources:
+                continue
+            if max_age is not None and (now - sample.timestamp) > max_age:
+                continue
+            if required and any(getattr(sample, field, None) is None for field in required):
+                continue
+            return sample
+
+        return None
 
     async def clear(self) -> None:
         async with self._lock:

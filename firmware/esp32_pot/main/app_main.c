@@ -12,13 +12,29 @@
 
 #define FW_VERSION "0.1.0"
 #define COMMAND_TASK_STACK 3072
-#define PING_TASK_STACK 2048
+#define PING_TASK_STACK 4096
 
 static const char *TAG = "app";
 
 static QueueHandle_t measurement_queue;
 static QueueHandle_t command_queue;
 static esp_mqtt_client_handle_t mqtt_client = NULL;
+
+#if defined(INCLUDE_uxTaskGetStackHighWaterMark) && (INCLUDE_uxTaskGetStackHighWaterMark == 1)
+static void log_ping_task_watermark(const char *label)
+{
+    UBaseType_t words = uxTaskGetStackHighWaterMark(NULL);
+    ESP_LOGD(TAG, "%s high-water mark: %lu words (%lu bytes)",
+             label,
+             (unsigned long)words,
+             (unsigned long)words * sizeof(StackType_t));
+}
+#else
+static inline void log_ping_task_watermark(const char *label)
+{
+    (void)label;
+}
+#endif
 
 static void mqtt_command_dispatch(const mqtt_command_t *cmd)
 {
@@ -108,10 +124,19 @@ static void mqtt_task(void *arg)
 
 static void ping_task(void *arg)
 {
+#if defined(INCLUDE_uxTaskGetStackHighWaterMark) && (INCLUDE_uxTaskGetStackHighWaterMark == 1)
+    log_ping_task_watermark("ping_task initial");
+#endif
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(MQTT_PING_INTERVAL_MS));
         if (mqtt_client) {
+#if defined(INCLUDE_uxTaskGetStackHighWaterMark) && (INCLUDE_uxTaskGetStackHighWaterMark == 1)
+            log_ping_task_watermark("ping_task before mqtt_publish_ping");
+#endif
             mqtt_publish_ping(mqtt_client, DEVICE_ID);
+#if defined(INCLUDE_uxTaskGetStackHighWaterMark) && (INCLUDE_uxTaskGetStackHighWaterMark == 1)
+            log_ping_task_watermark("ping_task after mqtt_publish_ping");
+#endif
         }
     }
 }
