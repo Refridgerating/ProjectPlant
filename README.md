@@ -43,6 +43,14 @@ Settings are loaded via Pydantic from `apps/hub/.env` (case-insensitive keys) an
 | `MQTT_ENABLED` | Toggle MQTT startup handshake. | `false` |
 | `MQTT_*` | Broker connection details (host, port, credentials, TLS). | See `.env` |
 | `WEATHER_*` | Timeouts, cache TTL, and user-agent for weather.gov. | See `.env` |
+| `HRRR_ENABLED` | Turn NOAA HRRR ingestion on/off. Scheduler and endpoints disable when `false`. | `true` |
+| `HRRR_BASE_URL` / `HRRR_DOMAIN` | Source bucket + sub-domain (`conus`, `alaska`, etc.) for GRIB downloads. | NOAA public S3 + `conus` |
+| `HRRR_CACHE_DIR` | Filesystem path where GRIBs + fetch logs are stored. | `data/hrrr` |
+| `HRRR_CACHE_MAX_AGE_MINUTES` | Minutes to keep cached GRIB files before eviction. | `360` |
+| `HRRR_MAX_FORECAST_HOUR` | Preferred forecast lead (0-48) when computing target runs. | `18` |
+| `HRRR_AVAILABILITY_DELAY_MINUTES` | Publication lag to subtract when selecting cycles. | `90` |
+| `HRRR_DEFAULT_LAT` / `HRRR_DEFAULT_LON` | Coordinates used by the background refresh job. | unset |
+| `HRRR_REFRESH_INTERVAL_MINUTES` | Default cadence (minutes) for the HRRR scheduler when no preset is chosen. | `60` |
 | `TREFLE_TOKEN` | Optional token to enrich plant data via Trefle. | empty |
 | `OPENFARM_BASE_URL`, `POWO_BASE_URL` | Override remote plant data providers. | production APIs |
 
@@ -75,6 +83,15 @@ make hub
 ```
 
 Visit `http://localhost:8000/health` or `http://localhost:8000/docs` to confirm the service is running.
+
+### HRRR Forecast Configuration
+
+1. Set the default location (`HRRR_DEFAULT_LAT`/`HRRR_DEFAULT_LON`) in `apps/hub/.env` so the scheduler knows which grid point to refresh. You can also update the cadence at runtime through `POST /weather/hrrr/schedule` with `{ "interval_minutes": 15 }` or `60`.
+2. Adjust `HRRR_MAX_FORECAST_HOUR` if you prefer deeper lead times (e.g., 24 hours). The service trims values above the configured horizon when computing `compute_target_run`.
+3. Point `HRRR_CACHE_DIR` to fast local storage with ~2 GB free. The service stores GRIBs, companion metadata, and a JSONL fetch log at `<cache_dir>/fetch_status.jsonl` that powers observability dashboards.
+4. Tune `HRRR_CACHE_MAX_AGE_MINUTES` and `HRRR_AVAILABILITY_DELAY_MINUTES` to match your deployment's tolerance for stale data and upstream publication lag.
+
+See `docs/observability/hrrr_monitoring.md` for dashboards and alerting examples built on that fetch log.
 
 ## Optional Services
 
