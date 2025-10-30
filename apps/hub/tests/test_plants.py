@@ -306,7 +306,12 @@ def test_create_smart_pot_auto_detect(client: TestClient) -> None:
 def test_create_garden_plant_with_zone(client: TestClient) -> None:
     zones = client.get("/api/v1/plants/zones").json()
     assert zones
-    zone_id = zones[0]["id"]
+    first_zone = zones[0]
+    assert {"irrigation_type", "sun_exposure", "slope", "planting_type", "coverage_sq_ft"}.issubset(first_zone.keys())
+    assert first_zone["irrigation_type"] in {"drip", "spray"}
+    assert first_zone["sun_exposure"] in {"full_sun", "part_sun", "shade"}
+    assert isinstance(first_zone["slope"], bool)
+    zone_id = first_zone["id"]
     created = client.post(
         "/api/v1/plants",
         json={
@@ -320,3 +325,103 @@ def test_create_garden_plant_with_zone(client: TestClient) -> None:
     body = created.json()
     assert body["irrigation_zone_id"] == zone_id
     assert body["ideal_conditions"]["temperature_c"] == [18.0, 30.0]
+
+
+def test_create_irrigation_zone(client: TestClient) -> None:
+    payload = {
+        "name": "Back patio planters",
+        "irrigation_type": "drip",
+        "sun_exposure": "shade",
+        "slope": False,
+        "planting_type": "flower_bed",
+        "coverage_sq_ft": 42.0,
+        "description": "Drip loop under patio pergola planters",
+    }
+    response = client.post("/api/v1/plants/zones", json=payload)
+    assert response.status_code == 201
+    body = response.json()
+    assert body["name"] == payload["name"]
+    assert body["irrigation_type"] == payload["irrigation_type"]
+    assert body["sun_exposure"] == payload["sun_exposure"]
+    assert body["slope"] is False
+    assert body["planting_type"] == payload["planting_type"]
+    assert body["coverage_sq_ft"] == payload["coverage_sq_ft"]
+    assert body["description"] == payload["description"]
+
+    listing = client.get("/api/v1/plants/zones").json()
+    assert any(item["id"] == body["id"] for item in listing)
+
+
+def test_update_irrigation_zone(client: TestClient) -> None:
+    created = client.post(
+        "/api/v1/plants/zones",
+        json={
+            "name": "Veggie beds",
+            "irrigation_type": "drip",
+            "sun_exposure": "full_sun",
+            "slope": False,
+            "planting_type": "flower_bed",
+            "coverage_sq_ft": 64,
+            "description": "Raised beds with drip tape",
+        },
+    )
+    assert created.status_code == 201
+    zone_id = created.json()["id"]
+
+    updated = client.put(
+        f"/api/v1/plants/zones/{zone_id}",
+        json={
+            "name": "Veggie beds north",
+            "irrigation_type": "spray",
+            "sun_exposure": "part_sun",
+            "slope": True,
+            "planting_type": "flower_bed",
+            "coverage_sq_ft": 72,
+            "description": "Converted to micro sprays on slope",
+        },
+    )
+    assert updated.status_code == 200
+    payload = updated.json()
+    assert payload["id"] == zone_id
+    assert payload["name"] == "Veggie beds north"
+    assert payload["irrigation_type"] == "spray"
+    assert payload["sun_exposure"] == "part_sun"
+    assert payload["slope"] is True
+    assert payload["coverage_sq_ft"] == 72
+    assert payload["description"].startswith("Converted")
+
+
+def test_delete_irrigation_zone_clears_plants(client: TestClient) -> None:
+    zone = client.post(
+        "/api/v1/plants/zones",
+        json={
+            "name": "Orchard emitters",
+            "irrigation_type": "drip",
+            "sun_exposure": "full_sun",
+            "slope": False,
+            "planting_type": "trees",
+            "coverage_sq_ft": 180,
+            "description": "Drip loops for dwarf fruit trees",
+        },
+    ).json()
+
+    created_plant = client.post(
+        "/api/v1/plants",
+        json={
+            "nickname": "Apple row",
+            "species": "Malus domestica",
+            "location_type": "garden",
+            "irrigation_zone_id": zone["id"],
+        },
+    )
+    assert created_plant.status_code == 201
+
+    deleted = client.delete(f"/api/v1/plants/zones/{zone['id']}")
+    assert deleted.status_code == 204
+
+    zones_after = client.get("/api/v1/plants/zones").json()
+    assert all(item["id"] != zone["id"] for item in zones_after)
+
+    plants_after = client.get("/api/v1/plants").json()
+    garden = next(item for item in plants_after if item["nickname"] == "Apple row")
+    assert garden["irrigation_zone_id"] is None

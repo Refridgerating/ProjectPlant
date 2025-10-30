@@ -16,6 +16,7 @@ type HrrrState = {
 
 type UseHrrrOptions = {
   autoRefreshMs?: number;
+  onSnapshot?: (snapshot: HrrrSnapshot) => void;
 };
 
 type ErrorWithStatus = Error & { status?: number };
@@ -24,6 +25,10 @@ const DEFAULT_REFRESH_MS = 15 * 60 * 1000;
 
 export function useHrrrSnapshot(location: Coordinates | null, options?: UseHrrrOptions) {
   const autoRefreshMs = options?.autoRefreshMs ?? DEFAULT_REFRESH_MS;
+  const onSnapshotRef = useRef<UseHrrrOptions["onSnapshot"]>(options?.onSnapshot);
+  useEffect(() => {
+    onSnapshotRef.current = options?.onSnapshot;
+  }, [options?.onSnapshot]);
   const controllerRef = useRef<AbortController | null>(null);
   const [{ data, loading, error, lastUpdated, available }, setState] = useState<HrrrState>({
     data: null,
@@ -68,6 +73,7 @@ export function useHrrrSnapshot(location: Coordinates | null, options?: UseHrrrO
             lastUpdated: snapshot.run?.valid_time ?? new Date().toISOString(),
             available: true,
           });
+          onSnapshotRef.current?.(snapshot);
         })
         .catch((err) => {
           if (controller.signal.aborted) {

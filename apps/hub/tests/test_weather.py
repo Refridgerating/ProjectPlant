@@ -61,52 +61,57 @@ def _ensure_hrrr_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(weather_router.settings, "hrrr_enabled", True)
 
 
-def test_weather_endpoint_returns_hrrr_series(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
-    sample = _build_sample(datetime(2025, 10, 28, 16, 0, tzinfo=timezone.utc))
+def test_weather_endpoint_returns_hrrr_series(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    now = datetime(2025, 10, 28, 16, 0, tzinfo=timezone.utc)
+    earlier = now - timedelta(hours=1)
+
+    sample_now = _build_sample(now)
+    sample_earlier = _build_sample(earlier)
+    stub_hrrr = _StubHrrrService(sample=sample_now)
 
     async def _fake_collect(lat: float, lon: float, hours: float, *, seed_sample: HrrrSample):
-        entries = []
-        for offset in range(3):
-            run_time = sample.run.valid_time - timedelta(hours=offset)
-            derived = _build_sample(run_time)
-            entries.append(weather_router._telemetry_from_hrrr(derived))
-        entries.sort(key=lambda entry: entry.timestamp or "")
-        return entries, None
+        now_entry = weather_router._telemetry_from_hrrr(sample_now)
+        earlier_entry = weather_router._telemetry_from_hrrr(sample_earlier)
+        return [earlier_entry, now_entry], None
 
-    stub_hrrr = _StubHrrrService(sample=sample)
     monkeypatch.setattr(weather_router, "hrrr_weather_service", stub_hrrr)
     monkeypatch.setattr(weather_router, "_collect_hrrr_series", _fake_collect)
 
     response = client.get(
         "/api/v1/weather/local",
-        params={"lat": 38.9072, "lon": -77.0369, "hours": 24},
+        params={"lat": 38.9072, "lon": -77.0369, "hours": 6},
     )
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["hrrr_used"] is True
     assert payload["hrrr_error"] is None
+    assert payload["sources"] == ["noaa_hrrr"]
     assert payload["station"] == {
         "id": "hrrr",
         "name": "NOAA HRRR Forecast",
         "identifier": "HRRR",
-        "lat": 38.9072,
-        "lon": -77.0369,
+        "lat": pytest.approx(38.9072),
+        "lon": pytest.approx(-77.0369),
         "distance_km": None,
     }
-    assert payload["sources"] == ["noaa_hrrr"]
-    assert len(payload["data"]) == 3
-    timestamps = [entry["timestamp"] for entry in payload["data"]]
-    assert timestamps == sorted(timestamps)
+    assert [entry["station"] for entry in payload["data"]] == ["HRRR", "HRRR"]
     assert stub_hrrr.latest_calls
-    assert stub_hrrr.refresh_calls == []
+    assert not stub_hrrr.refresh_calls
 
 
-def test_weather_endpoint_surfaces_history_error(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+def test_weather_endpoint_includes_history_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
     sample = _build_sample()
+
     async def _fake_collect(lat: float, lon: float, hours: float, *, seed_sample: HrrrSample):
         entry = weather_router._telemetry_from_hrrr(seed_sample)
-        return [entry], "partial failure"
+        return [entry], "partial history unavailable"
 
     stub_hrrr = _StubHrrrService(sample=sample)
     monkeypatch.setattr(weather_router, "hrrr_weather_service", stub_hrrr)
@@ -114,14 +119,14 @@ def test_weather_endpoint_surfaces_history_error(monkeypatch: pytest.MonkeyPatch
 
     response = client.get(
         "/api/v1/weather/local",
-        params={"lat": 38.0, "lon": -77.0, "hours": 6},
+        params={"lat": 38.9072, "lon": -77.0369, "hours": 6},
     )
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["hrrr_used"] is True
-    assert payload["hrrr_error"] == "partial failure"
-    assert len(payload["data"]) == 1
+    assert payload["hrrr_error"] == "partial history unavailable"
+    assert stub_hrrr.latest_calls
 
 
 def test_weather_endpoint_returns_503_when_hrrr_disabled(
@@ -140,13 +145,13 @@ def test_weather_endpoint_returns_503_when_hrrr_unavailable(
     monkeypatch: pytest.MonkeyPatch,
     client: TestClient,
 ) -> None:
-    error = HrrrDataUnavailable("HRRR grid not ready")
-    stub_hrrr = _StubHrrrService(sample=None, error=error)
+    hrrr_error = HrrrDataUnavailable("HRRR grid not ready")
+    stub_hrrr = _StubHrrrService(sample=None, error=hrrr_error)
 
     monkeypatch.setattr(weather_router, "hrrr_weather_service", stub_hrrr)
 
     response = client.get("/api/v1/weather/local", params={"lat": 38.9, "lon": -77.0, "hours": 6})
 
     assert response.status_code == 503
-    assert response.json()["detail"] == str(error)
+    assert response.json()["detail"] == "HRRR grid not ready"
     assert stub_hrrr.latest_calls

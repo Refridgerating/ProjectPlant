@@ -14,6 +14,7 @@ from paho.mqtt.client import topic_matches_sub
 from services.pump_status import PumpStatusSnapshot, pump_status_cache
 from services.telemetry import telemetry_store
 from services.plant_telemetry import plant_telemetry_store
+from services.provisioning import provisioning_store
 
 LOGGER_NAME = "projectplant.hub.mqtt.bridge"
 LEGACY_FIRMWARE_TELEMETRY_FILTER = "projectplant/pots/+/telemetry"
@@ -21,6 +22,7 @@ CANONICAL_SENSOR_TOPIC_FMT = "pots/{pot_id}/sensors"
 CANONICAL_SENSOR_FILTER = "pots/+/sensors"
 LEGACY_FIRMWARE_STATUS_FILTER = "projectplant/pots/+/status"
 CANONICAL_STATUS_TOPIC_FMT = "pots/{pot_id}/status"
+DEVICE_STATE_FILTER = "plant/+/state"
 
 
 def _topic_matches(topic: Any, wildcard: str) -> bool:
@@ -99,6 +101,7 @@ class MqttBridge:
         self._tasks.append(asyncio.create_task(self._forward_firmware(), name="mqtt-bridge-firmware"))
         self._tasks.append(asyncio.create_task(self._capture_canonical_sensors(), name="mqtt-sensor-capture"))
         self._tasks.append(asyncio.create_task(self._forward_status(), name="mqtt-bridge-status"))
+        self._tasks.append(asyncio.create_task(self._monitor_device_state(), name="mqtt-device-state"))
 
     async def stop(self) -> None:
         if not self._started:
@@ -161,6 +164,29 @@ class MqttBridge:
                     await self._handle_unsubscribe_error("status bridge", exc)
 
         self._logger.debug("Status bridge task exiting")
+
+    async def _monitor_device_state(self) -> None:
+        topic_filter = DEVICE_STATE_FILTER
+        while self._started:
+            try:
+                async with self._client.messages() as messages:
+                    await self._client.subscribe(topic_filter)
+                    async for message in messages:
+                        if not _topic_matches(message.topic, topic_filter):
+                            continue
+                        await self._handle_state_message(message)
+                        self._reset_backoff()
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # pragma: no cover - unexpected failures logged for observability
+                await self._handle_loop_exception("state monitor", exc)
+            finally:
+                try:
+                    await self._client.unsubscribe(topic_filter)
+                except Exception as exc:  # pragma: no cover - best effort clean-up
+                    await self._handle_unsubscribe_error("state monitor", exc)
+
+        self._logger.debug("State monitor exiting")
 
     async def _capture_canonical_sensors(self) -> None:
         topic_filter = CANONICAL_SENSOR_FILTER
@@ -399,6 +425,24 @@ class MqttBridge:
         await self._client.publish(target_topic, payload_json, retain=True)
         self._logger.debug("Bridged status %s -> %s", message.topic, target_topic)
 
+    async def _handle_state_message(self, message: Message) -> None:
+        device_id = _extract_state_device_id(message.topic)
+        if not device_id:
+            self._logger.debug("Ignoring device state with unexpected topic: %s", message.topic)
+            return
+
+        try:
+            payload = message.payload.decode("utf-8")
+        except UnicodeDecodeError:
+            payload = ""
+
+        await provisioning_store.record_state(
+            device_id=device_id,
+            topic=str(message.topic),
+            payload=payload,
+            retained=bool(getattr(message, "retain", False)),
+        )
+
 
 def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[NormalizedTelemetry]:
     try:
@@ -562,6 +606,13 @@ def _extract_pot_id(topic: Any) -> Optional[str]:
 def _extract_canonical_pot_id(topic: Any) -> Optional[str]:
     parts = str(topic).split("/")
     if len(parts) >= 3 and parts[0] == "pots" and parts[2] == "sensors":
+        return parts[1]
+    return None
+
+
+def _extract_state_device_id(topic: Any) -> Optional[str]:
+    parts = str(topic).split("/")
+    if len(parts) >= 3 and parts[0] == "plant" and parts[2] == "state":
         return parts[1]
     return None
 

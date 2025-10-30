@@ -33,6 +33,7 @@ TELEMETRY_FILTER = "plant/+/telemetry"
 METRICS_TOPIC_FMT = "plant/{plant_id}/et/metrics"
 IRRIGATION_CMD_TOPIC_FMT = "plant/{plant_id}/irrigation/cmd"
 PAR_UMOL_TO_MJ_PER_H = 7.85e-4  # Approximate conversion factor
+SOLAR_W_TO_MJ_PER_H = 0.0036
 
 
 def _env_sensor_freshness() -> Optional[timedelta]:
@@ -258,6 +259,16 @@ async def _build_step_sensors(payload: Dict[str, Any]) -> StepSensors:
 
     if Rs is None and PAR is not None:
         Rs = PAR * PAR_UMOL_TO_MJ_PER_H
+
+    if Rs is None or u2_ms is None:
+        env_window = _env_sensor_freshness()
+        env_sample = await telemetry_store.latest_matching(max_age=env_window)
+        if env_sample is not None:
+            if Rs is None and env_sample.solar_radiation_w_m2 is not None:
+                Rs = env_sample.solar_radiation_w_m2 * SOLAR_W_TO_MJ_PER_H
+            if u2_ms is None and env_sample.wind_speed_m_s is not None:
+                u2_ms = env_sample.wind_speed_m_s
+
     Rs = Rs if Rs is not None else 0.0
 
     inflow_mL = inflow_mL if inflow_mL is not None else 0.0

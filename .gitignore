@@ -1,17 +1,31 @@
-﻿# general
-.DS_Store
-node_modules/
-dist/
-build/
-.cache/
-.env
-.env.*
-# python
+﻿# Python / venv
 .venv/
 __pycache__/
 *.pyc
-# firmware
-firmware/**/build/
-# editor
-.vscode/
-.idea/
+
+# Node / build
+node_modules/
+dist/
+build/
+*.log
+
+# OS/Editors
+.DS_Store
+Thumbs.db
+
+# Databases and runtime data
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+data/
+apps/hub/data/
+apps/hub/data/hrrr/
+data/hrrr/
+
+# Artifacts / archives
+*.zip
+*.tar
+*.tar.gz
+
+# Local ops/observability output
+ops/observability/

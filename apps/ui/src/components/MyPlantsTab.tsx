@@ -9,6 +9,7 @@ import {
 } from "../api/hubClient";
 import { usePlantCatalog } from "../hooks/usePlantCatalog";
 import { CollapsibleTile } from "./CollapsibleTile";
+import { IrrigationZoneWizard } from "./IrrigationZoneWizard";
 
 type FormState = {
   nickname: string;
@@ -53,6 +54,24 @@ type GalleryImage = {
   url: string;
   label: string;
   origin: "upload" | "reference" | "suggestion";
+};
+
+const SUN_LABELS: Record<IrrigationZone["sun_exposure"], string> = {
+  full_sun: "Full sun",
+  part_sun: "Part sun",
+  shade: "Shade",
+};
+
+const PLANTING_LABELS: Record<IrrigationZone["planting_type"], string> = {
+  lawn: "Lawn / turfgrass",
+  flower_bed: "Flower / veggie beds",
+  ground_cover: "Ground cover",
+  trees: "Trees / shrubs",
+};
+
+const IRRIGATION_LABELS: Record<IrrigationZone["irrigation_type"], string> = {
+  drip: "Drip",
+  spray: "Spray",
 };
 
 
@@ -113,6 +132,9 @@ export function MyPlantsTab() {
     requestDetection,
     getSuggestions,
     getDetails,
+    createZone,
+    updateZone,
+    removeZone,
   } = usePlantCatalog();
 
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
@@ -134,6 +156,88 @@ export function MyPlantsTab() {
   });
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [zoneWizardOpen, setZoneWizardOpen] = useState(false);
+  const [zoneWizardMode, setZoneWizardMode] = useState<"create" | "edit">("create");
+  const [editingZone, setEditingZone] = useState<IrrigationZone | null>(null);
+
+  const selectedZone = useMemo(
+    () => irrigationZones.find((zone) => zone.id === form.irrigationZoneId) ?? null,
+    [irrigationZones, form.irrigationZoneId],
+  );
+
+  const selectedZoneSummary = useMemo(() => {
+    if (!selectedZone) {
+      return null;
+    }
+    const slopeText = selectedZone.slope ? "Has slope" : "Flat / no slope";
+    return `${IRRIGATION_LABELS[selectedZone.irrigation_type]} · ${SUN_LABELS[selectedZone.sun_exposure]} · ${slopeText} · ${PLANTING_LABELS[selectedZone.planting_type]}`;
+  }, [selectedZone]);
+
+  const handleZoneCreated = useCallback(
+    (zone: IrrigationZone) => {
+      setForm((prev) => ({ ...prev, irrigationZoneId: zone.id }));
+      setStatusMessage(`Created zone "${zone.name}".`);
+    },
+    [setForm, setStatusMessage],
+  );
+
+  const handleZoneUpdated = useCallback(
+    (zone: IrrigationZone) => {
+      setForm((prev) => ({ ...prev, irrigationZoneId: zone.id }));
+      setStatusMessage(`Updated zone "${zone.name}".`);
+    },
+    [setForm, setStatusMessage],
+  );
+
+  const handleOpenZoneWizard = useCallback(() => {
+    setZoneWizardMode("create");
+    setEditingZone(null);
+    setZoneWizardOpen(true);
+  }, []);
+
+  const handleCloseZoneWizard = useCallback(() => {
+    setZoneWizardOpen(false);
+    setEditingZone(null);
+    setZoneWizardMode("create");
+  }, []);
+
+  const handleEditZoneRequest = useCallback(() => {
+    if (!selectedZone) {
+      setStatusMessage("Select a zone to edit.");
+      return;
+    }
+    const confirmed = window.confirm(`Edit "${selectedZone.name}"?`);
+    if (!confirmed) {
+      return;
+    }
+    setZoneWizardMode("edit");
+    setEditingZone(selectedZone);
+    setZoneWizardOpen(true);
+  }, [selectedZone, setStatusMessage]);
+
+  const handleRemoveZone = useCallback(async () => {
+    if (!selectedZone) {
+      setStatusMessage("Select a zone to remove.");
+      return;
+    }
+    const confirmed = window.confirm(
+      `Remove "${selectedZone.name}"? Plants linked to this zone will be disconnected.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    try {
+      await removeZone(selectedZone.id);
+      setStatusMessage(`Removed zone "${selectedZone.name}".`);
+      setForm((prev) => ({
+        ...prev,
+        irrigationZoneId: prev.irrigationZoneId === selectedZone.id ? null : prev.irrigationZoneId,
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to remove zone.";
+      setStatusMessage(message);
+    }
+  }, [selectedZone, removeZone, setStatusMessage, setForm]);
   useEffect(() => {
     lightboxActiveRef.current = isLightboxOpen;
   }, [isLightboxOpen]);
@@ -479,7 +583,8 @@ export function MyPlantsTab() {
 
 
   return (
-    <div className="space-y-6 text-emerald-100/85">
+    <>
+      <div className="space-y-6 text-emerald-100/85">
       <CollapsibleTile
         id="my-plants-add"
         title="Add a plant"
@@ -603,21 +708,58 @@ export function MyPlantsTab() {
                 </p>
               </div>
             ) : (
-              <label className="block text-sm text-emerald-200/75">
-                <span className="mb-1 block font-medium text-emerald-50">Irrigation zone</span>
-                <select
-                  value={form.irrigationZoneId ?? ""}
-                  onChange={(event) => setForm((prev) => ({ ...prev, irrigationZoneId: event.target.value || null }))}
-                  className="w-full rounded-lg border border-emerald-700/45 bg-[rgba(4,18,12,0.85)] px-3 py-2 text-emerald-50 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
-                >
-                  <option value="">Select a zone</option>
-                  {irrigationZones.map((zone) => (
-                    <option key={zone.id} value={zone.id}>
-                      {zone.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="space-y-2 text-sm text-emerald-200/75">
+                <label className="block">
+                  <span className="mb-1 block font-medium text-emerald-50">Irrigation zone</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={form.irrigationZoneId ?? ""}
+                      onChange={(event) => setForm((prev) => ({ ...prev, irrigationZoneId: event.target.value || null }))}
+                      className="w-full flex-1 rounded-lg border border-emerald-700/45 bg-[rgba(4,18,12,0.85)] px-3 py-2 text-emerald-50 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 sm:max-w-xs"
+                    >
+                      <option value="">Select a zone</option>
+                      {irrigationZones.map((zone) => (
+                        <option key={zone.id} value={zone.id}>
+                          {zone.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleOpenZoneWizard}
+                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-50 transition hover:border-emerald-400/60 hover:bg-emerald-500/20"
+                    >
+                      <span className="text-base leading-none">+</span>
+                      Add zone
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleEditZoneRequest}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-600/50 bg-emerald-600/10 text-sm font-semibold text-emerald-50 transition hover:border-emerald-400/60 hover:bg-emerald-500/20"
+                      aria-label="Edit selected zone"
+                    >
+                      ...
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleRemoveZone()}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-500/60 bg-rose-500/10 text-base font-semibold text-rose-100 transition hover:border-rose-400/70 hover:bg-rose-500/20"
+                      aria-label="Remove selected zone"
+                    >
+                      -
+                    </button>
+                  </div>
+                </label>
+                {selectedZone && selectedZoneSummary ? (
+                  <p className="text-xs text-emerald-200/70">
+                    <span className="font-medium text-emerald-100">{selectedZone.name}</span> — {selectedZoneSummary}
+                  </p>
+                ) : irrigationZones.length ? (
+                  <p className="text-xs text-emerald-200/60">Select an existing zone or create one for this plant.</p>
+                ) : (
+                  <p className="text-xs text-emerald-200/60">No zones yet. Use "Add zone" to define your irrigation layout.</p>
+                )}
+              </div>
             )}
 
             <label className="block text-sm text-emerald-200/75">
@@ -812,7 +954,18 @@ export function MyPlantsTab() {
           ) : null}
         </div>
       ) : null}
-    </div>
+      </div>
+      <IrrigationZoneWizard
+        open={zoneWizardOpen}
+        mode={zoneWizardMode}
+        initialZone={editingZone}
+        onClose={handleCloseZoneWizard}
+        onCreated={handleZoneCreated}
+        onUpdated={handleZoneUpdated}
+        createZone={createZone}
+        updateZone={updateZone}
+      />
+    </>
   );
 }
 

@@ -1,0 +1,771 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import math
+import os
+from collections import deque
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Deque, Dict, List, Optional, Tuple
+
+import httpx
+
+from config import settings
+from services.telemetry import telemetry_store
+
+logger = logging.getLogger("projectplant.hub.weather.hrrr")
+
+
+def _ensure_eccodes_environment() -> None:
+    if {"ECCODES_DEFINITION_PATH", "ECCODES_SAMPLES_PATH"}.issubset(os.environ):
+        return
+    try:
+        import eccodes  # type: ignore  # noqa: PLC0415
+    except ImportError:
+        return
+    base = Path(eccodes.__file__).resolve().parent
+    definition_candidates = [
+        base / "definitions",
+        base / "share" / "eccodes" / "definitions",
+        base.parent / "share" / "eccodes" / "definitions",
+    ]
+    sample_candidates = [
+        base / "samples",
+        base / "share" / "eccodes" / "samples",
+        base.parent / "share" / "eccodes" / "samples",
+    ]
+    for candidate in definition_candidates:
+        if candidate.exists():
+            os.environ.setdefault("ECCODES_DEFINITION_PATH", str(candidate))
+            break
+    else:
+        os.environ.setdefault("ECCODES_DEFINITION_PATH", "/MEMFS/definitions")
+
+    for candidate in sample_candidates:
+        if candidate.exists():
+            os.environ.setdefault("ECCODES_SAMPLES_PATH", str(candidate))
+            break
+    else:
+        os.environ.setdefault("ECCODES_SAMPLES_PATH", "/MEMFS/samples")
+
+
+_ensure_eccodes_environment()
+
+try:  # pragma: no cover - exercised only when eccodes is available
+    import eccodes  # type: ignore
+except ImportError:  # pragma: no cover - surfaced via explicit guard
+    eccodes = None  # type: ignore
+
+
+def _ensure_utc(value: Optional[datetime] = None) -> datetime:
+    if value is None:
+        return datetime.now(timezone.utc)
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _round_coord(lat: float, lon: float) -> Tuple[float, float]:
+    return (round(lat, 4), round(lon, 4))
+
+
+def _isoformat(value: Optional[datetime]) -> Optional[str]:
+    if value is None:
+        return None
+    return value.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+
+def _parse_iso(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        cleaned = value.replace("Z", "+00:00")
+        return datetime.fromisoformat(cleaned).astimezone(timezone.utc)
+    except Exception:  # pragma: no cover - defensive parsing
+        return None
+
+
+@dataclass(frozen=True)
+class HrrrRun:
+    cycle: datetime
+    forecast_hour: int
+
+    @property
+    def valid_time(self) -> datetime:
+        return self.cycle + timedelta(hours=self.forecast_hour)
+
+    @property
+    def filename(self) -> str:
+        return f"hrrr.t{self.cycle:%H}z.wrfsfcf{self.forecast_hour:02d}.grib2"
+
+    @property
+    def date_folder(self) -> str:
+        return f"hrrr.{self.cycle:%Y%m%d}"
+
+
+@dataclass(frozen=True)
+class HrrrSample:
+    run: HrrrRun
+    temperature_c: Optional[float]
+    humidity_pct: Optional[float]
+    wind_speed_m_s: Optional[float]
+    pressure_hpa: Optional[float]
+    solar_radiation_w_m2: Optional[float]
+    solar_radiation_diffuse_w_m2: Optional[float]
+    solar_radiation_direct_w_m2: Optional[float]
+    solar_radiation_clear_w_m2: Optional[float]
+    solar_radiation_clear_up_w_m2: Optional[float]
+    metadata: Dict[str, object]
+
+    def source_tag(self) -> str:
+        run = self.run
+        return (
+            "hrrr_forecast:"
+            f"cycle={run.cycle:%Y%m%dT%H}Z:"
+            f"fh={run.forecast_hour:02d}"
+        )
+
+    def as_environment_kwargs(self) -> Dict[str, object]:
+        return {
+            "timestamp": self.run.valid_time,
+            "temperature_c": self.temperature_c,
+            "humidity_pct": self.humidity_pct,
+            "pressure_hpa": self.pressure_hpa,
+            "solar_radiation_w_m2": self.solar_radiation_w_m2,
+            "wind_speed_m_s": self.wind_speed_m_s,
+            "source": self.source_tag(),
+        }
+
+
+@dataclass(frozen=True)
+class HrrrFetchStatus:
+    timestamp: datetime
+    lat: float
+    lon: float
+    run_cycle: Optional[datetime]
+    forecast_hour: Optional[int]
+    valid_time: Optional[datetime]
+    status: str
+    detail: Optional[str] = None
+    persisted: Optional[bool] = None
+    duration_s: Optional[float] = None
+
+    def to_dict(self) -> Dict[str, object]:
+        return {
+            "timestamp": _isoformat(self.timestamp),
+            "lat": self.lat,
+            "lon": self.lon,
+            "run_cycle": _isoformat(self.run_cycle),
+            "forecast_hour": self.forecast_hour,
+            "valid_time": _isoformat(self.valid_time),
+            "status": self.status,
+            "detail": self.detail,
+            "persisted": self.persisted,
+            "duration_s": round(self.duration_s, 3) if self.duration_s is not None else None,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Dict[str, object]) -> "HrrrFetchStatus":
+        return cls(
+            timestamp=_parse_iso(payload.get("timestamp")) or datetime.now(timezone.utc),
+            lat=float(payload.get("lat", 0.0)),
+            lon=float(payload.get("lon", 0.0)),
+            run_cycle=_parse_iso(payload.get("run_cycle")),
+            forecast_hour=int(payload["forecast_hour"]) if payload.get("forecast_hour") is not None else None,
+            valid_time=_parse_iso(payload.get("valid_time")),
+            status=str(payload.get("status", "unknown")),
+            detail=payload.get("detail") or None,
+            persisted=payload.get("persisted"),
+            duration_s=float(payload["duration_s"]) if payload.get("duration_s") is not None else None,
+        )
+
+
+class HrrrDependencyError(RuntimeError):
+    """Raised when optional GRIB dependencies are missing."""
+
+
+class HrrrDataUnavailable(RuntimeError):
+    """Raised when the requested HRRR asset cannot be downloaded."""
+
+
+@dataclass(frozen=True)
+class _BandSpec:
+    field: str
+    short_names: tuple[str, ...]
+    level_type: str
+    level: int
+
+    def matches(self, short_name: str, level_type: str, level: int) -> bool:
+        return short_name in self.short_names and level_type == self.level_type and level == self.level
+
+
+_BAND_SPECS: tuple[_BandSpec, ...] = (
+    _BandSpec("temperature_k", ("2t", "t", "tmp"), "heightAboveGround", 2),
+    _BandSpec("humidity_pct", ("2r", "r"), "heightAboveGround", 2),
+    _BandSpec("wind_u", ("10u", "u"), "heightAboveGround", 10),
+    _BandSpec("wind_v", ("10v", "v"), "heightAboveGround", 10),
+    _BandSpec("solar_down_w_m2", ("sdswrf", "dswrf", "swdn"), "surface", 0),
+    _BandSpec("solar_diffuse_w_m2", ("vddsf", "swdif", "swdifsfc"), "surface", 0),
+    _BandSpec("solar_direct_w_m2", ("vbdsf", "swdir", "swdnsfc"), "surface", 0),
+    _BandSpec("solar_clear_w_m2", ("suswrf", "csdsf", "csdssf"), "surface", 0),
+    _BandSpec("solar_clear_up_w_m2", ("sulwrf", "csusf", "csusfsfc"), "surface", 0),
+    _BandSpec("pressure_pa", ("pressfc", "sp", "pres"), "surface", 0),
+)
+
+
+
+def compute_target_run(
+    when: Optional[datetime] = None,
+    *,
+    availability_delay: Optional[timedelta] = None,
+    max_forecast_hour: Optional[int] = None,
+) -> HrrrRun:
+    reference = _ensure_utc(when)
+    delay = availability_delay or timedelta(minutes=settings.hrrr_availability_delay_minutes)
+    horizon = max_forecast_hour if max_forecast_hour is not None else settings.hrrr_max_forecast_hour
+
+    valid_hour = reference.replace(minute=0, second=0, microsecond=0)
+    cycle_candidate = (reference - delay).replace(minute=0, second=0, microsecond=0)
+
+    if valid_hour < cycle_candidate:
+        cycle_candidate = valid_hour
+
+    forecast_hour = int((valid_hour - cycle_candidate).total_seconds() // 3600)
+    if forecast_hour < 0:
+        cycle_candidate = valid_hour
+        forecast_hour = 0
+
+    if forecast_hour > horizon:
+        cycle_candidate = valid_hour - timedelta(hours=horizon)
+        forecast_hour = horizon
+
+    cycle_candidate = cycle_candidate.astimezone(timezone.utc)
+    return HrrrRun(cycle=cycle_candidate, forecast_hour=forecast_hour)
+
+
+class HrrrWeatherService:
+    def __init__(
+        self,
+        *,
+        cache_dir: Optional[Path] = None,
+        base_url: Optional[str] = None,
+        domain: Optional[str] = None,
+        availability_delay: Optional[timedelta] = None,
+        max_forecast_hour: Optional[int] = None,
+        cache_max_age: Optional[timedelta] = None,
+        refresh_interval: Optional[timedelta] = None,
+        http_client: Optional[httpx.AsyncClient] = None,
+        fetch_history_limit: int = 200,
+    ) -> None:
+        self._cache_dir = Path(cache_dir or settings.hrrr_cache_dir)
+        self._cache_dir.mkdir(parents=True, exist_ok=True)
+        self._base_url = (base_url or settings.hrrr_base_url).rstrip("/")
+        self._domain = domain or settings.hrrr_domain
+        self._availability_delay = availability_delay or timedelta(minutes=settings.hrrr_availability_delay_minutes)
+        self._max_forecast_hour = max_forecast_hour if max_forecast_hour is not None else settings.hrrr_max_forecast_hour
+        max_age_minutes = (
+            cache_max_age.total_seconds() / 60.0
+            if cache_max_age is not None
+            else settings.hrrr_cache_max_age_minutes
+        )
+        self._cache_max_age = timedelta(minutes=max_age_minutes) if max_age_minutes > 0 else timedelta(0)
+        interval_minutes = (
+            refresh_interval.total_seconds() / 60.0
+            if refresh_interval is not None
+            else settings.hrrr_refresh_interval_minutes
+        )
+        self._refresh_interval = (
+            timedelta(minutes=interval_minutes)
+            if interval_minutes and interval_minutes > 0
+            else None
+        )
+        self._selected_refresh_minutes: Optional[float] = interval_minutes if interval_minutes else None
+        self._allowed_refresh_minutes: tuple[float, ...] = (15.0, 60.0)
+        self._http_client = http_client
+        self._download_locks: Dict[Path, asyncio.Lock] = {}
+        self._latest_lock = asyncio.Lock()
+        self._latest_samples: Dict[Tuple[float, float], HrrrSample] = {}
+        self._last_refresh: Dict[Tuple[float, float], datetime] = {}
+        self._last_run_valid: Dict[Tuple[float, float], datetime] = {}
+        self._default_location: Optional[Tuple[float, float]] = None
+        self._scheduler_task: Optional[asyncio.Task[None]] = None
+        self._scheduler_stop: Optional[asyncio.Event] = None
+        self._cache_cleanup_lock = asyncio.Lock()
+        self._last_cache_cleanup: Optional[datetime] = None
+        self._fetch_log_path = self._cache_dir / "fetch_status.jsonl"
+        self._fetch_history: Deque[HrrrFetchStatus] = deque(maxlen=max(fetch_history_limit, 1))
+        self._fetch_history_lock = asyncio.Lock()
+        self._max_backfill_runs = 12
+        self._load_fetch_history()
+
+    def refresh_presets(self) -> tuple[float, ...]:
+        return self._allowed_refresh_minutes
+
+    def configure_default_location(self, lat: float, lon: float) -> None:
+        self._default_location = _round_coord(lat, lon)
+
+    def set_refresh_interval(self, interval: Optional[timedelta]) -> None:
+        if interval is None or interval.total_seconds() <= 0:
+            self._refresh_interval = None
+            self._selected_refresh_minutes = None
+            return
+        self._refresh_interval = interval
+        self._selected_refresh_minutes = interval.total_seconds() / 60.0
+
+    async def select_refresh_minutes(self, minutes: float) -> None:
+        if minutes not in self._allowed_refresh_minutes:
+            raise ValueError(f"Unsupported HRRR refresh interval: {minutes} minutes")
+        self.set_refresh_interval(timedelta(minutes=minutes))
+        if self._scheduler_task is not None and not self._scheduler_task.done():
+            await self.stop_scheduler()
+        await self.start_scheduler()
+
+    async def status(self, *, history_limit: int = 10) -> Dict[str, object]:
+        running = self._scheduler_task is not None and not self._scheduler_task.done()
+        interval_minutes = (
+            self._refresh_interval.total_seconds() / 60.0
+            if self._refresh_interval is not None
+            else None
+        )
+        async with self._latest_lock:
+            default_location = self._default_location
+            default_payload = (
+                {"lat": default_location[0], "lon": default_location[1]} if default_location is not None else None
+            )
+            last_refresh = self._last_refresh.get(default_location) if default_location is not None else None
+            last_valid = self._last_run_valid.get(default_location) if default_location is not None else None
+            cached_points = len(self._latest_samples)
+        async with self._fetch_history_lock:
+            history = list(self._fetch_history)
+        if history_limit is not None and history_limit > 0:
+            history = history[-history_limit:]
+        return {
+            "enabled": settings.hrrr_enabled,
+            "scheduler_running": running,
+            "refresh_interval_minutes": interval_minutes,
+            "selected_refresh_minutes": self._selected_refresh_minutes,
+            "refresh_options": list(self._allowed_refresh_minutes),
+            "default_location": default_payload,
+            "last_refresh": _isoformat(last_refresh),
+            "last_valid_time": _isoformat(last_valid),
+            "cache_dir": str(self._cache_dir),
+            "domain": self._domain,
+            "cached_points": cached_points,
+            "recent_fetches": [entry.to_dict() for entry in history],
+            "fetch_log_path": str(self._fetch_log_path),
+        }
+
+    async def close(self) -> None:
+        await self.stop_scheduler()
+        if self._http_client is not None:
+            await self._http_client.aclose()
+            self._http_client = None
+
+    async def start_scheduler(self) -> None:
+        if not settings.hrrr_enabled:
+            return
+        if self._scheduler_task and not self._scheduler_task.done():
+            return
+        if self._default_location is None or self._refresh_interval is None:
+            return
+        self._scheduler_stop = asyncio.Event()
+        self._scheduler_task = asyncio.create_task(self._scheduler_loop(), name="hrrr-refresh")
+        logger.info(
+            "HRRR scheduler started (interval=%s, location=%s)",
+            self._refresh_interval,
+            self._default_location,
+        )
+
+    async def stop_scheduler(self) -> None:
+        if self._scheduler_task is None:
+            return
+        stop_event = self._scheduler_stop
+        if stop_event is not None:
+            stop_event.set()
+        task = self._scheduler_task
+        self._scheduler_task = None
+        self._scheduler_stop = None
+        try:
+            await task
+        except asyncio.CancelledError:  # pragma: no cover - cooperative cancellation path
+            pass
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.warning("HRRR scheduler terminated with error: %s", exc)
+        else:
+            logger.info("HRRR scheduler stopped")
+
+    async def refresh_point(
+        self,
+        lat: float,
+        lon: float,
+        *,
+        when: Optional[datetime] = None,
+        persist: bool = True,
+    ) -> HrrrSample:
+        key = _round_coord(lat, lon)
+        started = datetime.now(timezone.utc)
+        run = compute_target_run(
+            when,
+            availability_delay=self._availability_delay,
+            max_forecast_hour=self._max_forecast_hour,
+        )
+        try:
+            attempt = 0
+            while True:
+                grib_path = await self._ensure_grib(run)
+                try:
+                    raw_values = await asyncio.to_thread(self._extract_point_fields, grib_path, lat, lon)
+                    break
+                except RuntimeError as exc:
+                    if attempt >= 1 or not self._should_retry_grib_error(exc):
+                        raise
+                    attempt += 1
+                    await asyncio.to_thread(self._invalidate_grib_cache, grib_path)
+                    continue
+
+            sample = self._convert_values(run, raw_values, lat, lon)
+            finished = datetime.now(timezone.utc)
+            async with self._latest_lock:
+                self._latest_samples[key] = sample
+                self._last_refresh[key] = finished
+                self._last_run_valid[key] = sample.run.valid_time
+            if persist:
+                await telemetry_store.record_environment(**sample.as_environment_kwargs())
+            await self._log_fetch_status(
+                HrrrFetchStatus(
+                    timestamp=started,
+                    lat=key[0],
+                    lon=key[1],
+                    run_cycle=sample.run.cycle,
+                    forecast_hour=sample.run.forecast_hour,
+                    valid_time=sample.run.valid_time,
+                    status="success",
+                    detail=None,
+                    persisted=persist,
+                    duration_s=(finished - started).total_seconds(),
+                )
+            )
+            await self._maybe_cleanup_cache()
+            return sample
+        except Exception as exc:
+            finished = datetime.now(timezone.utc)
+            await self._log_fetch_status(
+                HrrrFetchStatus(
+                    timestamp=started,
+                    lat=key[0],
+                    lon=key[1],
+                    run_cycle=run.cycle,
+                    forecast_hour=run.forecast_hour,
+                    valid_time=None,
+                    status="error",
+                    detail=str(exc),
+                    persisted=False,
+                    duration_s=(finished - started).total_seconds(),
+                )
+            )
+            raise
+
+    async def refresh_default(self, *, persist: bool = True) -> Optional[HrrrSample]:
+        if self._default_location is None:
+            return None
+        lat, lon = self._default_location
+        return await self.refresh_point(lat, lon, persist=persist)
+
+    async def latest_for(self, lat: float, lon: float) -> Optional[HrrrSample]:
+        key = _round_coord(lat, lon)
+        async with self._latest_lock:
+            return self._latest_samples.get(key)
+
+    async def latest_default(self) -> Optional[HrrrSample]:
+        if self._default_location is None:
+            return None
+        return await self.latest_for(*self._default_location)
+
+    async def get_or_refresh_default(self) -> Optional[HrrrSample]:
+        sample = await self.latest_default()
+        if sample is not None:
+            return sample
+        return await self.refresh_default()
+
+    async def fetch_history(self, *, limit: Optional[int] = None) -> List[Dict[str, object]]:
+        async with self._fetch_history_lock:
+            history = list(self._fetch_history)
+        if limit is not None and limit > 0:
+            history = history[-limit:]
+        return [entry.to_dict() for entry in history]
+
+    async def _scheduler_loop(self) -> None:
+        assert self._scheduler_stop is not None
+        stop_event = self._scheduler_stop
+        while not stop_event.is_set():
+            if self._default_location is None or self._refresh_interval is None:
+                break
+            try:
+                await self._run_default_refresh_cycle()
+            except HrrrDataUnavailable as exc:
+                logger.info("HRRR data unavailable for scheduled refresh: %s", exc)
+            except HrrrDependencyError as exc:
+                logger.warning("HRRR refresh skipped (missing dependency): %s", exc)
+                break
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.warning("HRRR scheduled refresh failed: %s", exc)
+            if stop_event.is_set() or self._refresh_interval is None:
+                break
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=self._refresh_interval.total_seconds())
+            except asyncio.TimeoutError:
+                continue
+        logger.debug("HRRR scheduler loop exiting")
+
+    async def _run_default_refresh_cycle(self) -> None:
+        if self._default_location is None:
+            return
+        lat, lon = self._default_location
+        key = _round_coord(lat, lon)
+        now = datetime.now(timezone.utc)
+        async with self._latest_lock:
+            last_valid = self._last_run_valid.get(key)
+        targets: List[datetime] = []
+        if last_valid is not None:
+            candidate = last_valid + timedelta(hours=1)
+            steps = 0
+            while candidate <= now and steps < self._max_backfill_runs:
+                targets.append(candidate)
+                candidate += timedelta(hours=1)
+                steps += 1
+        if not targets:
+            targets.append(now)
+        for target in targets:
+            await self.refresh_point(lat, lon, when=target, persist=True)
+
+    async def _ensure_grib(self, run: HrrrRun) -> Path:
+        target = self._cache_path(run)
+        lock = self._download_locks.setdefault(target, asyncio.Lock())
+        async with lock:
+            if self._is_fresh(target):
+                return target
+            await self._download_grib(run, target)
+            return target
+
+    def _invalidate_grib_cache(self, path: Path) -> None:
+        path.unlink(missing_ok=True)
+        meta = self._metadata_path(path)
+        meta.unlink(missing_ok=True)
+
+    @staticmethod
+    def _should_retry_grib_error(exc: RuntimeError) -> bool:
+        message = str(exc).lower()
+        return any(
+            token in message
+            for token in (
+                "flex scanner internal error",
+                "syntax error",
+                "cannot create handle",
+                "no definitions found",
+            )
+        )
+
+    async def _download_grib(self, run: HrrrRun, target: Path) -> None:
+        client = await self._get_client()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        url = self._build_url(run)
+        tmp_path = target.with_suffix(target.suffix + ".tmp")
+        logger.info("Downloading HRRR GRIB %s -> %s", url, target)
+        try:
+            async with client.stream("GET", url) as response:
+                if response.status_code == 404:
+                    raise HrrrDataUnavailable(f"HRRR product not available: {url}")
+                response.raise_for_status()
+                with tmp_path.open("wb") as handle:
+                    async for chunk in response.aiter_bytes(1024 * 128):
+                        handle.write(chunk)
+            tmp_path.replace(target)
+            self._write_metadata(run, target)
+        except Exception:
+            if tmp_path.exists():
+                tmp_path.unlink(missing_ok=True)
+            raise
+
+    def _cache_path(self, run: HrrrRun) -> Path:
+        return self._cache_dir / run.date_folder / self._domain / run.filename
+
+    def _metadata_path(self, target: Path) -> Path:
+        return target.with_suffix(target.suffix + ".json")
+
+    def _build_url(self, run: HrrrRun) -> str:
+        return f"{self._base_url}/{run.date_folder}/{self._domain}/{run.filename}"
+
+    def _is_fresh(self, path: Path) -> bool:
+        if not path.exists():
+            return False
+        if self._cache_max_age <= timedelta(0):
+            return True
+        try:
+            modified = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+        except FileNotFoundError:  # pragma: no cover - race between stat and removal
+            return False
+        return datetime.now(timezone.utc) - modified <= self._cache_max_age
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._http_client is None:
+            timeout = httpx.Timeout(settings.weather_request_timeout)
+            self._http_client = httpx.AsyncClient(timeout=timeout)
+        return self._http_client
+
+    def _write_metadata(self, run: HrrrRun, target: Path) -> None:
+        meta = {
+            "cycle": run.cycle.isoformat(timespec="seconds"),
+            "forecast_hour": run.forecast_hour,
+            "valid_time": run.valid_time.isoformat(timespec="seconds"),
+            "filename": run.filename,
+            "domain": self._domain,
+            "source": "noaa_hrrr",
+        }
+        self._metadata_path(target).write_text(json.dumps(meta, indent=2))
+
+    def _extract_point_fields(self, grib_path: Path, lat: float, lon: float) -> Dict[str, float]:
+        if eccodes is None:
+            raise HrrrDependencyError(
+                "eccodes-python is required to parse HRRR GRIB files. Install it via `pip install eccodes`."
+            )
+        values: Dict[str, float] = {}
+        with grib_path.open("rb") as handle:
+            while True:
+                gid = eccodes.codes_grib_new_from_file(handle)
+                if gid is None:
+                    break
+                try:
+                    short_name = eccodes.codes_get_string(gid, "shortName")
+                    level_type = eccodes.codes_get_string(gid, "typeOfLevel")
+                    level = int(eccodes.codes_get_long(gid, "level"))
+                except eccodes.CodesInternalError:
+                    eccodes.codes_release(gid)
+                    continue
+                for spec in _BAND_SPECS:
+                    if spec.matches(short_name, level_type, level):
+                        nearest = eccodes.codes_grib_find_nearest(gid, lat, lon)[0]
+                        values[spec.field] = float(nearest.value)
+                        break
+                eccodes.codes_release(gid)
+        return values
+
+    def _convert_values(self, run: HrrrRun, raw: Dict[str, float], lat: float, lon: float) -> HrrrSample:
+        temperature_c = raw.get("temperature_k")
+        if temperature_c is not None:
+            temperature_c = temperature_c - 273.15
+
+        humidity_pct = raw.get("humidity_pct")
+
+        wind_speed_m_s: Optional[float] = None
+        wind_u = raw.get("wind_u")
+        wind_v = raw.get("wind_v")
+        if wind_u is not None and wind_v is not None:
+            wind_speed_m_s = math.sqrt(wind_u ** 2 + wind_v ** 2)
+
+        pressure_hpa = raw.get("pressure_pa")
+        if pressure_hpa is not None:
+            pressure_hpa = pressure_hpa / 100.0
+
+        solar_radiation_w_m2 = raw.get("solar_down_w_m2")
+        solar_radiation_diffuse_w_m2 = raw.get("solar_diffuse_w_m2")
+        solar_radiation_direct_w_m2 = raw.get("solar_direct_w_m2")
+        solar_radiation_clear_w_m2 = raw.get("solar_clear_w_m2")
+        solar_radiation_clear_up_w_m2 = raw.get("solar_clear_up_w_m2")
+
+        metadata = {
+            "cycle": run.cycle.isoformat(timespec="seconds"),
+            "forecast_hour": run.forecast_hour,
+            "valid_time": run.valid_time.isoformat(timespec="seconds"),
+            "domain": self._domain,
+            "source": "noaa_hrrr",
+            "lat": round(lat, 5),
+            "lon": round(lon, 5),
+        }
+        return HrrrSample(
+            run=run,
+            temperature_c=temperature_c,
+            humidity_pct=humidity_pct,
+            wind_speed_m_s=wind_speed_m_s,
+            pressure_hpa=pressure_hpa,
+            solar_radiation_w_m2=solar_radiation_w_m2,
+            solar_radiation_diffuse_w_m2=solar_radiation_diffuse_w_m2,
+            solar_radiation_direct_w_m2=solar_radiation_direct_w_m2,
+            solar_radiation_clear_w_m2=solar_radiation_clear_w_m2,
+            solar_radiation_clear_up_w_m2=solar_radiation_clear_up_w_m2,
+            metadata=metadata,
+        )
+
+    async def _log_fetch_status(self, entry: HrrrFetchStatus) -> None:
+        async with self._fetch_history_lock:
+            self._fetch_history.append(entry)
+        await asyncio.to_thread(self._append_fetch_log, entry)
+
+    def _append_fetch_log(self, entry: HrrrFetchStatus) -> None:
+        try:
+            with self._fetch_log_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(entry.to_dict(), separators=(",", ":")) + "\n")
+        except OSError as exc:  # pragma: no cover - best-effort logging
+            logger.debug("Failed to append HRRR fetch log: %s", exc)
+
+    def _load_fetch_history(self) -> None:
+        if not self._fetch_log_path.exists():
+            return
+        try:
+            lines = self._fetch_log_path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return
+        for line in lines[-self._fetch_history.maxlen :]:
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:  # pragma: no cover - corrupted entries
+                continue
+            self._fetch_history.append(HrrrFetchStatus.from_dict(payload))
+
+    async def _maybe_cleanup_cache(self) -> None:
+        if self._cache_max_age <= timedelta(0):
+            return
+        now = datetime.now(timezone.utc)
+        async with self._cache_cleanup_lock:
+            if self._last_cache_cleanup and (now - self._last_cache_cleanup) < timedelta(minutes=5):
+                return
+            self._last_cache_cleanup = now
+        cutoff = now - self._cache_max_age
+        await asyncio.to_thread(self._evict_cache, cutoff)
+
+    def _evict_cache(self, cutoff: datetime) -> None:
+        if not self._cache_dir.exists():
+            return
+        removed = 0
+        for path in self._cache_dir.rglob("*.grib2"):
+            try:
+                modified = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+            except FileNotFoundError:
+                continue
+            if modified >= cutoff:
+                continue
+            path.unlink(missing_ok=True)
+            meta = self._metadata_path(path)
+            if meta.exists():
+                meta.unlink(missing_ok=True)
+            removed += 1
+        if removed:
+            logger.info("HRRR cache eviction removed %s files", removed)
+
+
+hrrr_weather_service = HrrrWeatherService()
+if settings.hrrr_default_lat is not None and settings.hrrr_default_lon is not None:
+    hrrr_weather_service.configure_default_location(settings.hrrr_default_lat, settings.hrrr_default_lon)
+
+__all__ = [
+    "HrrrWeatherService",
+    "HrrrSample",
+    "HrrrRun",
+    "HrrrFetchStatus",
+    "HrrrDataUnavailable",
+    "HrrrDependencyError",
+    "compute_target_run",
+    "hrrr_weather_service",
+]

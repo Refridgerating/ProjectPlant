@@ -259,18 +259,63 @@ export type PlantDetails = {
   sources: string[];
 };
 
+export type ShareRole = "owner" | "contractor" | "viewer";
+export type ShareStatus = "pending" | "active" | "revoked";
+
+export type UserAccountSummary = {
+  id: string;
+  email: string;
+  display_name: string;
+  email_verified: boolean;
+  verification_pending: boolean;
+  created_at: number;
+  updated_at: number;
+};
+
+export type ShareParticipantRole = "owner" | "contractor";
+
+export type ShareRecordSummary = {
+  id: string;
+  owner_id: string;
+  contractor_id: string;
+  role: ShareRole;
+  status: ShareStatus;
+  invite_token: string | null;
+  created_at: number;
+  updated_at: number;
+  participant_role: ShareParticipantRole;
+};
+
 export type PotModel = {
   id: string;
   name: string;
   volume_l: number;
   features: string[];
+  owner_user_id: string;
+  access_role: ShareRole;
 };
 
 export type IrrigationZone = {
   id: string;
   name: string;
-  description: string;
+  irrigation_type: "drip" | "spray";
+  sun_exposure: "full_sun" | "part_sun" | "shade";
+  slope: boolean;
+  planting_type: "lawn" | "flower_bed" | "ground_cover" | "trees";
   coverage_sq_ft: number;
+  description: string;
+  owner_user_id: string;
+  access_role: ShareRole;
+};
+
+export type CreateIrrigationZonePayload = {
+  name: string;
+  irrigation_type: "drip" | "spray";
+  sun_exposure: "full_sun" | "part_sun" | "shade";
+  slope: boolean;
+  planting_type: "lawn" | "flower_bed" | "ground_cover" | "trees";
+  coverage_sq_ft?: number;
+  description?: string | null;
 };
 
 export type PlantRecord = {
@@ -296,6 +341,8 @@ export type PlantRecord = {
   care_source: string | null;
   care_warning: string | null;
   image_data?: string | null;
+  owner_user_id: string;
+  access_role: ShareRole;
 };
 export type CreatePlantPayload = {
   nickname: string;
@@ -310,7 +357,16 @@ export type CreatePlantPayload = {
   care_profile?: PlantCareProfile | null;
 };
 
-import { getApiBaseUrlSync } from "../settings";
+import { getApiBaseUrlSync, getActiveUserIdSync } from "../settings";
+
+function withUser(init?: RequestInit): RequestInit {
+  const headers = new Headers(init?.headers ?? {});
+  const userId = getActiveUserIdSync();
+  if (userId) {
+    headers.set("X-User-Id", userId);
+  }
+  return { ...init, headers };
+}
 
 function apiBase(): string {
   return getApiBaseUrlSync();
@@ -318,7 +374,7 @@ function apiBase(): string {
 const AGGREGATOR_BASE_URL = "/api";
 
 export async function fetchHubInfo(signal?: AbortSignal): Promise<HubInfo> {
-  const response = await fetch(`${apiBase()}/info`, { signal });
+  const response = await fetch(`${apiBase()}/info`, withUser({ signal }));
   if (!response.ok) {
     throw new Error(`Failed to load hub info (${response.status})`);
   }
@@ -334,7 +390,7 @@ export async function fetchMockTelemetry(
     search.set("samples", params.samples.toString());
   }
   const requestUrl = `${apiBase()}/mock/telemetry${search.toString() ? `?${search}` : ""}`;
-  const response = await fetch(requestUrl, { signal });
+  const response = await fetch(requestUrl, withUser({ signal }));
   if (!response.ok) {
     throw new Error(`Failed to load mock telemetry (${response.status})`);
   }
@@ -364,7 +420,7 @@ export async function fetchLiveTelemetry(
     search.set("limit", params.limit.toString());
   }
   const requestUrl = `${apiBase()}/telemetry/live${search.toString() ? `?${search}` : ""}`;
-  const response = await fetch(requestUrl, { signal });
+  const response = await fetch(requestUrl, withUser({ signal }));
   if (!response.ok) {
     throw new Error(`Failed to load live telemetry (${response.status})`);
   }
@@ -401,7 +457,7 @@ export async function fetchPotTelemetry(
   const requestUrl = `${apiBase()}/telemetry/pots/${encodeURIComponent(trimmed)}${
     search.toString() ? `?${search}` : ""
   }`;
-  const response = await fetch(requestUrl, { signal });
+  const response = await fetch(requestUrl, withUser({ signal }));
   if (response.status === 404) {
     return [];
   }
@@ -451,7 +507,7 @@ export async function exportPotTelemetry(
   const requestUrl = `${apiBase()}/telemetry/pots/${encodeURIComponent(trimmed)}/export${
     search.toString() ? `?${search}` : ""
   }`;
-  const response = await fetch(requestUrl, { signal });
+  const response = await fetch(requestUrl, withUser({ signal }));
   if (!response.ok) {
     let message = `Failed to export pot telemetry (${response.status})`;
     try {
@@ -520,10 +576,13 @@ export async function requestSensorRead(
   const url = `${apiBase()}/plant-control/${encodeURIComponent(trimmedId)}/sensor-read${
     search.toString() ? `?${search}` : ""
   }`;
-  const response = await fetch(url, {
-    method: "POST",
-    signal: options?.signal,
-  });
+  const response = await fetch(
+    url,
+    withUser({
+      method: "POST",
+      signal: options?.signal,
+    })
+  );
 
   if (!response.ok) {
     let message = `Failed to request sensor read (${response.status})`;
@@ -581,12 +640,15 @@ export async function controlPump(potId: string, options: ControlPumpOptions): P
   }
 
   const url = `${apiBase()}/plant-control/${encodeURIComponent(trimmedId)}/pump`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    signal,
-  });
+  const response = await fetch(
+    url,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    })
+  );
 
   if (!response.ok) {
     let message = `Failed to control pump (${response.status})`;
@@ -615,7 +677,7 @@ export async function fetchLocalWeather(
     lon: params.lon.toString(),
     hours: params.hours.toString(),
   });
-  const response = await fetch(`${apiBase()}/weather/local?${search.toString()}`, { signal });
+  const response = await fetch(`${apiBase()}/weather/local?${search.toString()}`, withUser({ signal }));
   if (!response.ok) {
     throw new Error(`Failed to load local weather (${response.status})`);
   }
@@ -672,7 +734,7 @@ export async function fetchHrrrPoint(
   if (params.persist !== undefined) {
     search.set("persist", params.persist ? "true" : "false");
   }
-  const response = await fetch(`${apiBase()}/weather/hrrr/point?${search.toString()}`, { signal });
+  const response = await fetch(`${apiBase()}/weather/hrrr/point?${search.toString()}`, withUser({ signal }));
   if (!response.ok) {
     let message = `Failed to load HRRR snapshot (${response.status})`;
     try {
@@ -694,12 +756,15 @@ export async function fetchWateringRecommendation(
   payload: WateringRequest,
   signal?: AbortSignal
 ): Promise<WateringRecommendation> {
-  const response = await fetch(`${apiBase()}/irrigation/estimate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    signal,
-  });
+  const response = await fetch(
+    `${apiBase()}/irrigation/estimate`,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    })
+  );
   if (!response.ok) {
     throw new Error(`Failed to load watering recommendation (${response.status})`);
   }
@@ -711,7 +776,10 @@ export async function fetchPlantReferences(search?: string, signal?: AbortSignal
   if (search) {
     params.set("search", search);
   }
-  const response = await fetch(`${apiBase()}/plants/reference${params.toString() ? `?${params}` : ""}`, { signal });
+  const response = await fetch(
+    `${apiBase()}/plants/reference${params.toString() ? `?${params}` : ""}`,
+    withUser({ signal })
+  );
   if (!response.ok) {
     throw new Error(`Failed to load plant references (${response.status})`);
   }
@@ -724,7 +792,7 @@ export async function suggestPlants(query: string, signal?: AbortSignal): Promis
     return [];
   }
   const params = new URLSearchParams({ q: trimmed });
-  const response = await fetch(`${AGGREGATOR_BASE_URL}/search?${params.toString()}`, { signal });
+  const response = await fetch(`${AGGREGATOR_BASE_URL}/search?${params.toString()}`, withUser({ signal }));
   if (!response.ok) {
     throw new Error(`Failed to load plant suggestions (${response.status})`);
   }
@@ -754,7 +822,7 @@ export async function fetchPlantDetails(id: string, signal?: AbortSignal): Promi
     throw new Error("Plant identifier is required");
   }
   const encoded = encodeURIComponent(slug);
-  const response = await fetch(`${AGGREGATOR_BASE_URL}/plants/${encoded}`, { signal });
+  const response = await fetch(`${AGGREGATOR_BASE_URL}/plants/${encoded}`, withUser({ signal }));
   if (!response.ok) {
     let message = `Failed to load plant details (${response.status})`;
     try {
@@ -771,7 +839,7 @@ export async function fetchPlantDetails(id: string, signal?: AbortSignal): Promi
 }
 
 export async function fetchPotModels(signal?: AbortSignal): Promise<PotModel[]> {
-  const response = await fetch(`${apiBase()}/plants/pots`, { signal });
+  const response = await fetch(`${apiBase()}/plants/pots`, withUser({ signal }));
   if (!response.ok) {
     throw new Error(`Failed to load smart pot models (${response.status})`);
   }
@@ -779,15 +847,67 @@ export async function fetchPotModels(signal?: AbortSignal): Promise<PotModel[]> 
 }
 
 export async function fetchIrrigationZones(signal?: AbortSignal): Promise<IrrigationZone[]> {
-  const response = await fetch(`${apiBase()}/plants/zones`, { signal });
+  const response = await fetch(`${apiBase()}/plants/zones`, withUser({ signal }));
   if (!response.ok) {
     throw new Error(`Failed to load irrigation zones (${response.status})`);
   }
   return (await response.json()) as IrrigationZone[];
 }
 
+export async function createIrrigationZone(
+  payload: CreateIrrigationZonePayload,
+  signal?: AbortSignal,
+): Promise<IrrigationZone> {
+  const response = await fetch(
+    `${apiBase()}/plants/zones`,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to create irrigation zone (${response.status})`);
+  }
+  return (await response.json()) as IrrigationZone;
+}
+
+export async function updateIrrigationZone(
+  zoneId: string,
+  payload: CreateIrrigationZonePayload,
+  signal?: AbortSignal,
+): Promise<IrrigationZone> {
+  const response = await fetch(
+    `${apiBase()}/plants/zones/${encodeURIComponent(zoneId)}`,
+    withUser({
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to update irrigation zone (${response.status})`);
+  }
+  return (await response.json()) as IrrigationZone;
+}
+
+export async function deleteIrrigationZone(zoneId: string, signal?: AbortSignal): Promise<void> {
+  const response = await fetch(
+    `${apiBase()}/plants/zones/${encodeURIComponent(zoneId)}`,
+    withUser({
+      method: "DELETE",
+      signal,
+    })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to delete irrigation zone (${response.status})`);
+  }
+}
+
 export async function detectSmartPot(signal?: AbortSignal): Promise<PotModel> {
-  const response = await fetch(`${apiBase()}/plants/detect-pot`, { signal });
+  const response = await fetch(`${apiBase()}/plants/detect-pot`, withUser({ signal }));
   if (!response.ok) {
     throw new Error(`Failed to detect smart pot (${response.status})`);
   }
@@ -795,7 +915,7 @@ export async function detectSmartPot(signal?: AbortSignal): Promise<PotModel> {
 }
 
 export async function fetchPlants(signal?: AbortSignal): Promise<PlantRecord[]> {
-  const response = await fetch(`${apiBase()}/plants`, { signal });
+  const response = await fetch(`${apiBase()}/plants`, withUser({ signal }));
   if (!response.ok) {
     throw new Error(`Failed to load plants (${response.status})`);
   }
@@ -835,7 +955,7 @@ export async function fetchEtkcMetrics(
   }
   const response = await fetch(
     `${apiBase()}/etkc/metrics/${encodeURIComponent(trimmed)}${params.toString() ? `?${params}` : ""}`,
-    { signal }
+    withUser({ signal })
   );
   if (!response.ok) {
     throw new Error(`Failed to load ETkc metrics (${response.status})`);
@@ -864,14 +984,189 @@ export async function createPlant(
   payload: CreatePlantPayload,
   signal?: AbortSignal
 ): Promise<PlantRecord> {
-  const response = await fetch(`${apiBase()}/plants`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    signal,
-  });
+  const response = await fetch(
+    `${apiBase()}/plants`,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    })
+  );
   if (!response.ok) {
     throw new Error(`Failed to create plant (${response.status})`);
   }
   return (await response.json()) as PlantRecord;
+}
+
+export type CreateUserPayload = {
+  email: string;
+  display_name?: string;
+  password: string;
+  confirm_password: string;
+};
+
+export type UpdateUserPayload = {
+  email?: string;
+  display_name?: string;
+};
+
+export type CreateSharePayload = {
+  contractor_id: string;
+  role?: ShareRole;
+  status?: ShareStatus;
+  invite_token?: string | null;
+};
+
+export type UpdateSharePayload = {
+  role?: ShareRole;
+  status?: ShareStatus;
+};
+
+export async function fetchUsers(signal?: AbortSignal): Promise<UserAccountSummary[]> {
+  const response = await fetch(`${apiBase()}/users`, withUser({ signal }));
+  if (!response.ok) {
+    throw new Error(`Failed to load users (${response.status})`);
+  }
+  return (await response.json()) as UserAccountSummary[];
+}
+
+export async function createUserAccount(
+  payload: CreateUserPayload,
+  signal?: AbortSignal
+): Promise<UserAccountSummary> {
+  const response = await fetch(
+    `${apiBase()}/users`,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to create user (${response.status})`);
+  }
+  return (await response.json()) as UserAccountSummary;
+}
+
+export async function verifyUserAccount(
+  userId: string,
+  token: string,
+  signal?: AbortSignal
+): Promise<UserAccountSummary> {
+  const response = await fetch(
+    `${apiBase()}/users/${encodeURIComponent(userId)}/verify`,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+      signal,
+    })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to verify user (${response.status})`);
+  }
+  return (await response.json()) as UserAccountSummary;
+}
+
+export async function fetchCurrentUser(signal?: AbortSignal): Promise<UserAccountSummary> {
+  const response = await fetch(`${apiBase()}/users/me`, withUser({ signal }));
+  if (!response.ok) {
+    throw new Error(`Failed to load current user (${response.status})`);
+  }
+  return (await response.json()) as UserAccountSummary;
+}
+
+export async function updateUserAccount(
+  userId: string,
+  payload: UpdateUserPayload,
+  signal?: AbortSignal
+): Promise<UserAccountSummary> {
+  const response = await fetch(
+    `${apiBase()}/users/${encodeURIComponent(userId)}`,
+    withUser({
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to update user (${response.status})`);
+  }
+  return (await response.json()) as UserAccountSummary;
+}
+
+export async function deleteUserAccount(userId: string, signal?: AbortSignal): Promise<void> {
+  const response = await fetch(
+    `${apiBase()}/users/${encodeURIComponent(userId)}`,
+    withUser({
+      method: "DELETE",
+      signal,
+    })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to delete user (${response.status})`);
+  }
+}
+
+export async function fetchMyShares(signal?: AbortSignal): Promise<ShareRecordSummary[]> {
+  const response = await fetch(`${apiBase()}/users/me/shares`, withUser({ signal }));
+  if (!response.ok) {
+    throw new Error(`Failed to load shares (${response.status})`);
+  }
+  return (await response.json()) as ShareRecordSummary[];
+}
+
+export async function createShare(
+  payload: CreateSharePayload,
+  signal?: AbortSignal
+): Promise<ShareRecordSummary> {
+  const response = await fetch(
+    `${apiBase()}/users/me/shares`,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to create share (${response.status})`);
+  }
+  return (await response.json()) as ShareRecordSummary;
+}
+
+export async function updateShare(
+  shareId: string,
+  payload: UpdateSharePayload,
+  signal?: AbortSignal
+): Promise<ShareRecordSummary> {
+  const response = await fetch(
+    `${apiBase()}/users/me/shares/${encodeURIComponent(shareId)}`,
+    withUser({
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to update share (${response.status})`);
+  }
+  return (await response.json()) as ShareRecordSummary;
+}
+
+export async function deleteShare(shareId: string, signal?: AbortSignal): Promise<void> {
+  const response = await fetch(
+    `${apiBase()}/users/me/shares/${encodeURIComponent(shareId)}`,
+    withUser({
+      method: "DELETE",
+      signal,
+    })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to delete share (${response.status})`);
+  }
 }

@@ -3,7 +3,6 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { useHubInfo } from "./hooks/useHubInfo";
 import { useGeolocation } from "./hooks/useGeolocation";
 import { useLocalWeather } from "./hooks/useLocalWeather";
-import { useHrrrSnapshot } from "./hooks/useHrrrSnapshot";
 import { useTelemetry } from "./hooks/useTelemetry";
 import { useWateringRecommendation, WateringRecommendationState } from "./hooks/useWateringRecommendation";
 import { CorsOriginsCard } from "./components/CorsOriginsCard";
@@ -27,6 +26,7 @@ import { TelemetrySample, SensorReadPayload, exportPotTelemetry, fetchPotTelemet
 import { getSettings, RuntimeMode } from "./settings";
 
 const LOCAL_RANGE_OPTIONS = [
+  { label: "Current", value: 0 },
   { label: "30 minutes", value: 0.5 },
   { label: "1 hour", value: 1 },
   { label: "2 hours", value: 2 },
@@ -34,6 +34,7 @@ const LOCAL_RANGE_OPTIONS = [
   { label: "12 hours", value: 12 },
   { label: "24 hours", value: 24 },
   { label: "48 hours", value: 48 },
+  { label: "72 hours", value: 72 },
 ] as const;
 
 type LocalRange = (typeof LOCAL_RANGE_OPTIONS)[number]["value"];
@@ -360,7 +361,7 @@ export default function App() {
   const [potTelemetryLoading, setPotTelemetryLoading] = useState(false);
   const [potTelemetryError, setPotTelemetryError] = useState<string | null>(null);
   const geolocation = useGeolocation();
-  const [localRange, setLocalRange] = useState<LocalRange>(24);
+  const [localRange, setLocalRange] = useState<LocalRange>(6);
   const [activeChartTab, setActiveChartTab] = useState<HubTab>("plant");
   const [controlStates, setControlStates] = useState<ControlStates>(() =>
     CONTROL_DEVICES.reduce((acc, device) => {
@@ -379,18 +380,8 @@ export default function App() {
     sources: localSources,
     hrrrUsed: localHrrrUsed,
     hrrrError: localHrrrError,
-    refreshingHrrr: localRefreshingHrrr,
     refresh: refreshLocal,
-    refreshHrrr: refreshLocalHrrr,
   } = useLocalWeather(geolocation.coords, localRange, { maxSamples: 200 });
-  const {
-    data: hrrrSnapshot,
-    loading: hrrrLoading,
-    error: hrrrError,
-    available: hrrrAvailable,
-    lastUpdated: hrrrLastUpdated,
-    refresh: refreshStandaloneHrrr,
-  } = useHrrrSnapshot(geolocation.coords);
   const latestSourceDisplay = useMemo(() => {
     if (localHrrrUsed) {
       return "NOAA HRRR Forecast";
@@ -439,6 +430,16 @@ export default function App() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (geolocation.status !== "granted" || !geolocation.coords) {
+      return undefined;
+    }
+    const intervalId = window.setInterval(() => {
+      refreshLocal();
+    }, 60 * 60 * 1000);
+    return () => window.clearInterval(intervalId);
+  }, [geolocation.status, geolocation.coords, refreshLocal]);
 
   const telemetryOptions = useMemo<TelemetrySourceOption[]>(() => {
     const identifiers = new Set<string>();
@@ -825,54 +826,48 @@ export default function App() {
     }
   }, [availableRangeOptions, localRange]);
 
+  useEffect(() => {
+    if (!localLatest?.timestamp) {
+      return;
+    }
+    const ts = Date.parse(localLatest.timestamp);
+    if (!Number.isFinite(ts)) {
+      return;
+    }
+    const ageHours = Math.max((Date.now() - ts) / 3_600_000, 0);
+    const normalizedAge = Math.max(0.5, Math.ceil(ageHours * 2) / 2);
+    const candidate = availableRangeOptions.find((value) => value >= normalizedAge);
+    if (candidate !== undefined && candidate > localRange) {
+      setLocalRange(candidate as LocalRange);
+    }
+  }, [localLatest?.timestamp, availableRangeOptions, localRange]);
+
   const localLatestSubtitle = useMemo(() => {
     if (localLatest?.timestamp) {
       const label = formatIsoTimestamp(localLatest.timestamp);
       return localHrrrUsed ? `Forecast valid ${label}` : label;
     }
     if (localLoading) {
-      return "Loading latest observation...";
+      return "Loading latest forecast...";
     }
     if (localError) {
-      return `Latest observation unavailable: ${localError}`;
+      return `Latest forecast unavailable: ${localError}`;
     }
-    return "Observation timestamp unavailable";
+    return "Forecast timestamp unavailable";
   }, [localLatest?.timestamp, localLoading, localError, localHrrrUsed]);
-
-  const hrrrSubtitle = useMemo(() => {
-    if (hrrrSnapshot?.run) {
-      const validLabel = formatIsoTimestamp(hrrrSnapshot.run.valid_time);
-      return `Valid ${validLabel} · Forecast +${hrrrSnapshot.run.forecast_hour}h`;
-    }
-    if (!hrrrAvailable) {
-      return "HRRR ingestion disabled on this hub";
-    }
-    if (hrrrLoading) {
-      return "Loading NOAA HRRR snapshot...";
-    }
-    if (hrrrError) {
-      return `HRRR data unavailable: ${hrrrError}`;
-    }
-    if (hrrrLastUpdated) {
-      return `Last checked ${formatIsoTimestamp(hrrrLastUpdated)}`;
-    }
-    return "Awaiting NOAA HRRR data";
-  }, [hrrrSnapshot, hrrrAvailable, hrrrLoading, hrrrError, hrrrLastUpdated]);
 
   const title = useMemo(() => (data ? data.name : "ProjectPlant Hub"), [data]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     refresh();
     refreshTelemetry();
     if (geolocation.coords) {
       refreshLocal();
-      void refreshLocalHrrr();
-      refreshStandaloneHrrr(true);
     }
     if (telemetrySource !== "mock") {
       setPotTelemetryTicker((prev) => prev + 1);
     }
-  };
+  }, [refresh, refreshTelemetry, geolocation.coords, refreshLocal, telemetrySource]);
 
   const handleCloseSettings = () => {
     setSettingsOpen(false);
@@ -1142,10 +1137,10 @@ export default function App() {
                 </div>
               </>
             ) : activeChartTab === "local" && geolocation.coords ? (
-              <div className="grid gap-6 lg:grid-cols-2">
+              <div className="grid gap-6">
                 <CollapsibleTile
                   id="local-conditions-latest-observation"
-                  title="Latest Local Observation"
+                  title="Latest Local Forecast"
                   subtitle={localLatestSubtitle}
                   className="text-sm text-emerald-100/90"
                   bodyClassName="mt-4 space-y-2 text-emerald-100"
@@ -1154,34 +1149,26 @@ export default function App() {
                 >
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={
-                          localHrrrUsed
-                            ? "inline-flex items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/10 px-2 py-0.5 font-semibold uppercase tracking-wide text-sky-100/90"
-                            : "inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-semibold uppercase tracking-wide text-emerald-100/90"
-                        }
-                      >
-                        {localHrrrUsed ? "Forecast · NOAA HRRR" : "Observational Sources"}
+                      <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/10 px-2 py-0.5 font-semibold uppercase tracking-wide text-sky-100/90">
+                        NOAA HRRR Forecast
                       </span>
-                      {!localHrrrUsed && localHrrrError ? (
+                      {localHrrrError ? (
                         <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 font-semibold uppercase tracking-wide text-amber-100/90">
-                          HRRR unavailable: {localHrrrError}
+                          History warning: {localHrrrError}
                         </span>
                       ) : null}
                     </div>
-                    {geolocation.coords ? (
-                      <button
-                        type="button"
-                        onClick={() => void refreshLocalHrrr()}
-                        disabled={localRefreshingHrrr || localLoading}
-                        className="inline-flex items-center gap-1 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1 font-semibold text-sky-100 transition hover:border-sky-400/60 hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {localRefreshingHrrr ? "Refreshing..." : "Refresh HRRR"}
-                      </button>
-                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => refreshLocal()}
+                      disabled={localLoading}
+                      className="inline-flex items-center gap-1 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1 font-semibold text-sky-100 transition hover:border-sky-400/60 hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {localLoading ? "Refreshing..." : "Refresh"}
+                    </button>
                   </div>
                   {localLoading && !localLatest ? (
-                    <LoadingState message="Loading latest local observation..." />
+                    <LoadingState message="Loading latest forecast..." />
                   ) : localError && !localLatest ? (
                     <ErrorState message={localError} onRetry={refreshLocal} />
                   ) : localLatest ? (
@@ -1191,125 +1178,19 @@ export default function App() {
                           Latest refresh warning: {localError}
                         </div>
                       ) : null}
-                      {localLoading ? (
-                        <div className="text-xs text-emerald-200/70">Updating snapshot...</div>
-                      ) : null}
                       <ul className="space-y-1">
+                        <li>Valid Time: {formatIsoTimestamp(localLatest.timestamp ?? null)}</li>
                         <li>Temperature: {formatMaybeNumber(localLatest.temperature_c, 1)} deg C</li>
                         <li>Humidity: {formatMaybeNumber(localLatest.humidity_pct, 1)} %</li>
-                        <li>Pressure (hPa): {formatMaybeNumber(localLatest.pressure_hpa, 1)} hPa</li>
-                        <li>Pressure (kPa): {formatMaybeNumber(localLatest.pressure_kpa ?? null, 2)} kPa</li>
+                        <li>Pressure: {formatMaybeNumber(localLatest.pressure_hpa, 1)} hPa</li>
                         <li>Solar Radiation: {formatMaybeNumber(localLatest.solar_radiation_w_m2, 1)} W/m^2</li>
-                        <li>
-                          Solar Radiation (MJ/m^2/h): {formatMaybeNumber(localLatest.solar_radiation_mj_m2_h ?? null, 2)} MJ/m^2/h
-                        </li>
-                        <li>
-                          Solar Clear (MJ/m^2/h): {formatMaybeNumber(localLatest.solar_radiation_clear_mj_m2_h ?? null, 2)} MJ/m^2/h
-                        </li>
-                        <li>
-                          Solar Diffuse (MJ/m^2/h): {formatMaybeNumber(localLatest.solar_radiation_diffuse_mj_m2_h ?? null, 2)} MJ/m^2/h
-                        </li>
-                        <li>
-                          Solar Direct (MJ/m^2/h): {formatMaybeNumber(localLatest.solar_radiation_direct_mj_m2_h ?? null, 2)} MJ/m^2/h
-                        </li>
                         <li>Wind Speed: {formatMaybeNumber(localLatest.wind_speed_m_s, 2)} m/s</li>
-                        <li>Precipitation: {formatMaybeNumber(localLatest.precip_mm_h ?? null, 3)} mm/h</li>
                         <li>Data Sources: {latestSourceDisplay ?? "-"}</li>
                       </ul>
                     </>
                   ) : (
                     <p className="text-sm text-emerald-200/80">
-                      No recent local observations available. Try refreshing or adjust the time window.
-                    </p>
-                  )}
-                </CollapsibleTile>
-
-                <CollapsibleTile
-                  id="local-conditions-hrrr-snapshot"
-                  title="NOAA HRRR Snapshot"
-                  subtitle={hrrrSubtitle}
-                  className="text-sm text-emerald-100/90"
-                  bodyClassName="mt-4 space-y-2 text-emerald-100"
-                  titleClassName="text-base font-semibold text-emerald-50"
-                  subtitleClassName="text-xs text-emerald-200/70"
-                >
-                  {!hrrrAvailable ? (
-                    <p className="text-sm text-emerald-200/80">
-                      HRRR ingestion is disabled on this hub. Configure the hub to enable NOAA HRRR ingest for model
-                      forecasts.
-                    </p>
-                  ) : hrrrLoading && !hrrrSnapshot ? (
-                    <LoadingState message="Loading NOAA HRRR snapshot..." />
-                  ) : hrrrError && !hrrrSnapshot ? (
-                    <ErrorState message={hrrrError} onRetry={() => refreshStandaloneHrrr(true)} />
-                  ) : hrrrSnapshot ? (
-                    <>
-                      {hrrrError ? (
-                        <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100/90">
-                          Latest refresh warning: {hrrrError}
-                        </div>
-                      ) : null}
-                      {hrrrLoading ? (
-                        <div className="text-xs text-emerald-200/70">Updating snapshot...</div>
-                      ) : null}
-                      <ul className="space-y-1">
-                        <li>
-                          Coordinates: {hrrrSnapshot.location.lat.toFixed(3)}, {hrrrSnapshot.location.lon.toFixed(3)}
-                        </li>
-                        <li>Temperature: {formatMaybeNumber(hrrrSnapshot.fields.temperature_c, 1)} deg C</li>
-                        <li>Humidity: {formatMaybeNumber(hrrrSnapshot.fields.humidity_pct, 1)} %</li>
-                        <li>Pressure: {formatMaybeNumber(hrrrSnapshot.fields.pressure_hpa, 1)} hPa</li>
-                        <li>Solar Radiation: {formatMaybeNumber(hrrrSnapshot.fields.solar_radiation_w_m2, 1)} W/m^2</li>
-                        <li>
-                          Solar Radiation (MJ/m^2/h): {formatMaybeNumber(hrrrSnapshot.fields.solar_radiation_mj_m2_h, 2)} MJ/m^2/h
-                        </li>
-                        <li>
-                          Solar Diffuse: {formatMaybeNumber(hrrrSnapshot.fields.solar_radiation_diffuse_w_m2, 1)} W/m^2
-                        </li>
-                        <li>
-                          Solar Diffuse (MJ/m^2/h): {formatMaybeNumber(hrrrSnapshot.fields.solar_radiation_diffuse_mj_m2_h, 2)} MJ/m^2/h
-                        </li>
-                        <li>
-                          Solar Direct: {formatMaybeNumber(hrrrSnapshot.fields.solar_radiation_direct_w_m2, 1)} W/m^2
-                        </li>
-                        <li>
-                          Solar Direct (MJ/m^2/h): {formatMaybeNumber(hrrrSnapshot.fields.solar_radiation_direct_mj_m2_h, 2)} MJ/m^2/h
-                        </li>
-                        <li>
-                          Solar Clear Sky: {formatMaybeNumber(hrrrSnapshot.fields.solar_radiation_clear_w_m2, 1)} W/m^2
-                        </li>
-                        <li>
-                          Solar Clear Sky (MJ/m^2/h): {formatMaybeNumber(hrrrSnapshot.fields.solar_radiation_clear_mj_m2_h, 2)} MJ/m^2/h
-                        </li>
-                        <li>
-                          Solar Clear Upward: {formatMaybeNumber(hrrrSnapshot.fields.solar_radiation_clear_up_w_m2, 1)} W/m^2
-                        </li>
-                        <li>
-                          Solar Clear Upward (MJ/m^2/h): {formatMaybeNumber(hrrrSnapshot.fields.solar_radiation_clear_up_mj_m2_h, 2)} MJ/m^2/h
-                        </li>
-                        <li>Wind Speed: {formatMaybeNumber(hrrrSnapshot.fields.wind_speed_m_s, 2)} m/s</li>
-                        <li>Model Cycle: {formatIsoTimestamp(hrrrSnapshot.run.cycle)}</li>
-                        <li>Forecast Lead: +{hrrrSnapshot.run.forecast_hour} h</li>
-                        <li>Source: {formatSourceTag(hrrrSnapshot.source)}</li>
-                        {hrrrSnapshot.persisted != null ? (
-                          <li>Persisted to Telemetry: {hrrrSnapshot.persisted ? "Yes" : "No"}</li>
-                        ) : null}
-                      </ul>
-                      <div className="mt-3 flex items-center gap-2 text-xs text-emerald-200/70">
-                        <button
-                          type="button"
-                          onClick={() => refreshStandaloneHrrr(true)}
-                          disabled={hrrrLoading}
-                          className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:border-emerald-400/50 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          Force Refresh
-                        </button>
-                        <span>Fetches the newest model run for these coordinates.</span>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-sm text-emerald-200/80">
-                      NOAA HRRR data is not yet available for this location. Try refreshing after the scheduler runs.
+                      No recent HRRR data available. Try refreshing or adjust the time window.
                     </p>
                   )}
                 </CollapsibleTile>
@@ -1714,3 +1595,7 @@ function TabButton({
     </button>
   );
 }
+
+
+
+

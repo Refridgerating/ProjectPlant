@@ -4,6 +4,8 @@ import asyncio
 import json
 import logging
 import math
+import os
+import threading
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -17,10 +19,58 @@ from services.telemetry import telemetry_store
 
 logger = logging.getLogger("projectplant.hub.weather.hrrr")
 
+
+def _ensure_eccodes_environment() -> None:
+    if {"ECCODES_DEFINITION_PATH", "ECCODES_SAMPLES_PATH"}.issubset(os.environ):
+        return
+    try:
+        import eccodes  # type: ignore  # noqa: PLC0415
+    except ImportError:
+        return
+    base = Path(eccodes.__file__).resolve().parent
+    local_candidates = [
+        Path("C:/eccodes/definitions"),
+        Path("C:/tools/eccodes/definitions"),
+    ]
+    local_sample_candidates = [
+        Path("C:/eccodes/samples"),
+        Path("C:/tools/eccodes/samples"),
+    ]
+    definition_candidates = [
+        base / "definitions",
+        base / "share" / "eccodes" / "definitions",
+        base.parent / "share" / "eccodes" / "definitions",
+        *local_candidates,
+    ]
+    sample_candidates = [
+        base / "samples",
+        base / "share" / "eccodes" / "samples",
+        base.parent / "share" / "eccodes" / "samples",
+        *local_sample_candidates,
+    ]
+    for candidate in definition_candidates:
+        if candidate.exists():
+            os.environ.setdefault("ECCODES_DEFINITION_PATH", str(candidate))
+            break
+    else:
+        os.environ.setdefault("ECCODES_DEFINITION_PATH", "/MEMFS/definitions")
+
+    for candidate in sample_candidates:
+        if candidate.exists():
+            os.environ.setdefault("ECCODES_SAMPLES_PATH", str(candidate))
+            break
+    else:
+        os.environ.setdefault("ECCODES_SAMPLES_PATH", "/MEMFS/samples")
+
+
+_ensure_eccodes_environment()
+
 try:  # pragma: no cover - exercised only when eccodes is available
     import eccodes  # type: ignore
 except ImportError:  # pragma: no cover - surfaced via explicit guard
     eccodes = None  # type: ignore
+
+_ECCODES_LOCK = threading.RLock()
 
 
 def _ensure_utc(value: Optional[datetime] = None) -> datetime:
@@ -376,8 +426,19 @@ class HrrrWeatherService:
             max_forecast_hour=self._max_forecast_hour,
         )
         try:
-            grib_path = await self._ensure_grib(run)
-            raw_values = await asyncio.to_thread(self._extract_point_fields, grib_path, lat, lon)
+            attempt = 0
+            while True:
+                grib_path = await self._ensure_grib(run)
+                try:
+                    raw_values = await asyncio.to_thread(self._extract_point_fields, grib_path, lat, lon)
+                    break
+                except RuntimeError as exc:
+                    if attempt >= 1 or not self._should_retry_grib_error(exc):
+                        raise
+                    attempt += 1
+                    await asyncio.to_thread(self._invalidate_grib_cache, grib_path)
+                    continue
+
             sample = self._convert_values(run, raw_values, lat, lon)
             finished = datetime.now(timezone.utc)
             async with self._latest_lock:
@@ -502,6 +563,26 @@ class HrrrWeatherService:
             await self._download_grib(run, target)
             return target
 
+    def _invalidate_grib_cache(self, path: Path) -> None:
+        path.unlink(missing_ok=True)
+        meta = self._metadata_path(path)
+        meta.unlink(missing_ok=True)
+
+    @staticmethod
+    def _should_retry_grib_error(exc: RuntimeError) -> bool:
+        message = str(exc).lower()
+        return any(
+            token in message
+            for token in (
+                "flex scanner internal error",
+                "syntax error",
+                "cannot create handle",
+                "no definitions found",
+                "top == 0",
+                "unable to find definition files directory",
+            )
+        )
+
     async def _download_grib(self, run: HrrrRun, target: Path) -> None:
         client = await self._get_client()
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -566,24 +647,29 @@ class HrrrWeatherService:
                 "eccodes-python is required to parse HRRR GRIB files. Install it via `pip install eccodes`."
             )
         values: Dict[str, float] = {}
-        with grib_path.open("rb") as handle:
-            while True:
-                gid = eccodes.codes_grib_new_from_file(handle)
-                if gid is None:
-                    break
-                try:
-                    short_name = eccodes.codes_get_string(gid, "shortName")
-                    level_type = eccodes.codes_get_string(gid, "typeOfLevel")
-                    level = int(eccodes.codes_get_long(gid, "level"))
-                except eccodes.CodesInternalError:
-                    eccodes.codes_release(gid)
-                    continue
-                for spec in _BAND_SPECS:
-                    if spec.matches(short_name, level_type, level):
-                        nearest = eccodes.codes_grib_find_nearest(gid, lat, lon)[0]
-                        values[spec.field] = float(nearest.value)
+        # ecCodes has global parser state and is not thread-safe unless the library
+        # is compiled with threading support. We serialize access so that concurrent
+        # refreshes do not trip the fatal Flex scanner error.
+        with _ECCODES_LOCK:
+            with grib_path.open("rb") as handle:
+                while True:
+                    gid = eccodes.codes_grib_new_from_file(handle)
+                    if gid is None:
                         break
-                eccodes.codes_release(gid)
+                    try:
+                        short_name = eccodes.codes_get_string(gid, "shortName")
+                        level_type = eccodes.codes_get_string(gid, "typeOfLevel")
+                        level = int(eccodes.codes_get_long(gid, "level"))
+                        for spec in _BAND_SPECS:
+                            if spec.matches(short_name, level_type, level):
+                                nearest = eccodes.codes_grib_find_nearest(gid, lat, lon)[0]
+                                values[spec.field] = float(nearest.value)
+                                break
+                    except eccodes.CodesInternalError:
+                        # Skip broken messages but keep the parser alive
+                        continue
+                    finally:
+                        eccodes.codes_release(gid)
         return values
 
     def _convert_values(self, run: HrrrRun, raw: Dict[str, float], lat: float, lon: float) -> HrrrSample:
@@ -703,3 +789,4 @@ __all__ = [
     "compute_target_run",
     "hrrr_weather_service",
 ]
+

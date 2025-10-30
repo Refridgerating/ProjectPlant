@@ -42,6 +42,7 @@ Settings are loaded via Pydantic from `apps/hub/.env` (case-insensitive keys) an
 | `PORT` | Uvicorn bind port when launched via helper scripts. | `8000` |
 | `MQTT_ENABLED` | Toggle MQTT startup handshake. | `false` |
 | `MQTT_*` | Broker connection details (host, port, credentials, TLS). | See `.env` |
+| `PROVISION_EVENT_LOG` | JSONL log path for provisioning wait/state metrics (`""` disables). | `data/provisioning/events.jsonl` |
 | `WEATHER_*` | Timeouts, cache TTL, and user-agent for weather.gov. | See `.env` |
 | `TREFLE_TOKEN` | Optional token to enrich plant data via Trefle. | empty |
 | `OPENFARM_BASE_URL`, `POWO_BASE_URL` | Override remote plant data providers. | production APIs |

@@ -5,6 +5,8 @@ export type UiSettings = {
   serverBaseUrl: string; // e.g. http://projectplant.local:80
   mqttUsername: string;
   mqttPassword: string;
+  activeUserId: string;
+  activeUserName: string;
 };
 
 const STORAGE_KEY = "projectplant:ui:settings";
@@ -14,6 +16,8 @@ const DEFAULT_SETTINGS: UiSettings = {
   serverBaseUrl: "",
   mqttUsername: "",
   mqttPassword: "",
+  activeUserId: "",
+  activeUserName: "",
 };
 
 export function getSettings(): UiSettings {
@@ -37,7 +41,9 @@ function normalize(value: Partial<UiSettings>): UiSettings {
   const serverBaseUrl = typeof value.serverBaseUrl === "string" ? value.serverBaseUrl.trim() : "";
   const mqttUsername = typeof value.mqttUsername === "string" ? value.mqttUsername : "";
   const mqttPassword = typeof value.mqttPassword === "string" ? value.mqttPassword : "";
-  return { mode, serverBaseUrl, mqttUsername, mqttPassword };
+  const activeUserId = typeof value.activeUserId === "string" ? value.activeUserId.trim() : "";
+  const activeUserName = typeof value.activeUserName === "string" ? value.activeUserName.trim() : "";
+  return { mode, serverBaseUrl, mqttUsername, mqttPassword, activeUserId, activeUserName };
 }
 
 export function getApiBaseUrlSync(): string {
@@ -56,6 +62,34 @@ export function getApiBaseUrlSync(): string {
     // ignore, fall back to relative
   }
   return "/api/v1";
+}
+
+export function getActiveUserIdSync(): string {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<UiSettings>;
+      const userId = typeof parsed.activeUserId === "string" ? parsed.activeUserId.trim() : "";
+      return userId;
+    }
+  } catch {
+    // ignore
+  }
+  return "";
+}
+
+export function getActiveUserNameSync(): string {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<UiSettings>;
+      const name = typeof parsed.activeUserName === "string" ? parsed.activeUserName.trim() : "";
+      return name;
+    }
+  } catch {
+    // ignore
+  }
+  return "";
 }
 
 export type TestResult = { ok: boolean; message: string };
@@ -99,4 +133,3 @@ export async function discoverServer(): Promise<DiscoverResult> {
   }
   return null;
 }
-

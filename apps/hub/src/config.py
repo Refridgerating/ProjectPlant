@@ -38,6 +38,47 @@ class Settings(BaseSettings):
         description="Base URL for NASA POWER API",
     )
 
+    hrrr_enabled: bool = Field(default=True, description="Enable NOAA HRRR ingestion pipeline")
+    hrrr_base_url: str = Field(
+        default="https://noaa-hrrr-bdp-pds.s3.amazonaws.com",
+        description="Base URL for downloading HRRR GRIB assets",
+    )
+    hrrr_domain: str = Field(default="conus", description="HRRR domain segment used when building GRIB paths")
+    hrrr_cache_dir: str = Field(default="data/hrrr", description="Local directory used to cache HRRR GRIB downloads")
+    hrrr_cache_max_age_minutes: int = Field(
+        default=360,
+        ge=0,
+        description="Maximum age (minutes) for cached HRRR GRIB before re-fetching",
+    )
+    hrrr_availability_delay_minutes: int = Field(
+        default=90,
+        ge=0,
+        description="Delay applied when selecting HRRR cycle/forecast to account for publication lag",
+    )
+    hrrr_max_forecast_hour: int = Field(
+        default=18,
+        ge=0,
+        le=48,
+        description="Maximum forecast hour to request from a single HRRR cycle",
+    )
+    hrrr_default_lat: float | None = Field(
+        default=None,
+        ge=-90.0,
+        le=90.0,
+        description="Default latitude used for HRRR scheduled refresh",
+    )
+    hrrr_default_lon: float | None = Field(
+        default=None,
+        ge=-180.0,
+        le=180.0,
+        description="Default longitude used for HRRR scheduled refresh",
+    )
+    hrrr_refresh_interval_minutes: float | None = Field(
+        default=60.0,
+        ge=0.0,
+        description="Interval (minutes) between scheduled HRRR refresh executions",
+    )
+
     environment_sensor_freshness_minutes: float = Field(
         default=15.0,
         ge=0.0,
@@ -60,6 +101,10 @@ class Settings(BaseSettings):
         default=12_000,
         ge=100,
         description="Maximum number of telemetry rows to retain before pruning oldest samples.",
+    )
+    provision_event_log: str | None = Field(
+        default="data/provisioning/events.jsonl",
+        description="Path to a JSONL log capturing provisioning wait attempts and results. Set to blank to disable.",
     )
 
     @field_validator("cors_origins", mode="before")

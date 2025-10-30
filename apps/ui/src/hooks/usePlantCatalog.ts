@@ -5,13 +5,17 @@ import {
   PlantCareProfile,
   PotModel,
   IrrigationZone,
+  CreateIrrigationZonePayload,
   createPlant,
+  createIrrigationZone,
+  deleteIrrigationZone,
   detectSmartPot,
   fetchIrrigationZones,
   fetchPlants,
   fetchPotModels,
   suggestPlants,
   fetchPlantDetails,
+  updateIrrigationZone,
 } from "../api/hubClient";
 
 type CreatePayload = {
@@ -111,6 +115,32 @@ export function usePlantCatalog() {
     return fetchPlantDetails(plantId.trim());
   }, []);
 
+  const createZone = useCallback(async (payload: CreateIrrigationZonePayload) => {
+    const zone = await createIrrigationZone(payload);
+    setState((prev) => ({ ...prev, irrigationZones: [...prev.irrigationZones, zone] }));
+    return zone;
+  }, []);
+
+  const updateZone = useCallback(async (zoneId: string, payload: CreateIrrigationZonePayload) => {
+    const zone = await updateIrrigationZone(zoneId, payload);
+    setState((prev) => ({
+      ...prev,
+      irrigationZones: prev.irrigationZones.map((item) => (item.id === zone.id ? zone : item)),
+    }));
+    return zone;
+  }, []);
+
+  const removeZone = useCallback(async (zoneId: string) => {
+    await deleteIrrigationZone(zoneId);
+    setState((prev) => ({
+      ...prev,
+      irrigationZones: prev.irrigationZones.filter((zone) => zone.id !== zoneId),
+      plants: prev.plants.map((plant) =>
+        plant.irrigation_zone_id === zoneId ? { ...plant, irrigation_zone_id: null } : plant,
+      ),
+    }));
+  }, []);
+
   return useMemo(
     () => ({
       plants: state.plants,
@@ -123,8 +153,11 @@ export function usePlantCatalog() {
       requestDetection,
       getSuggestions,
       getDetails,
+      createZone,
+      updateZone,
+      removeZone,
     }),
-    [state, refresh, submitPlant, requestDetection, getSuggestions, getDetails],
+    [state, refresh, submitPlant, requestDetection, getSuggestions, getDetails, createZone, updateZone, removeZone],
   );
 }
 

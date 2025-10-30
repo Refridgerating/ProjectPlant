@@ -27,8 +27,9 @@ class DummyClient:
 
 
 class DummyBridge:
-    def __init__(self, client):
+    def __init__(self, client, on_disconnect=None):
         self.client = client
+        self.on_disconnect = on_disconnect
         self.started = False
         self.stopped = False
 

@@ -2,11 +2,22 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 
 from services.plant_lookup import PlantCareProfile, PlantDetails, PlantSuggestion, plant_lookup_service
-from services.plants import IrrigationZone, PlantRecord, PlantReference, PotModel, plant_catalog
+from services.plants import (
+    CatalogNotFoundError,
+    CatalogPermissionError,
+    IrrigationZone,
+    PlantRecord,
+    PlantReference,
+    PotModel,
+    ShareRole,
+    UserAccount,
+    plant_catalog,
+)
+from .dependencies import get_current_user
 
 router = APIRouter(prefix="/plants", tags=["plants"])
 
@@ -53,13 +64,21 @@ class PotModelModel(BaseModel):
     name: str
     volume_l: float
     features: list[str]
+    owner_user_id: str
+    access_role: ShareRole
 
 
 class IrrigationZoneModel(BaseModel):
     id: str
     name: str
-    description: str
+    irrigation_type: Literal["drip", "spray"]
+    sun_exposure: Literal["full_sun", "part_sun", "shade"]
+    slope: bool
+    planting_type: Literal["lawn", "flower_bed", "ground_cover", "trees"]
     coverage_sq_ft: float
+    description: str = ""
+    owner_user_id: str
+    access_role: ShareRole
 
 
 class PlantDetailsModel(BaseModel):
@@ -94,6 +113,8 @@ class PlantResponse(BaseModel):
     care_source: str | None = None
     care_warning: str | None = None
     image_data: str | None = None
+    owner_user_id: str
+    access_role: ShareRole
 
 
 class PlantCreateRequest(BaseModel):
@@ -107,6 +128,16 @@ class PlantCreateRequest(BaseModel):
     summary: str | None = None
     image_url: str | None = None
     care_profile: CareProfileModel | None = None
+
+
+class IrrigationZoneCreateRequest(BaseModel):
+    name: str = Field(..., max_length=80)
+    irrigation_type: Literal["drip", "spray"]
+    sun_exposure: Literal["full_sun", "part_sun", "shade"]
+    slope: bool
+    planting_type: Literal["lawn", "flower_bed", "ground_cover", "trees"]
+    coverage_sq_ft: float = Field(default=0.0, ge=0.0)
+    description: str | None = Field(default=None, max_length=200)
 
 
 @router.get("/reference", response_model=list[PlantReferenceModel])
@@ -147,49 +178,130 @@ async def get_details(name: str = Query(..., description="Scientific name to res
 
 
 @router.get("/pots", response_model=list[PotModelModel])
-async def list_pot_models() -> list[PotModelModel]:
-    return [_to_pot_model(model) for model in plant_catalog.list_pot_models()]
+async def list_pot_models(current_user: UserAccount = Depends(get_current_user)) -> list[PotModelModel]:
+    models = plant_catalog.list_pot_models(current_user.id)
+    return [
+        _to_pot_model(model, plant_catalog.role_for(current_user.id, model.owner_user_id))
+        for model in models
+    ]
 
 
 @router.get("/zones", response_model=list[IrrigationZoneModel])
-async def list_irrigation_zones() -> list[IrrigationZoneModel]:
-    return [_to_zone_model(zone) for zone in plant_catalog.list_zones()]
+async def list_irrigation_zones(current_user: UserAccount = Depends(get_current_user)) -> list[IrrigationZoneModel]:
+    zones = plant_catalog.list_zones(current_user.id)
+    return [
+        _to_zone_model(zone, plant_catalog.role_for(current_user.id, zone.owner_user_id))
+        for zone in zones
+    ]
+
+
+@router.post("/zones", response_model=IrrigationZoneModel, status_code=status.HTTP_201_CREATED)
+async def create_irrigation_zone(
+    payload: IrrigationZoneCreateRequest,
+    current_user: UserAccount = Depends(get_current_user),
+) -> IrrigationZoneModel:
+    zone = plant_catalog.add_zone(
+        current_user.id,
+        name=payload.name,
+        irrigation_type=payload.irrigation_type,
+        sun_exposure=payload.sun_exposure,
+        slope=payload.slope,
+        planting_type=payload.planting_type,
+        coverage_sq_ft=payload.coverage_sq_ft,
+        description=payload.description,
+    )
+    return _to_zone_model(zone, plant_catalog.role_for(current_user.id, zone.owner_user_id))
+
+
+@router.put("/zones/{zone_id}", response_model=IrrigationZoneModel)
+async def update_irrigation_zone(
+    zone_id: str,
+    payload: IrrigationZoneCreateRequest,
+    current_user: UserAccount = Depends(get_current_user),
+) -> IrrigationZoneModel:
+    try:
+        zone = plant_catalog.update_zone(
+            current_user.id,
+            zone_id=zone_id,
+            name=payload.name,
+            irrigation_type=payload.irrigation_type,
+            sun_exposure=payload.sun_exposure,
+            slope=payload.slope,
+            planting_type=payload.planting_type,
+            coverage_sq_ft=payload.coverage_sq_ft,
+            description=payload.description,
+        )
+    except CatalogNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except CatalogPermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    return _to_zone_model(zone, plant_catalog.role_for(current_user.id, zone.owner_user_id))
+
+
+@router.delete("/zones/{zone_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_irrigation_zone(
+    zone_id: str,
+    current_user: UserAccount = Depends(get_current_user),
+) -> Response:
+    try:
+        plant_catalog.remove_zone(current_user.id, zone_id)
+    except CatalogNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except CatalogPermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/detect-pot", response_model=PotModelModel)
-async def detect_pot() -> PotModelModel:
-    model = plant_catalog.detect_pot()
-    return _to_pot_model(model)
+async def detect_pot(current_user: UserAccount = Depends(get_current_user)) -> PotModelModel:
+    try:
+        model = plant_catalog.detect_pot(current_user.id)
+    except CatalogNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return _to_pot_model(model, plant_catalog.role_for(current_user.id, model.owner_user_id))
 
 
 @router.get("", response_model=list[PlantResponse])
-async def list_plants() -> list[PlantResponse]:
-    return [_to_plant_response(record) for record in plant_catalog.list_records()]
+async def list_plants(current_user: UserAccount = Depends(get_current_user)) -> list[PlantResponse]:
+    records = plant_catalog.list_records(current_user.id)
+    return [
+        _to_plant_response(record, plant_catalog.role_for(current_user.id, record.owner_user_id))
+        for record in records
+    ]
 
 
-@router.post("", response_model=PlantResponse, status_code=201)
-async def create_plant(payload: PlantCreateRequest) -> PlantResponse:
+@router.post("", response_model=PlantResponse, status_code=status.HTTP_201_CREATED)
+async def create_plant(
+    payload: PlantCreateRequest,
+    current_user: UserAccount = Depends(get_current_user),
+) -> PlantResponse:
     care_profile_dict = payload.care_profile.model_dump() if payload.care_profile else None
     care_level = payload.care_profile.level if payload.care_profile else "custom"
     care_source = payload.care_profile.source if payload.care_profile else None
     care_warning = payload.care_profile.warning if payload.care_profile else None
 
-    record = plant_catalog.add_record(
-        nickname=payload.nickname,
-        species=payload.species,
-        location_type=payload.location_type,
-        pot_model=payload.pot_model,
-        irrigation_zone_id=payload.irrigation_zone_id,
-        image_data=payload.image_data,
-        care_profile=care_profile_dict,
-        care_level=care_level,
-        care_source=care_source,
-        care_warning=care_warning,
-        taxonomy=payload.taxonomy,
-        summary=payload.summary,
-        image_url=payload.image_url,
-    )
-    return _to_plant_response(record)
+    try:
+        record = plant_catalog.add_record(
+            current_user.id,
+            nickname=payload.nickname,
+            species=payload.species,
+            location_type=payload.location_type,
+            pot_model=payload.pot_model,
+            irrigation_zone_id=payload.irrigation_zone_id,
+            image_data=payload.image_data,
+            care_profile=care_profile_dict,
+            care_level=care_level,
+            care_source=care_source,
+            care_warning=care_warning,
+            taxonomy=payload.taxonomy,
+            summary=payload.summary,
+            image_url=payload.image_url,
+        )
+    except CatalogNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except CatalogPermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    return _to_plant_response(record, plant_catalog.role_for(current_user.id, record.owner_user_id))
 
 
 def _to_reference_model(ref: PlantReference) -> PlantReferenceModel:
@@ -235,21 +347,29 @@ def _to_details_model(detail: PlantDetails) -> PlantDetailsModel:
     )
 
 
-def _to_pot_model(model: PotModel) -> PotModelModel:
+def _to_pot_model(model: PotModel, role: ShareRole) -> PotModelModel:
     return PotModelModel(
         id=model.id,
         name=model.name,
         volume_l=model.volume_l,
         features=list(model.features),
+        owner_user_id=model.owner_user_id,
+        access_role=role,
     )
 
 
-def _to_zone_model(zone: IrrigationZone) -> IrrigationZoneModel:
+def _to_zone_model(zone: IrrigationZone, role: ShareRole) -> IrrigationZoneModel:
     return IrrigationZoneModel(
         id=zone.id,
         name=zone.name,
-        description=zone.description,
+        irrigation_type=zone.irrigation_type,
+        sun_exposure=zone.sun_exposure,
+        slope=zone.slope,
+        planting_type=zone.planting_type,
         coverage_sq_ft=zone.coverage_sq_ft,
+        description=zone.description,
+        owner_user_id=zone.owner_user_id,
+        access_role=role,
     )
 
 
@@ -271,7 +391,7 @@ def _to_care_model(care: PlantCareProfile) -> CareProfileModel:
     )
 
 
-def _to_plant_response(record: PlantRecord) -> PlantResponse:
+def _to_plant_response(record: PlantRecord, role: ShareRole) -> PlantResponse:
     care_model = CareProfileModel(
         light=str(record.ideal_conditions.get("light", "")),
         water=str(record.ideal_conditions.get("water", "")),
@@ -299,4 +419,6 @@ def _to_plant_response(record: PlantRecord) -> PlantResponse:
         care_source=record.care_source,
         care_warning=record.care_warning,
         image_data=record.image_data,
+        owner_user_id=record.owner_user_id,
+        access_role=role,
     )

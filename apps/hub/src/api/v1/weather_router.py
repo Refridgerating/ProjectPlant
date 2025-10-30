@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from config import settings
-from services.weather import weather_service
 from services.weather_hrrr import (
 	HrrrDataUnavailable,
 	HrrrDependencyError,
@@ -16,7 +15,8 @@ from services.weather_hrrr import (
 
 router = APIRouter(prefix="/weather", tags=["weather"])
 
-ALLOWED_WINDOWS = [0.5, 1, 2, 6, 12, 24, 48]
+ALLOWED_WINDOWS = [0, 0.5, 1, 2, 6, 12, 24, 48, 72]
+MAX_HRRR_HISTORY_HOURS = 48
 SOLAR_W_TO_MJ = 0.0036
 
 
@@ -170,6 +170,7 @@ async def get_local_weather(
 ):
 	if not settings.hrrr_enabled:
 		raise HTTPException(status_code=503, detail="HRRR integration disabled")
+
 	try:
 		sample = await hrrr_weather_service.latest_for(lat, lon)
 		if sample is None:
@@ -179,25 +180,13 @@ async def get_local_weather(
 		hrrr_entries, history_error = await _collect_hrrr_series(lat, lon, hours, seed_sample=sample)
 		if not hrrr_entries:
 			raise HrrrDataUnavailable("No HRRR entries retrieved")
-		return WeatherResponse(
-			location={"lat": lat, "lon": lon},
+		hrrr_error = history_error
+		return _build_hrrr_weather_response(
+			lat,
+			lon,
+			hrrr_entries,
 			requested_hours=hours,
-			coverage_hours=_calculate_coverage_hours(
-				[{"timestamp": entry.timestamp} for entry in hrrr_entries if entry.timestamp]
-			),
-			available_windows=ALLOWED_WINDOWS[:],
-			data=hrrr_entries,
-			station=WeatherStation(
-				id="hrrr",
-				name="NOAA HRRR Forecast",
-				identifier="HRRR",
-				lat=lat,
-				lon=lon,
-				distance_km=None,
-			),
-			sources=["noaa_hrrr"],
-			hrrr_used=True,
-			hrrr_error=history_error,
+			hrrr_error=hrrr_error,
 		)
 	except (HrrrDependencyError, HrrrDataUnavailable) as exc:
 		raise HTTPException(status_code=503, detail=str(exc))
@@ -325,12 +314,11 @@ async def _collect_hrrr_series(
 	*,
 	seed_sample: HrrrSample,
 ) -> tuple[list[WeatherTelemetry], str | None]:
-	target_hours = max(1, min(int(hours if hours.is_integer() else hours + 1), 48))
-	now = datetime.now(timezone.utc)
+	target_hours = MAX_HRRR_HISTORY_HOURS
 	series: dict[str, WeatherTelemetry] = {}
 	errors: list[str] = []
 
-	async def _fetch_for(timestamp: datetime, *, reuse_seed: bool) -> None:
+	async def _fetch_for(timestamp: datetime, *, reuse_seed: bool) -> bool:
 		try:
 			if reuse_seed:
 				sample = seed_sample
@@ -344,20 +332,21 @@ async def _collect_hrrr_series(
 			entry = _telemetry_from_hrrr(sample)
 			if entry.timestamp:
 				series[entry.timestamp] = entry
+				return True
 		except (HrrrDependencyError, HrrrDataUnavailable) as exc:
 			errors.append(str(exc))
 		except Exception as exc:  # pragma: no cover - defensive logging
 			errors.append(str(exc))
+		return False
 
 	reference = seed_sample.run.valid_time.replace(minute=0, second=0, microsecond=0)
-	await _fetch_for(reference, reuse_seed=True)
-
-	for offset in range(1, target_hours):
-		target = (now - timedelta(hours=offset)).replace(minute=0, second=0, microsecond=0)
+	for offset in range(target_hours):
+		target = reference - timedelta(hours=offset)
 		target_iso = _format_timestamp(target)
-		if target_iso in series:
+		if target_iso in series and offset != 0:
 			continue
-		await _fetch_for(target, reuse_seed=False)
+		if not await _fetch_for(target, reuse_seed=offset == 0):
+			continue
 
 	entries = sorted(series.values(), key=lambda entry: _parse_iso_timestamp(entry.timestamp) or datetime.min)
 	error_message = None
@@ -373,57 +362,30 @@ def _build_hrrr_weather_response(
 	hrrr_entries: list[WeatherTelemetry],
 	*,
 	requested_hours: float,
-	observations: list[dict[str, object]],
-	station_info: dict[str, object] | None,
 	hrrr_error: str | None,
 ) -> WeatherResponse:
-	telemetry_entries = [WeatherTelemetry(**entry) for entry in observations]
-	existing_timestamps = {entry.timestamp for entry in telemetry_entries if entry.timestamp}
-	for entry in hrrr_entries:
-		if entry.timestamp not in existing_timestamps:
-			telemetry_entries.append(entry)
-			if entry.timestamp:
-				existing_timestamps.add(entry.timestamp)
-	telemetry_entries.sort(key=lambda entry: _parse_iso_timestamp(entry.timestamp) or datetime.min)
-
-	combined_payload = list(observations)
-	if hrrr_entries:
-		combined_payload.extend(
-			{"timestamp": entry.timestamp}
-			for entry in hrrr_entries
-			if entry.timestamp is not None
-		)
-	coverage_hours = _calculate_coverage_hours(combined_payload) if combined_payload else 0.0
+	coverage_hours = _calculate_coverage_hours(
+		[{"timestamp": entry.timestamp} for entry in hrrr_entries if entry.timestamp]
+	) if hrrr_entries else 0.0
 	available_windows = ALLOWED_WINDOWS[:]
 
-	fallback_sources = {
-		part.strip()
-		for entry in observations
-		for part in (entry.get("source") or "").split(",")
-		if part and part.strip()
-	}
-	sources = sorted({*fallback_sources, "noaa_hrrr"})
-
-	if station_info:
-		station_payload = WeatherStation(**station_info)
-	else:
-		station_payload = WeatherStation(
-			id="hrrr",
-			name="NOAA HRRR Forecast",
-			identifier="HRRR",
-			lat=lat,
-			lon=lon,
-			distance_km=None,
-		)
+	station_payload = WeatherStation(
+		id="hrrr",
+		name="NOAA HRRR Forecast",
+		identifier="HRRR",
+		lat=lat,
+		lon=lon,
+		distance_km=None,
+	)
 
 	return WeatherResponse(
 		location={"lat": lat, "lon": lon},
 		requested_hours=requested_hours,
 		coverage_hours=coverage_hours,
 		available_windows=available_windows,
-		data=telemetry_entries,
+		data=hrrr_entries,
 		station=station_payload,
-		sources=sources,
+		sources=["noaa_hrrr"],
 		hrrr_used=True,
 		hrrr_error=hrrr_error,
 	)
