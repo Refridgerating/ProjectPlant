@@ -10,6 +10,135 @@ export type HubInfo = {
   pot_telemetry_max_rows: number;
 };
 
+export type HealthStatus = "ok" | "warning" | "critical" | "disabled" | "unknown";
+
+export type HealthSummary = {
+  status: HealthStatus;
+  version: string;
+  uptime: {
+    started_at: string | null;
+    seconds: number | null;
+  };
+  database: {
+    status: HealthStatus;
+    path: string;
+    exists: boolean;
+    size_bytes: number | null;
+    latency_ms: number | null;
+    error: string | null;
+  };
+};
+
+export type HeartbeatStatus = {
+  pot_id: string;
+  received_at: string;
+  age_seconds: number;
+  status: HealthStatus;
+  pump_on: boolean | null;
+};
+
+export type MqttHealth = {
+  enabled: boolean;
+  status: HealthStatus;
+  connection: {
+    connected: boolean;
+    reconnecting: boolean;
+    host: string;
+    port: number;
+    client_id: string | null;
+    last_connect_time: string | null;
+    last_disconnect_time: string | null;
+    last_disconnect_reason: string | null;
+  } | null;
+  heartbeat: {
+    status: HealthStatus;
+    count: number;
+    latest_received_at: string | null;
+    pots: HeartbeatStatus[];
+  };
+};
+
+export type WeatherCacheHealth = {
+  status: HealthStatus;
+  cache_dir: string;
+  file_count: number;
+  bytes: number;
+  latest_modified: string | null;
+  oldest_modified: string | null;
+  age_seconds: number | null;
+};
+
+export type CacheEntryKind = "grib" | "metadata" | "log" | "other";
+export type CacheEntriesOrder = "newest" | "oldest" | "largest" | "smallest";
+
+export type WeatherCacheEntry = {
+  path: string;
+  bytes: number;
+  modified: string;
+  kind: CacheEntryKind;
+  cycle?: string | null;
+  forecast_hour?: number | null;
+  valid_time?: string | null;
+  domain?: string | null;
+  has_metadata?: boolean | null;
+};
+
+export type WeatherCacheInventory = {
+  cache_dir: string;
+  total_files: number;
+  total_bytes: number;
+  order: CacheEntriesOrder;
+  limit: number;
+  entries: WeatherCacheEntry[];
+};
+
+export type WeatherCacheMutationDetail = {
+  path: string;
+  bytes: number | null;
+  status: "deleted" | "stored" | "missing" | "error" | "skipped";
+  detail?: string | null;
+};
+
+export type WeatherCacheDeleteResponse = {
+  processed: number;
+  bytes_removed: number;
+  details: WeatherCacheMutationDetail[];
+};
+
+export type WeatherCacheStoreResponse = {
+  processed: number;
+  bytes_moved: number;
+  destination: string;
+  label: string | null;
+  details: WeatherCacheMutationDetail[];
+};
+
+export type StorageHealth = {
+  status: HealthStatus;
+  path_checked: string;
+  total_bytes: number;
+  used_bytes: number;
+  free_bytes: number;
+  used_percent: number;
+  free_percent: number;
+};
+
+export type AlertEvent = {
+  timestamp: string;
+  event_type: string;
+  severity: string;
+  message: string;
+  detail: string | null;
+  context: Record<string, unknown>;
+  key?: string | null;
+  recovered?: boolean;
+};
+
+export type AlertEventsResponse = {
+  count: number;
+  events: AlertEvent[];
+};
+
 export type TelemetrySample = {
   timestamp: string;
   temperature_c: number | null;
@@ -30,6 +159,16 @@ export type TelemetrySample = {
   wind_speed_m_s?: number | null;
   station?: string | null;
   source?: string | null;
+  potId?: string | null;
+  pot_id?: string | null;
+  valve_open?: boolean | null;
+  valveOpen?: boolean | null;
+  flow_rate_lpm?: number | null;
+  flowRateLpm?: number | null;
+  waterLow?: boolean | null;
+  waterCutoff?: boolean | null;
+  soilRaw?: number | null;
+  requestId?: string | null;
 };
 
 export type WeatherStation = {
@@ -47,6 +186,40 @@ export type WeatherSeries = {
   availableWindows: number[];
   station: WeatherStation | null;
   sources: string[];
+  hrrrUsed: boolean;
+  hrrrError: string | null;
+};
+
+export type HrrrRunInfo = {
+  cycle: string;
+  forecast_hour: number;
+  valid_time: string;
+};
+
+export type HrrrFields = {
+  temperature_c: number | null;
+  humidity_pct: number | null;
+  wind_speed_m_s: number | null;
+  pressure_hpa: number | null;
+  solar_radiation_w_m2: number | null;
+  solar_radiation_mj_m2_h: number | null;
+  solar_radiation_diffuse_w_m2: number | null;
+  solar_radiation_diffuse_mj_m2_h: number | null;
+  solar_radiation_direct_w_m2: number | null;
+  solar_radiation_direct_mj_m2_h: number | null;
+  solar_radiation_clear_w_m2: number | null;
+  solar_radiation_clear_mj_m2_h: number | null;
+  solar_radiation_clear_up_w_m2: number | null;
+  solar_radiation_clear_up_mj_m2_h: number | null;
+};
+
+export type HrrrSnapshot = {
+  location: { lat: number; lon: number };
+  run: HrrrRunInfo;
+  fields: HrrrFields;
+  source: string;
+  metadata: Record<string, unknown>;
+  persisted: boolean | null;
 };
 
 export type WateringPlantProfile = {
@@ -208,6 +381,20 @@ export type PlantCareProfile = {
   lifecycle?: string | null;
 };
 
+export type CareSuggestionField = {
+  text: string;
+};
+
+export type PlantCareSuggestions = {
+  light?: CareSuggestionField | null;
+  water?: CareSuggestionField | null;
+  humidity?: CareSuggestionField | null;
+  temperature?: CareSuggestionField | null;
+  soil?: CareSuggestionField | null;
+  notes?: CareSuggestionField | null;
+  warning?: CareSuggestionField | null;
+};
+
 export type PlantDetails = {
   id: string;
   scientific_name: string;
@@ -222,6 +409,8 @@ export type PlantDetails = {
   image_url: string | null;
   images: string[];
   care: PlantCareProfile;
+  care_profile: PlantCareProfile;
+  care_suggestions: PlantCareSuggestions;
   sources: string[];
 };
 
@@ -303,6 +492,8 @@ export type PlantRecord = {
     ph_range: [number, number];
     notes: string | null;
   };
+  care_profile: PlantCareProfile;
+  care_suggestions: PlantCareSuggestions;
   care_level: "species" | "genus" | "custom";
   care_source: string | null;
   care_warning: string | null;
@@ -339,12 +530,180 @@ function apiBase(): string {
 }
 const AGGREGATOR_BASE_URL = "/api";
 
+export type AuthTokenResponse = {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+};
+
 export async function fetchHubInfo(signal?: AbortSignal): Promise<HubInfo> {
   const response = await fetch(`${apiBase()}/info`, withUser({ signal }));
   if (!response.ok) {
     throw new Error(`Failed to load hub info (${response.status})`);
   }
   return (await response.json()) as HubInfo;
+}
+
+export async function fetchEventToken(signal?: AbortSignal): Promise<AuthTokenResponse> {
+  const response = await fetch(
+    `${apiBase()}/auth/token`,
+    withUser({
+      method: "POST",
+      signal,
+    })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to obtain event token (${response.status})`);
+  }
+  return (await response.json()) as AuthTokenResponse;
+}
+
+export async function fetchHealthSummary(signal?: AbortSignal): Promise<HealthSummary> {
+  const response = await fetch(`${apiBase()}/health`, withUser({ signal }));
+  if (!response.ok) {
+    throw new Error(`Failed to load health summary (${response.status})`);
+  }
+  return (await response.json()) as HealthSummary;
+}
+
+export async function fetchMqttHealth(signal?: AbortSignal): Promise<MqttHealth> {
+  const response = await fetch(`${apiBase()}/health/mqtt`, withUser({ signal }));
+  if (!response.ok) {
+    throw new Error(`Failed to load MQTT health (${response.status})`);
+  }
+  return (await response.json()) as MqttHealth;
+}
+
+export async function fetchWeatherCacheHealth(signal?: AbortSignal): Promise<WeatherCacheHealth> {
+  const response = await fetch(`${apiBase()}/health/weather_cache`, withUser({ signal }));
+  if (!response.ok) {
+    throw new Error(`Failed to load HRRR cache health (${response.status})`);
+  }
+  return (await response.json()) as WeatherCacheHealth;
+}
+
+export async function fetchWeatherCacheEntries(
+  params?: {
+    limit?: number;
+    order?: CacheEntriesOrder;
+    kinds?: CacheEntryKind[];
+  },
+  signal?: AbortSignal
+): Promise<WeatherCacheInventory> {
+  const search = new URLSearchParams();
+  if (params?.limit) {
+    search.set("limit", params.limit.toString());
+  }
+  if (params?.order) {
+    search.set("order", params.order);
+  }
+  if (params?.kinds?.length) {
+    for (const kind of params.kinds) {
+      search.append("kind", kind);
+    }
+  }
+  const query = search.toString();
+  const response = await fetch(
+    `${apiBase()}/health/weather_cache/entries${query ? `?${query}` : ""}`,
+    withUser({ signal })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to load HRRR cache inventory (${response.status})`);
+  }
+  return (await response.json()) as WeatherCacheInventory;
+}
+
+export async function deleteWeatherCacheEntries(
+  entries: string[],
+  options?: { includeMetadata?: boolean }
+): Promise<WeatherCacheDeleteResponse> {
+  if (!entries.length) {
+    throw new Error("Select at least one cache entry.");
+  }
+  const response = await fetch(
+    `${apiBase()}/health/weather_cache/delete`,
+    withUser({
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        entries,
+        include_metadata: options?.includeMetadata ?? true,
+      }),
+    })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to delete HRRR cache entries (${response.status})`);
+  }
+  return (await response.json()) as WeatherCacheDeleteResponse;
+}
+
+export async function storeWeatherCacheEntries(
+  entries: string[],
+  options?: { includeMetadata?: boolean; label?: string }
+): Promise<WeatherCacheStoreResponse> {
+  if (!entries.length) {
+    throw new Error("Select at least one cache entry.");
+  }
+  const payload: Record<string, unknown> = {
+    entries,
+    include_metadata: options?.includeMetadata ?? true,
+  };
+  if (options?.label) {
+    payload.label = options.label;
+  }
+  const response = await fetch(
+    `${apiBase()}/health/weather_cache/store`,
+    withUser({
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to store HRRR cache entries (${response.status})`);
+  }
+  return (await response.json()) as WeatherCacheStoreResponse;
+}
+
+export async function fetchStorageHealth(signal?: AbortSignal): Promise<StorageHealth> {
+  const response = await fetch(`${apiBase()}/health/storage`, withUser({ signal }));
+  if (!response.ok) {
+    throw new Error(`Failed to load storage health (${response.status})`);
+  }
+  return (await response.json()) as StorageHealth;
+}
+
+export async function fetchHealthEvents(
+  params?: { limit?: number; severity?: string; eventType?: string[] },
+  signal?: AbortSignal
+): Promise<AlertEventsResponse> {
+  const search = new URLSearchParams();
+  if (params?.limit) {
+    search.set("limit", String(params.limit));
+  }
+  if (params?.severity) {
+    search.set("severity", params.severity);
+  }
+  if (params?.eventType) {
+    for (const type of params.eventType) {
+      if (type) {
+        search.append("event_type", type);
+      }
+    }
+  }
+  const query = search.toString();
+  const response = await fetch(
+    `${apiBase()}/health/events${query ? `?${query}` : ""}`,
+    withUser({ signal })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to load alert events (${response.status})`);
+  }
+  return (await response.json()) as AlertEventsResponse;
 }
 
 export async function fetchMockTelemetry(
@@ -652,6 +1011,8 @@ export async function fetchLocalWeather(
     coverage_hours: number;
     available_windows: number[];
     sources?: string[] | null;
+    hrrr_used?: boolean;
+    hrrr_error?: string | null;
     station?: {
       id?: string | null;
       name?: string | null;
@@ -679,7 +1040,41 @@ export async function fetchLocalWeather(
     sources: Array.isArray(payload.sources)
       ? payload.sources.map((source) => source.trim()).filter((source) => source.length > 0)
       : [],
+    hrrrUsed: Boolean(payload.hrrr_used),
+    hrrrError: payload.hrrr_error ?? null,
   };
+}
+
+export async function fetchHrrrPoint(
+  params: { lat: number; lon: number; refresh?: boolean; persist?: boolean },
+  signal?: AbortSignal
+): Promise<HrrrSnapshot> {
+  const search = new URLSearchParams({
+    lat: params.lat.toString(),
+    lon: params.lon.toString(),
+  });
+  if (params.refresh !== undefined) {
+    search.set("refresh", params.refresh ? "true" : "false");
+  }
+  if (params.persist !== undefined) {
+    search.set("persist", params.persist ? "true" : "false");
+  }
+  const response = await fetch(`${apiBase()}/weather/hrrr/point?${search.toString()}`, withUser({ signal }));
+  if (!response.ok) {
+    let message = `Failed to load HRRR snapshot (${response.status})`;
+    try {
+      const problem = await response.json();
+      if (problem && typeof problem.detail === "string") {
+        message = problem.detail;
+      }
+    } catch {
+      // ignore
+    }
+    const error = new Error(message) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
+  return (await response.json()) as HrrrSnapshot;
 }
 
 export async function fetchWateringRecommendation(
@@ -885,7 +1280,7 @@ export async function fetchEtkcMetrics(
   }
   const response = await fetch(
     `${apiBase()}/etkc/metrics/${encodeURIComponent(trimmed)}${params.toString() ? `?${params}` : ""}`,
-    { signal }
+    withUser({ signal })
   );
   if (!response.ok) {
     throw new Error(`Failed to load ETkc metrics (${response.status})`);

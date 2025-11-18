@@ -4,6 +4,7 @@ import { useHubInfo } from "./hooks/useHubInfo";
 import { useGeolocation } from "./hooks/useGeolocation";
 import { useLocalWeather } from "./hooks/useLocalWeather";
 import { useTelemetry } from "./hooks/useTelemetry";
+import { useEventSource } from "./hooks/useEventSource";
 import { useWateringRecommendation, WateringRecommendationState } from "./hooks/useWateringRecommendation";
 import { CorsOriginsCard } from "./components/CorsOriginsCard";
 import { MqttDiagnostics } from "./components/MqttDiagnostics";
@@ -15,6 +16,8 @@ import { TelemetryTable } from "./components/TelemetryTable";
 import { WateringRecommendationCard } from "./components/WateringRecommendationCard";
 import { LocalConditionsMap } from "./components/LocalConditionsMap";
 import { MyPlantsTab } from "./components/MyPlantsTab";
+import { CacheManagerPanel } from "./components/CacheManagerPanel";
+import { StatusBar } from "./components/StatusBar";
 import { ConnectionBadges } from "./components/ConnectionBadges";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { PenmanMonteithEquation } from "./components/PenmanMonteithEquation";
@@ -23,7 +26,15 @@ import { CollapsibleTile } from "./components/CollapsibleTile";
 import { useSensorRead } from "./hooks/useSensorRead";
 import { usePumpControl } from "./hooks/usePumpControl";
 import { TelemetrySample, SensorReadPayload, exportPotTelemetry, fetchPotTelemetry } from "./api/hubClient";
+import { useHealthDiagnostics } from "./hooks/useHealthDiagnostics";
+import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { getSettings, RuntimeMode } from "./settings";
+import {
+  useEventStore,
+  selectPotTelemetry,
+  selectPumpStatus,
+  selectConnectionState,
+} from "./state/eventStore";
 
 const LOCAL_RANGE_OPTIONS = [
   { label: "Current", value: 0 },
@@ -84,7 +95,7 @@ const CONTROL_DEVICES = [
 
 type ControlDeviceId = (typeof CONTROL_DEVICES)[number]["id"];
 type ControlStates = Record<ControlDeviceId, boolean>;
-type HubTab = "plant" | "control" | "local" | "myplants";
+type HubTab = "plant" | "control" | "local" | "myplants" | "diagnostics";
 const DEFAULT_TELEMETRY_POTS = ["pot-01"];
 
 const DEFAULT_WATERING_OPTIONS = {
@@ -110,6 +121,7 @@ function formatMaybeNumber(value: number | null | undefined, fractionDigits: num
 const SOURCE_LABELS: Record<string, string> = {
   nasa_power: "NASA POWER",
   noaa_nws: "NOAA NWS",
+  noaa_hrrr: "NOAA HRRR",
 };
 
 function formatSourceTag(tag: string): string {
@@ -125,6 +137,17 @@ function formatSourceTag(tag: string): string {
     .split(/[_\s]+/)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function formatIsoTimestamp(value: string | null | undefined): string {
+  if (!value) {
+    return "Timestamp unavailable";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleString();
 }
 
 function LoadingState({ message = "Loading hub status..." }: { message?: string }) {
@@ -314,6 +337,17 @@ function formatPotLabel(potId: string): string {
 
 export default function App() {
   const { data, loading, error, refresh } = useHubInfo();
+  const {
+    summary: healthSummary,
+    mqtt: healthMqtt,
+    weather: healthWeather,
+    storage: healthStorage,
+    events: healthEvents,
+    eventsCount: healthEventsCount,
+    loading: healthLoading,
+    error: healthError,
+    refresh: refreshHealth,
+  } = useHealthDiagnostics();
   const potTelemetryMaxRows = useMemo(() => {
     const raw = data?.pot_telemetry_max_rows;
     if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
@@ -324,14 +358,21 @@ export default function App() {
   const initialSettings = getSettings();
   const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>(initialSettings.mode);
   const initialTelemetrySource = initialSettings.mode === "live" ? DEFAULT_TELEMETRY_POTS[0] : "mock";
+  useEventSource(runtimeMode === "live");
+  const eventConnectionState = useEventStore(selectConnectionState);
   const {
     data: telemetryRaw,
     loading: telemetryLoading,
     error: telemetryError,
     refresh: refreshTelemetry,
   } = useTelemetry({ mode: runtimeMode, samples: 96, hours: 24 });
-  const [sensorSeriesByPot, setSensorSeriesByPot] = useState<Record<string, TelemetrySample[]>>({});
   const [telemetrySource, setTelemetrySource] = useState<string>(initialTelemetrySource);
+  const seedPotTelemetry = useEventStore((state) => state.seedPotTelemetry);
+  const telemetrySelector = useMemo(
+    () => (telemetrySource === "mock" ? () => [] : selectPotTelemetry(telemetrySource)),
+    [telemetrySource]
+  );
+  const currentPotTelemetry = useEventStore(telemetrySelector);
   const [telemetryRangeKey, setTelemetryRangeKey] = useState<TelemetryRangeKey>(DEFAULT_TELEMETRY_RANGE_KEY);
   const telemetryRange = TELEMETRY_RANGE_PRESET_MAP[telemetryRangeKey] ?? TELEMETRY_RANGE_PRESETS[0];
   const telemetryRangeLimit = Math.max(1, Math.round(telemetryRange.limit));
@@ -366,9 +407,14 @@ export default function App() {
     availableWindows,
     station: localStation,
     sources: localSources,
+    hrrrUsed: localHrrrUsed,
+    hrrrError: localHrrrError,
     refresh: refreshLocal,
   } = useLocalWeather(geolocation.coords, localRange, { maxSamples: 200 });
   const latestSourceDisplay = useMemo(() => {
+    if (localHrrrUsed) {
+      return "NOAA HRRR Forecast";
+    }
     const tags = localSources.length
       ? localSources
       : (localLatest?.source ?? "")
@@ -381,8 +427,9 @@ export default function App() {
     const labels = tags.map((tag) => formatSourceTag(tag));
     const unique = Array.from(new Set(labels.filter((label) => label.length > 0)));
     return unique.length ? unique.join(" + ") : null;
-  }, [localSources, localLatest?.source]);
+  }, [localSources, localLatest?.source, localHrrrUsed]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [cacheManagerOpen, setCacheManagerOpen] = useState(false);
   const [serverHint, setServerHint] = useState<string>(initialSettings.serverBaseUrl);
   const [potTelemetryTicker, setPotTelemetryTicker] = useState(0);
   const [telemetryExporting, setTelemetryExporting] = useState(false);
@@ -424,10 +471,12 @@ export default function App() {
     return () => window.clearInterval(intervalId);
   }, [geolocation.status, geolocation.coords, refreshLocal]);
 
+  const availablePotIds = useEventStore((state) => Object.keys(state.potTelemetry));
+
   const telemetryOptions = useMemo<TelemetrySourceOption[]>(() => {
     const identifiers = new Set<string>();
     DEFAULT_TELEMETRY_POTS.forEach((id) => identifiers.add(id));
-    Object.keys(sensorSeriesByPot).forEach((id) => identifiers.add(id));
+    availablePotIds.forEach((id) => identifiers.add(id));
     if (telemetrySource !== "mock" && telemetrySource.trim()) {
       identifiers.add(telemetrySource.trim());
     }
@@ -438,7 +487,7 @@ export default function App() {
       { value: "mock", label: "Demo Telemetry" },
       ...potIds.map((potId) => ({ value: potId, label: formatPotLabel(potId) })),
     ];
-  }, [sensorSeriesByPot, telemetrySource]);
+  }, [availablePotIds, telemetrySource]);
 
   const mergeTelemetryWithWeather = useCallback(
     (samples: TelemetrySample[]) => {
@@ -505,8 +554,8 @@ export default function App() {
     if (telemetrySource === "mock") {
       return mockTelemetry;
     }
-    return mergeTelemetryWithWeather(sensorSeriesByPot[telemetrySource] ?? []);
-  }, [telemetrySource, mockTelemetry, sensorSeriesByPot, mergeTelemetryWithWeather]);
+    return mergeTelemetryWithWeather(currentPotTelemetry ?? []);
+  }, [telemetrySource, mockTelemetry, currentPotTelemetry, mergeTelemetryWithWeather]);
 
   const chartSeriesInfo = useMemo(() => {
     if (displayTelemetry.length <= MAX_CHART_POINTS) {
@@ -689,7 +738,6 @@ export default function App() {
     if (!normalized) {
       return;
     }
-    setSensorSeriesByPot((prev) => (prev[normalized] ? prev : { ...prev, [normalized]: [] }));
     const controller = new AbortController();
     setPotTelemetryLoading(true);
     setPotTelemetryError(null);
@@ -699,12 +747,7 @@ export default function App() {
       controller.signal
     )
       .then((samples) => {
-        const ordered = [...samples].sort((a, b) => {
-          const at = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-          const bt = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-          return at - bt;
-        });
-        setSensorSeriesByPot((prev) => ({ ...prev, [normalized]: ordered }));
+        seedPotTelemetry(normalized, samples);
       })
       .catch((err) => {
         if (controller.signal.aborted) {
@@ -719,7 +762,7 @@ export default function App() {
         }
       });
     return () => controller.abort();
-  }, [telemetrySource, potTelemetryTicker, telemetryRange, potTelemetryLimit]);
+  }, [telemetrySource, potTelemetryTicker, telemetryRange, potTelemetryLimit, seedPotTelemetry]);
 
   useEffect(() => {
     if (telemetrySource === "mock") {
@@ -764,7 +807,8 @@ export default function App() {
         return null;
       };
       const weatherSnapshot = localWeather.length ? localWeather[localWeather.length - 1] : null;
-      const sample: TelemetrySample = {
+      const normalizedPotId = potId.trim().toLowerCase();
+      const sample = {
         timestamp: timestampIso,
         temperature_c: toNumber(snapshot.temperature),
         humidity_pct: toNumber(snapshot.humidity),
@@ -773,25 +817,14 @@ export default function App() {
         solar_radiation_w_m2: weatherSnapshot?.solar_radiation_w_m2 ?? null,
         wind_speed_m_s: weatherSnapshot?.wind_speed_m_s ?? null,
         station: potId,
+        potId: normalizedPotId,
         source: "sensor-snapshot",
-      };
-      setSensorSeriesByPot((prev) => {
-        const existing = prev[potId] ?? [];
-        const nextSeries = [...existing, sample].sort((a, b) => {
-          const at = new Date(a.timestamp).getTime();
-          const bt = new Date(b.timestamp).getTime();
-          return at - bt;
-        });
-        const limit = 200;
-        const trimmedSeries = nextSeries.slice(Math.max(0, nextSeries.length - limit));
-        return {
-          ...prev,
-          [potId]: trimmedSeries,
-        };
-      });
-      setTelemetrySource(potId);
+      } as TelemetrySample & { potId: string };
+      const existing = useEventStore.getState().potTelemetry[normalizedPotId] ?? [];
+      seedPotTelemetry(normalizedPotId, [...existing, sample]);
+      setTelemetrySource(normalizedPotId);
     },
-    [localWeather]
+    [localWeather, seedPotTelemetry]
   );
 
   const availableRangeOptions = useMemo(() => {
@@ -844,13 +877,14 @@ export default function App() {
   const handleRefresh = useCallback(() => {
     refresh();
     refreshTelemetry();
+    refreshHealth();
     if (geolocation.coords) {
       refreshLocal();
     }
     if (telemetrySource !== "mock") {
       setPotTelemetryTicker((prev) => prev + 1);
     }
-  }, [refresh, refreshTelemetry, geolocation.coords, refreshLocal, telemetrySource]);
+  }, [refresh, refreshTelemetry, refreshHealth, geolocation.coords, refreshLocal, telemetrySource]);
 
   const handleCloseSettings = () => {
     setSettingsOpen(false);
@@ -871,6 +905,10 @@ export default function App() {
     } catch {
       // ignore
     }
+  };
+
+  const handleCloseCacheManager = () => {
+    setCacheManagerOpen(false);
   };
 
   const toggleControl = (id: ControlDeviceId) => {
@@ -975,6 +1013,22 @@ export default function App() {
       );
     }
 
+    if (activeChartTab === "diagnostics") {
+      return (
+        <DiagnosticsPage
+          summary={healthSummary}
+          mqtt={healthMqtt}
+          weather={healthWeather}
+          storage={healthStorage}
+          events={healthEvents}
+          eventsCount={healthEventsCount}
+          loading={healthLoading}
+          error={healthError}
+          onRefresh={refreshHealth}
+        />
+      );
+    }
+
     return null;
   }, [
     activeChartTab,
@@ -1004,6 +1058,15 @@ export default function App() {
     localStation,
     runtimeMode,
     watering,
+    healthSummary,
+    healthMqtt,
+    healthWeather,
+    healthStorage,
+    healthEvents,
+    healthEventsCount,
+    healthLoading,
+    healthError,
+    refreshHealth,
   ]);
 
   return (
@@ -1013,7 +1076,7 @@ export default function App() {
       subtitle="Monitor broker connectivity and hub health as we iterate on the UI."
       actions={
         <div className="flex items-center gap-2">
-          <ConnectionBadges rest={{ loading, error, data }} />
+          <ConnectionBadges rest={{ loading, error, data }} events={eventConnectionState} />
           <button
             type="button"
             onClick={handleRefresh}
@@ -1054,6 +1117,19 @@ export default function App() {
           {!loading && data ? <HubHeroTile info={data} /> : null}
         </div>
 
+        {!loading ? (
+          <div className="px-6 lg:px-12 xl:px-20 mt-6">
+            <StatusBar
+              summary={healthSummary}
+              mqtt={healthMqtt}
+              weather={healthWeather}
+              loading={loading || healthLoading}
+              error={healthError ?? error}
+              onHandleCache={() => setCacheManagerOpen(true)}
+            />
+          </div>
+        ) : null}
+
         {!loading && data ? (
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-700/40 bg-[rgba(6,27,18,0.75)] p-2 text-sm font-medium text-emerald-200/80 shadow-inner shadow-emerald-950/60">
@@ -1077,6 +1153,11 @@ export default function App() {
                   label="My Plants"
                   isActive={activeChartTab === "myplants"}
                   onClick={() => setActiveChartTab("myplants")}
+                />
+                <TabButton
+                  label="Diagnostics"
+                  isActive={activeChartTab === "diagnostics"}
+                  onClick={() => setActiveChartTab("diagnostics")}
                 />
               </div>
               {activeChartTab === "plant" ? (
@@ -1119,49 +1200,71 @@ export default function App() {
                   <CorsOriginsCard origins={data.cors_origins} />
                 </div>
               </>
-            ) : activeChartTab === "local" && geolocation.coords && localWeather.length ? (
-              <CollapsibleTile
-                id="local-conditions-latest-observation"
-                title="Latest Local Observation"
-                subtitle={localLatest?.timestamp ? new Date(localLatest.timestamp).toLocaleString() : "Timestamp unavailable"}
-                className="text-sm text-emerald-100/90"
-                bodyClassName="mt-4 space-y-1 text-emerald-100"
-                titleClassName="text-base font-semibold text-emerald-50"
-                subtitleClassName="text-xs text-emerald-200/70"
-              >
-                <ul className="space-y-1">
-                  <li>Temperature: {formatMaybeNumber(localLatest?.temperature_c, 1)} deg C</li>
-                  <li>Humidity: {formatMaybeNumber(localLatest?.humidity_pct, 1)} %</li>
-                  <li>Pressure (hPa): {formatMaybeNumber(localLatest?.pressure_hpa, 1)} hPa</li>
-                  <li>Pressure (kPa): {formatMaybeNumber(localLatest?.pressure_kpa ?? null, 2)} kPa</li>
-                  <li>Solar Radiation: {formatMaybeNumber(localLatest?.solar_radiation_w_m2, 1)} W/m^2</li>
-                  <li>
-                    Solar Radiation (MJ/m^2/h):
-                    {" "}
-                    {formatMaybeNumber(localLatest?.solar_radiation_mj_m2_h ?? null, 2)} MJ/m^2/h
-                  </li>
-                  <li>
-                    Solar Clear (MJ/m^2/h):{" "}
-                    {formatMaybeNumber(localLatest?.solar_radiation_clear_mj_m2_h ?? null, 2)} MJ/m^2/h
-                  </li>
-                  <li>
-                    Solar Diffuse (MJ/m^2/h):{" "}
-                    {formatMaybeNumber(localLatest?.solar_radiation_diffuse_mj_m2_h ?? null, 2)} MJ/m^2/h
-                  </li>
-                  <li>
-                    Solar Direct (MJ/m^2/h):{" "}
-                    {formatMaybeNumber(localLatest?.solar_radiation_direct_mj_m2_h ?? null, 2)} MJ/m^2/h
-                  </li>
-                  <li>Wind Speed: {formatMaybeNumber(localLatest?.wind_speed_m_s, 2)} m/s</li>
-                  <li>Precipitation: {formatMaybeNumber(localLatest?.precip_mm_h ?? null, 3)} mm/h</li>
-                  <li>Data Sources: {latestSourceDisplay ?? "-"}</li>
-                </ul>
-              </CollapsibleTile>
+            ) : activeChartTab === "local" && geolocation.coords ? (
+              <div className="grid gap-6">
+                <CollapsibleTile
+                  id="local-conditions-latest-observation"
+                  title="Latest Local Forecast"
+                  subtitle={localLatestSubtitle}
+                  className="text-sm text-emerald-100/90"
+                  bodyClassName="mt-4 space-y-2 text-emerald-100"
+                  titleClassName="text-base font-semibold text-emerald-50"
+                  subtitleClassName="text-xs text-emerald-200/70"
+                >
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/10 px-2 py-0.5 font-semibold uppercase tracking-wide text-sky-100/90">
+                        NOAA HRRR Forecast
+                      </span>
+                      {localHrrrError ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 font-semibold uppercase tracking-wide text-amber-100/90">
+                          History warning: {localHrrrError}
+                        </span>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => refreshLocal()}
+                      disabled={localLoading}
+                      className="inline-flex items-center gap-1 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1 font-semibold text-sky-100 transition hover:border-sky-400/60 hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {localLoading ? "Refreshing..." : "Refresh"}
+                    </button>
+                  </div>
+                  {localLoading && !localLatest ? (
+                    <LoadingState message="Loading latest forecast..." />
+                  ) : localError && !localLatest ? (
+                    <ErrorState message={localError} onRetry={refreshLocal} />
+                  ) : localLatest ? (
+                    <>
+                      {localError ? (
+                        <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100/90">
+                          Latest refresh warning: {localError}
+                        </div>
+                      ) : null}
+                      <ul className="space-y-1">
+                        <li>Valid Time: {formatIsoTimestamp(localLatest.timestamp ?? null)}</li>
+                        <li>Temperature: {formatMaybeNumber(localLatest.temperature_c, 1)} deg C</li>
+                        <li>Humidity: {formatMaybeNumber(localLatest.humidity_pct, 1)} %</li>
+                        <li>Pressure: {formatMaybeNumber(localLatest.pressure_hpa, 1)} hPa</li>
+                        <li>Solar Radiation: {formatMaybeNumber(localLatest.solar_radiation_w_m2, 1)} W/m^2</li>
+                        <li>Wind Speed: {formatMaybeNumber(localLatest.wind_speed_m_s, 2)} m/s</li>
+                        <li>Data Sources: {latestSourceDisplay ?? "-"}</li>
+                      </ul>
+                    </>
+                  ) : (
+                    <p className="text-sm text-emerald-200/80">
+                      No recent HRRR data available. Try refreshing or adjust the time window.
+                    </p>
+                  )}
+                </CollapsibleTile>
+              </div>
             ) : null}
           </div>
         ) : null}
       </div>
     </PageShell>
+    <CacheManagerPanel open={cacheManagerOpen} onClose={handleCloseCacheManager} onChanged={refreshHealth} />
     <SettingsPanel open={settingsOpen} onClose={handleCloseSettings} />
     </>
   );
@@ -1180,6 +1283,7 @@ function PlantControlPanel({
 }) {
   const [sensorPotId, setSensorPotId] = useState("");
   const sensorRead = useSensorRead();
+  const pumpStatusMap = useEventStore(selectPumpStatus);
   const {
     isOn: pumpIsOn,
     pending: pumpPending,
@@ -1266,9 +1370,9 @@ function PlantControlPanel({
 
   const handleSensorSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const trimmed = sensorPotId.trim();
-    setSensorPotId(trimmed);
-    if (!trimmed) {
+    const normalized = sensorPotId.trim().toLowerCase();
+    setSensorPotId(normalized);
+    if (!normalized) {
       setFeedback({
         type: "error",
         message: "Enter a pot id before requesting a sensor read.",
@@ -1276,11 +1380,11 @@ function PlantControlPanel({
       return;
     }
     setFeedback(null);
-    await sensorRead.request({ potId: trimmed });
+    await sensorRead.request({ potId: normalized });
   };
 
   const sensorSnapshot = sensorRead.data;
-  const trimmedPotId = sensorPotId.trim();
+  const trimmedPotId = sensorPotId.trim().toLowerCase();
   useEffect(() => {
     if (!sensorSnapshot) {
       return;
@@ -1290,6 +1394,23 @@ function PlantControlPanel({
       requestId: sensorRead.requestId ?? null,
     });
   }, [sensorSnapshot, sensorRead.requestId, syncPumpTelemetry]);
+
+  useEffect(() => {
+    if (!trimmedPotId) {
+      return;
+    }
+    const status = pumpStatusMap[trimmedPotId];
+    if (!status || typeof status.pumpOn !== "boolean") {
+      return;
+    }
+    syncPumpTelemetry({
+      valveOpen: status.pumpOn,
+      timestamp: status.timestamp ?? null,
+      timestampMs: status.timestampMs ?? null,
+      requestId: status.requestId ?? null,
+    });
+  }, [pumpStatusMap, syncPumpTelemetry, trimmedPotId]);
+
   const isSubmitDisabled = sensorRead.loading || !trimmedPotId;
   const snapshotTimestamp = sensorSnapshot
     ? snapshotTimestampLabel(sensorSnapshot.timestamp, sensorSnapshot.timestampMs ?? null)
