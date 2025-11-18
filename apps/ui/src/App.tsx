@@ -110,7 +110,6 @@ function formatMaybeNumber(value: number | null | undefined, fractionDigits: num
 const SOURCE_LABELS: Record<string, string> = {
   nasa_power: "NASA POWER",
   noaa_nws: "NOAA NWS",
-  noaa_hrrr: "NOAA HRRR",
 };
 
 function formatSourceTag(tag: string): string {
@@ -126,17 +125,6 @@ function formatSourceTag(tag: string): string {
     .split(/[_\s]+/)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
-}
-
-function formatIsoTimestamp(value: string | null | undefined): string {
-  if (!value) {
-    return "Timestamp unavailable";
-  }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-  return parsed.toLocaleString();
 }
 
 function LoadingState({ message = "Loading hub status..." }: { message?: string }) {
@@ -378,14 +366,9 @@ export default function App() {
     availableWindows,
     station: localStation,
     sources: localSources,
-    hrrrUsed: localHrrrUsed,
-    hrrrError: localHrrrError,
     refresh: refreshLocal,
   } = useLocalWeather(geolocation.coords, localRange, { maxSamples: 200 });
   const latestSourceDisplay = useMemo(() => {
-    if (localHrrrUsed) {
-      return "NOAA HRRR Forecast";
-    }
     const tags = localSources.length
       ? localSources
       : (localLatest?.source ?? "")
@@ -398,7 +381,7 @@ export default function App() {
     const labels = tags.map((tag) => formatSourceTag(tag));
     const unique = Array.from(new Set(labels.filter((label) => label.length > 0)));
     return unique.length ? unique.join(" + ") : null;
-  }, [localSources, localLatest?.source, localHrrrUsed]);
+  }, [localSources, localLatest?.source]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [serverHint, setServerHint] = useState<string>(initialSettings.serverBaseUrl);
   const [potTelemetryTicker, setPotTelemetryTicker] = useState(0);
@@ -1136,65 +1119,44 @@ export default function App() {
                   <CorsOriginsCard origins={data.cors_origins} />
                 </div>
               </>
-            ) : activeChartTab === "local" && geolocation.coords ? (
-              <div className="grid gap-6">
-                <CollapsibleTile
-                  id="local-conditions-latest-observation"
-                  title="Latest Local Forecast"
-                  subtitle={localLatestSubtitle}
-                  className="text-sm text-emerald-100/90"
-                  bodyClassName="mt-4 space-y-2 text-emerald-100"
-                  titleClassName="text-base font-semibold text-emerald-50"
-                  subtitleClassName="text-xs text-emerald-200/70"
-                >
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/40 bg-sky-500/10 px-2 py-0.5 font-semibold uppercase tracking-wide text-sky-100/90">
-                        NOAA HRRR Forecast
-                      </span>
-                      {localHrrrError ? (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 font-semibold uppercase tracking-wide text-amber-100/90">
-                          History warning: {localHrrrError}
-                        </span>
-                      ) : null}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => refreshLocal()}
-                      disabled={localLoading}
-                      className="inline-flex items-center gap-1 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1 font-semibold text-sky-100 transition hover:border-sky-400/60 hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {localLoading ? "Refreshing..." : "Refresh"}
-                    </button>
-                  </div>
-                  {localLoading && !localLatest ? (
-                    <LoadingState message="Loading latest forecast..." />
-                  ) : localError && !localLatest ? (
-                    <ErrorState message={localError} onRetry={refreshLocal} />
-                  ) : localLatest ? (
-                    <>
-                      {localError ? (
-                        <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100/90">
-                          Latest refresh warning: {localError}
-                        </div>
-                      ) : null}
-                      <ul className="space-y-1">
-                        <li>Valid Time: {formatIsoTimestamp(localLatest.timestamp ?? null)}</li>
-                        <li>Temperature: {formatMaybeNumber(localLatest.temperature_c, 1)} deg C</li>
-                        <li>Humidity: {formatMaybeNumber(localLatest.humidity_pct, 1)} %</li>
-                        <li>Pressure: {formatMaybeNumber(localLatest.pressure_hpa, 1)} hPa</li>
-                        <li>Solar Radiation: {formatMaybeNumber(localLatest.solar_radiation_w_m2, 1)} W/m^2</li>
-                        <li>Wind Speed: {formatMaybeNumber(localLatest.wind_speed_m_s, 2)} m/s</li>
-                        <li>Data Sources: {latestSourceDisplay ?? "-"}</li>
-                      </ul>
-                    </>
-                  ) : (
-                    <p className="text-sm text-emerald-200/80">
-                      No recent HRRR data available. Try refreshing or adjust the time window.
-                    </p>
-                  )}
-                </CollapsibleTile>
-              </div>
+            ) : activeChartTab === "local" && geolocation.coords && localWeather.length ? (
+              <CollapsibleTile
+                id="local-conditions-latest-observation"
+                title="Latest Local Observation"
+                subtitle={localLatest?.timestamp ? new Date(localLatest.timestamp).toLocaleString() : "Timestamp unavailable"}
+                className="text-sm text-emerald-100/90"
+                bodyClassName="mt-4 space-y-1 text-emerald-100"
+                titleClassName="text-base font-semibold text-emerald-50"
+                subtitleClassName="text-xs text-emerald-200/70"
+              >
+                <ul className="space-y-1">
+                  <li>Temperature: {formatMaybeNumber(localLatest?.temperature_c, 1)} deg C</li>
+                  <li>Humidity: {formatMaybeNumber(localLatest?.humidity_pct, 1)} %</li>
+                  <li>Pressure (hPa): {formatMaybeNumber(localLatest?.pressure_hpa, 1)} hPa</li>
+                  <li>Pressure (kPa): {formatMaybeNumber(localLatest?.pressure_kpa ?? null, 2)} kPa</li>
+                  <li>Solar Radiation: {formatMaybeNumber(localLatest?.solar_radiation_w_m2, 1)} W/m^2</li>
+                  <li>
+                    Solar Radiation (MJ/m^2/h):
+                    {" "}
+                    {formatMaybeNumber(localLatest?.solar_radiation_mj_m2_h ?? null, 2)} MJ/m^2/h
+                  </li>
+                  <li>
+                    Solar Clear (MJ/m^2/h):{" "}
+                    {formatMaybeNumber(localLatest?.solar_radiation_clear_mj_m2_h ?? null, 2)} MJ/m^2/h
+                  </li>
+                  <li>
+                    Solar Diffuse (MJ/m^2/h):{" "}
+                    {formatMaybeNumber(localLatest?.solar_radiation_diffuse_mj_m2_h ?? null, 2)} MJ/m^2/h
+                  </li>
+                  <li>
+                    Solar Direct (MJ/m^2/h):{" "}
+                    {formatMaybeNumber(localLatest?.solar_radiation_direct_mj_m2_h ?? null, 2)} MJ/m^2/h
+                  </li>
+                  <li>Wind Speed: {formatMaybeNumber(localLatest?.wind_speed_m_s, 2)} m/s</li>
+                  <li>Precipitation: {formatMaybeNumber(localLatest?.precip_mm_h ?? null, 3)} mm/h</li>
+                  <li>Data Sources: {latestSourceDisplay ?? "-"}</li>
+                </ul>
+              </CollapsibleTile>
             ) : null}
           </div>
         ) : null}

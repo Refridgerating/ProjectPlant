@@ -124,21 +124,20 @@ def test_weather_endpoint_includes_history_warning(
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["hrrr_used"] is True
-    assert payload["hrrr_error"] == "partial history unavailable"
-    assert stub_hrrr.latest_calls
-
-
-def test_weather_endpoint_returns_503_when_hrrr_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-    client: TestClient,
-) -> None:
-    monkeypatch.setattr(weather_router.settings, "hrrr_enabled", False)
-
-    response = client.get("/api/v1/weather/local", params={"lat": 38.9, "lon": -77.0, "hours": 6})
-
-    assert response.status_code == 503
-    assert response.json()["detail"] == "HRRR integration disabled"
+    assert payload["requested_hours"] == 1
+    assert payload["station"]["identifier"] == "KDCA"
+    assert payload["station"]["name"] == "Ronald Reagan National"
+    assert payload["station"]["distance_km"] == pytest.approx(6.227, abs=0.05)
+    assert payload["data"], "should include at least one observation"
+    assert payload["sources"] == ["noaa_nws"]
+    entry = payload["data"][0]
+    assert entry["source"] == "noaa_nws"
+    assert entry["temperature_c"] == pytest.approx(22.0)
+    assert entry["humidity_pct"] == pytest.approx(60.0)
+    assert entry["solar_radiation_w_m2"] == pytest.approx(420.0)
+    assert entry["pressure_hpa"] == pytest.approx(1008.0, rel=1e-3)
+    assert entry["wind_speed_m_s"] is not None
+    assert entry["wind_speed_m_s"] == pytest.approx(5.0)
 
 
 def test_weather_endpoint_returns_503_when_hrrr_unavailable(

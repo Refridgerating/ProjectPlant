@@ -47,40 +47,6 @@ export type WeatherSeries = {
   availableWindows: number[];
   station: WeatherStation | null;
   sources: string[];
-  hrrrUsed: boolean;
-  hrrrError: string | null;
-};
-
-export type HrrrRunInfo = {
-  cycle: string;
-  forecast_hour: number;
-  valid_time: string;
-};
-
-export type HrrrFields = {
-  temperature_c: number | null;
-  humidity_pct: number | null;
-  wind_speed_m_s: number | null;
-  pressure_hpa: number | null;
-  solar_radiation_w_m2: number | null;
-  solar_radiation_mj_m2_h: number | null;
-  solar_radiation_diffuse_w_m2: number | null;
-  solar_radiation_diffuse_mj_m2_h: number | null;
-  solar_radiation_direct_w_m2: number | null;
-  solar_radiation_direct_mj_m2_h: number | null;
-  solar_radiation_clear_w_m2: number | null;
-  solar_radiation_clear_mj_m2_h: number | null;
-  solar_radiation_clear_up_w_m2: number | null;
-  solar_radiation_clear_up_mj_m2_h: number | null;
-};
-
-export type HrrrSnapshot = {
-  location: { lat: number; lon: number };
-  run: HrrrRunInfo;
-  fields: HrrrFields;
-  source: string;
-  metadata: Record<string, unknown>;
-  persisted: boolean | null;
 };
 
 export type WateringPlantProfile = {
@@ -686,8 +652,6 @@ export async function fetchLocalWeather(
     coverage_hours: number;
     available_windows: number[];
     sources?: string[] | null;
-    hrrr_used?: boolean;
-    hrrr_error?: string | null;
     station?: {
       id?: string | null;
       name?: string | null;
@@ -715,41 +679,7 @@ export async function fetchLocalWeather(
     sources: Array.isArray(payload.sources)
       ? payload.sources.map((source) => source.trim()).filter((source) => source.length > 0)
       : [],
-    hrrrUsed: Boolean(payload.hrrr_used),
-    hrrrError: payload.hrrr_error ?? null,
   };
-}
-
-export async function fetchHrrrPoint(
-  params: { lat: number; lon: number; refresh?: boolean; persist?: boolean },
-  signal?: AbortSignal
-): Promise<HrrrSnapshot> {
-  const search = new URLSearchParams({
-    lat: params.lat.toString(),
-    lon: params.lon.toString(),
-  });
-  if (params.refresh !== undefined) {
-    search.set("refresh", params.refresh ? "true" : "false");
-  }
-  if (params.persist !== undefined) {
-    search.set("persist", params.persist ? "true" : "false");
-  }
-  const response = await fetch(`${apiBase()}/weather/hrrr/point?${search.toString()}`, withUser({ signal }));
-  if (!response.ok) {
-    let message = `Failed to load HRRR snapshot (${response.status})`;
-    try {
-      const problem = await response.json();
-      if (problem && typeof problem.detail === "string") {
-        message = problem.detail;
-      }
-    } catch {
-      // ignore
-    }
-    const error = new Error(message) as Error & { status?: number };
-    error.status = response.status;
-    throw error;
-  }
-  return (await response.json()) as HrrrSnapshot;
 }
 
 export async function fetchWateringRecommendation(
@@ -955,7 +885,7 @@ export async function fetchEtkcMetrics(
   }
   const response = await fetch(
     `${apiBase()}/etkc/metrics/${encodeURIComponent(trimmed)}${params.toString() ? `?${params}` : ""}`,
-    withUser({ signal })
+    { signal }
   );
   if (!response.ok) {
     throw new Error(`Failed to load ETkc metrics (${response.status})`);
