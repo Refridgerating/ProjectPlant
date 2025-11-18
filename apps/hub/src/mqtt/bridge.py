@@ -45,6 +45,106 @@ def _topic_matches(topic: Any, wildcard: str) -> bool:
     return topic_matches_sub(wildcard, str(topic))
 
 
+def _topic_matches(topic: Any, wildcard: str) -> bool:
+    if hasattr(topic, "matches"):
+        try:
+            return topic.matches(wildcard)
+        except ValueError:
+            # Fall back to string matching for invalid combinations
+            pass
+    return topic_matches_sub(wildcard, str(topic))
+
+
+def _topic_matches(topic: Any, wildcard: str) -> bool:
+    if hasattr(topic, "matches"):
+        try:
+            return topic.matches(wildcard)
+        except ValueError:
+            # Fall back to string matching for invalid combinations
+            pass
+    return topic_matches_sub(wildcard, str(topic))
+
+
+def _topic_matches(topic: Any, wildcard: str) -> bool:
+    if hasattr(topic, "matches"):
+        try:
+            return topic.matches(wildcard)
+        except ValueError:
+            # Fall back to string matching for invalid combinations
+            pass
+    return topic_matches_sub(wildcard, str(topic))
+
+
+def _topic_matches(topic: Any, wildcard: str) -> bool:
+    if hasattr(topic, "matches"):
+        try:
+            return topic.matches(wildcard)
+        except ValueError:
+            # Fall back to string matching for invalid combinations
+            pass
+    return topic_matches_sub(wildcard, str(topic))
+
+
+def _topic_matches(topic: Any, wildcard: str) -> bool:
+    if hasattr(topic, "matches"):
+        try:
+            return topic.matches(wildcard)
+        except ValueError:
+            # Fall back to string matching for invalid combinations
+            pass
+    return topic_matches_sub(wildcard, str(topic))
+
+
+def _topic_matches(topic: Any, wildcard: str) -> bool:
+    if hasattr(topic, "matches"):
+        try:
+            return topic.matches(wildcard)
+        except ValueError:
+            # Fall back to string matching for invalid combinations
+            pass
+    return topic_matches_sub(wildcard, str(topic))
+
+
+def _topic_matches(topic: Any, wildcard: str) -> bool:
+    if hasattr(topic, "matches"):
+        try:
+            return topic.matches(wildcard)
+        except ValueError:
+            # Fall back to string matching for invalid combinations
+            pass
+    return topic_matches_sub(wildcard, str(topic))
+
+
+def _topic_matches(topic: Any, wildcard: str) -> bool:
+    if hasattr(topic, "matches"):
+        try:
+            return topic.matches(wildcard)
+        except ValueError:
+            # Fall back to string matching for invalid combinations
+            pass
+    return topic_matches_sub(wildcard, str(topic))
+
+
+def _topic_matches(topic: Any, wildcard: str) -> bool:
+    if hasattr(topic, "matches"):
+        try:
+            return topic.matches(wildcard)
+        except ValueError:
+            # Fall back to string matching for invalid combinations
+            pass
+    return topic_matches_sub(wildcard, str(topic))
+
+
+def _topic_matches(topic: Any, wildcard: str) -> bool:
+    if hasattr(topic, "matches"):
+        try:
+            return topic.matches(wildcard)
+        except ValueError:
+            # Fall back to string matching for invalid combinations
+            pass
+    return topic_matches_sub(wildcard, str(topic))
+
+
 @dataclass(frozen=True)
 class NormalizedTelemetry:
     potId: str
