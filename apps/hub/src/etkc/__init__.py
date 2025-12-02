@@ -1,7 +1,7 @@
 """Evapotranspiration-based irrigation tooling for containerized plants."""
 
 from .state import PotState, PotStatic, StepConfig, StepSensors
-from .controller import StepResult, step
+from .controller import StepContext, StepResult, step
 from .sim import Simulator
 
 __all__ = [
@@ -10,6 +10,7 @@ __all__ = [
     "StepSensors",
     "StepConfig",
     "StepResult",
+    "StepContext",
     "step",
     "Simulator",
 ]

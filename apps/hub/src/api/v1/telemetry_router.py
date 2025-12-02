@@ -26,6 +26,8 @@ CSV_FIELDNAMES = [
     "solar_radiation_w_m2",
     "wind_speed_m_s",
     "valve_open",
+    "fan_on",
+    "mister_on",
     "flow_rate_lpm",
     "waterLow",
     "waterCutoff",

@@ -4,6 +4,11 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Dict
 
+ROOT = Path(__file__).resolve().parents[1]
+SRC_PATH = ROOT / "src"
+if str(SRC_PATH) not in sys.path:
+    sys.path.insert(0, str(SRC_PATH))
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -20,11 +25,6 @@ try:  # aggregator is optional in some test contexts
     from services.plant_aggregator import plant_aggregator_service
 except ImportError:  # pragma: no cover - aggregator not packaged
     plant_aggregator_service = None  # type: ignore[assignment]
-
-ROOT = Path(__file__).resolve().parents[1]
-SRC_PATH = ROOT / "src"
-if str(SRC_PATH) not in sys.path:
-    sys.path.insert(0, str(SRC_PATH))
 
 
 @pytest.fixture
@@ -84,3 +84,27 @@ def client(disable_mqtt: None) -> TestClient:
     app = create_app()
     with TestClient(app, headers={"X-User-Id": "user-demo-owner"}) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def care_profile_payload() -> Dict[str, Any]:
+    return {
+        "taxon": {"canonicalName": "Monstera deliciosa"},
+        "metadata": {
+            "schemaVersion": "2024-10-12",
+            "inferenceVersion": "powo-inat-rule-v1",
+            "generatedAt": "2025-01-01T00:00:00.000Z",
+        },
+        "light": {
+            "value": ["bright_indirect"],
+            "confidence": {"level": "medium", "score": 0.6},
+        },
+    }
+
+
+@pytest.fixture(autouse=True)
+def _stub_care_engine(monkeypatch: pytest.MonkeyPatch, care_profile_payload: Dict[str, Any]) -> None:
+    async def _fake_run(**_: Any) -> Dict[str, Any]:
+        return care_profile_payload
+
+    monkeypatch.setattr("services.care_engine.care_engine_runner.run", _fake_run)

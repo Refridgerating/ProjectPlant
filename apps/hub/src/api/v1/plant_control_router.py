@@ -27,6 +27,8 @@ class SensorReadPayload(BaseModel):
     waterCutoff: bool | None = None
     soilRaw: float | int | None = None
     timestampMs: float | int | None = None
+    fanOn: bool | None = None
+    misterOn: bool | None = None
 
     model_config = ConfigDict(extra="allow")
 
@@ -54,11 +56,49 @@ class PumpControlRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
+class FanControlRequest(BaseModel):
+    on: bool
+    duration_ms: float | int | None = Field(
+        default=None,
+        alias="durationMs",
+        ge=0,
+        description="Optional fan run duration in milliseconds. Non-negative values only.",
+    )
+    timeout: float | None = Field(
+        default=None,
+        ge=0.1,
+        le=30.0,
+        description="Optional timeout (seconds) to wait for a status update after issuing the fan command.",
+    )
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class MisterControlRequest(BaseModel):
+    on: bool
+    duration_ms: float | int | None = Field(
+        default=None,
+        alias="durationMs",
+        ge=0,
+        description="Optional mister run duration in milliseconds. Non-negative values only.",
+    )
+    timeout: float | None = Field(
+        default=None,
+        ge=0.1,
+        le=30.0,
+        description="Optional timeout (seconds) to wait for a status update after issuing the mister command.",
+    )
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
 class PumpStatusPayload(BaseModel):
     potId: str
     receivedAt: str
     status: str | None = None
     pumpOn: bool | None = None
+    fanOn: bool | None = None
+    misterOn: bool | None = None
     requestId: str | None = None
     timestamp: str | None = None
     timestampMs: int | None = None
@@ -150,6 +190,92 @@ async def control_pump(pot_id: str, payload: PumpControlRequest, response: Respo
     return payload
 
 
+@router.post(
+    "/{pot_id}/fan",
+    response_model=SensorReadPayload,
+    response_model_exclude_none=True,
+)
+async def control_fan(pot_id: str, payload: FanControlRequest, response: Response) -> SensorReadPayload:
+    start = time.monotonic()
+    logger.debug(
+        "fan control command received for %s (on=%s, durationMs=%s, timeout=%s)",
+        pot_id,
+        payload.on,
+        payload.duration_ms,
+        payload.timeout,
+    )
+    try:
+        result = await command_service.control_fan(
+            pot_id,
+            on=payload.on,
+            duration_ms=float(payload.duration_ms) if payload.duration_ms is not None else None,
+            timeout=payload.timeout,
+        )
+    except CommandTimeoutError as exc:
+        elapsed = time.monotonic() - start
+        logger.warning("fan control for %s timed out after %.2fs: %s", pot_id, elapsed, exc)
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except CommandServiceError as exc:
+        elapsed = time.monotonic() - start
+        logger.error("fan control for %s failed: %s", pot_id, exc)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    elapsed = time.monotonic() - start
+    logger.debug(
+        "fan control for %s completed in %.2fs (requestId=%s)",
+        pot_id,
+        elapsed,
+        result.request_id,
+    )
+    response.headers["X-Command-Request-Id"] = result.request_id
+    payload_model = SensorReadPayload.from_result(result)
+    await _persist_sensor_snapshot(payload_model, source="fan-control", request_id=result.request_id)
+    return payload_model
+
+
+@router.post(
+    "/{pot_id}/mister",
+    response_model=SensorReadPayload,
+    response_model_exclude_none=True,
+)
+async def control_mister(pot_id: str, payload: MisterControlRequest, response: Response) -> SensorReadPayload:
+    start = time.monotonic()
+    logger.debug(
+        "mister control command received for %s (on=%s, durationMs=%s, timeout=%s)",
+        pot_id,
+        payload.on,
+        payload.duration_ms,
+        payload.timeout,
+    )
+    try:
+        result = await command_service.control_mister(
+            pot_id,
+            on=payload.on,
+            duration_ms=float(payload.duration_ms) if payload.duration_ms is not None else None,
+            timeout=payload.timeout,
+        )
+    except CommandTimeoutError as exc:
+        elapsed = time.monotonic() - start
+        logger.warning("mister control for %s timed out after %.2fs: %s", pot_id, elapsed, exc)
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except CommandServiceError as exc:
+        elapsed = time.monotonic() - start
+        logger.error("mister control for %s failed: %s", pot_id, exc)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    elapsed = time.monotonic() - start
+    logger.debug(
+        "mister control for %s completed in %.2fs (requestId=%s)",
+        pot_id,
+        elapsed,
+        result.request_id,
+    )
+    response.headers["X-Command-Request-Id"] = result.request_id
+    payload_model = SensorReadPayload.from_result(result)
+    await _persist_sensor_snapshot(payload_model, source="mister-control", request_id=result.request_id)
+    return payload_model
+
+
 @router.get(
     "/{pot_id}/status",
     response_model=PumpStatusPayload,
@@ -175,6 +301,8 @@ async def _persist_sensor_snapshot(payload: SensorReadPayload, *, source: str, r
             solar=None,
             wind=None,
             valve_open=payload.valveOpen,
+            fan_on=payload.fanOn,
+            mister_on=payload.misterOn,
             flow_rate=payload.flowRateLpm,
             water_low=payload.waterLow,
             water_cutoff=payload.waterCutoff,

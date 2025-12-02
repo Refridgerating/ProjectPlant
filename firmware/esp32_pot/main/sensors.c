@@ -19,6 +19,8 @@
 
 static const char *TAG = "sensors";
 static bool pump_state = false;
+static bool fan_state = false;
+static bool mister_state = false;
 static bool i2c_ready = false;
 
 static esp_err_t ensure_i2c_bus(void)
@@ -106,6 +108,28 @@ bool sensors_get_pump_state(void)
     return pump_state;
 }
 
+void sensors_set_fan_state(bool on)
+{
+    gpio_set_level(FAN_GPIO, on ? 1 : 0);
+    fan_state = on;
+}
+
+bool sensors_get_fan_state(void)
+{
+    return fan_state;
+}
+
+void sensors_set_mister_state(bool on)
+{
+    gpio_set_level(MISTER_GPIO, on ? 1 : 0);
+    mister_state = on;
+}
+
+bool sensors_get_mister_state(void)
+{
+    return mister_state;
+}
+
 void sensors_init(void)
 {
     gpio_config_t pump_cfg = {
@@ -117,6 +141,26 @@ void sensors_init(void)
     };
     gpio_config(&pump_cfg);
     sensors_set_pump_state(false);
+
+    gpio_config_t fan_cfg = {
+        .pin_bit_mask = BIT64(FAN_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&fan_cfg);
+    sensors_set_fan_state(false);
+
+    gpio_config_t mister_cfg = {
+        .pin_bit_mask = BIT64(MISTER_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&mister_cfg);
+    sensors_set_mister_state(false);
 
     // Sensor power enable (default OFF)
     gpio_config_t sen_cfg = {
@@ -172,6 +216,9 @@ void sensors_collect(sensor_reading_t *out)
         memset(out, 0, sizeof(*out));
         out->temperature_c = NAN;
         out->humidity_pct = NAN;
+        out->pump_is_on = sensors_get_pump_state();
+        out->fan_is_on = sensors_get_fan_state();
+        out->mister_is_on = sensors_get_mister_state();
         return;
     }
 
@@ -226,6 +273,8 @@ void sensors_collect(sensor_reading_t *out)
         sensors_set_pump_state(false);
     }
     out->pump_is_on = sensors_get_pump_state();
+    out->fan_is_on = sensors_get_fan_state();
+    out->mister_is_on = sensors_get_mister_state();
 
     uint64_t timestamp_ms = esp_timer_get_time() / 1000ULL;
     if (time_sync_is_time_valid()) {

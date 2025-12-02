@@ -17,6 +17,8 @@ export type PumpStatusEvent = {
   potId: string;
   status?: string | null;
   pumpOn?: boolean | null;
+  fanOn?: boolean | null;
+  misterOn?: boolean | null;
   requestId?: string | null;
   timestamp?: string | null;
   timestampMs?: number | null;

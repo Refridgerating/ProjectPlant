@@ -10,6 +10,9 @@ import {
 import { usePlantCatalog } from "../hooks/usePlantCatalog";
 import { CollapsibleTile } from "./CollapsibleTile";
 import { IrrigationZoneWizard } from "./IrrigationZoneWizard";
+import { CareGuidancePanel } from "./CareGuidancePanel";
+import { getCareProfileFromDetail } from "../lib/careProfileAdapter";
+import type { CareProfile } from "@projectplant/care-engine";
 
 type FormState = {
   nickname: string;
@@ -579,6 +582,7 @@ export function MyPlantsTab() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [cycleGallery]);
 
+  const normalizedCareProfile = detail ? getCareProfileFromDetail(detail) : null;
   const baseCareProfile = detail?.care ?? null;
 
 
@@ -853,8 +857,13 @@ export function MyPlantsTab() {
               </div>
             )}
 
-            {baseCareProfile ? (
-              <CareSummary care={baseCareProfile} title="OpenFarm suggested care" />
+            {normalizedCareProfile ? (
+              <CareGuidancePanel profile={normalizedCareProfile} title="ProjectPlant care guidance" />
+            ) : null}
+            {normalizedCareProfile ? (
+              <NormalizedCareSnapshot profile={normalizedCareProfile} />
+            ) : baseCareProfile ? (
+              <CareSummary care={baseCareProfile} title="ProjectPlant care engine" />
             ) : null}
             <ManualCareEditor
               manualCare={manualCare}
@@ -1018,7 +1027,7 @@ function ManualCareEditor({
   hasOverrides: boolean;
 }) {
   const description = baseProfile
-    ? "OpenFarm suggestions are loaded. Adjust any fields to customise care for your space."
+    ? "ProjectPlant care guidance is loaded. Adjust any fields to customise care for your space."
     : "Species-specific care was not available. Enter instructions so ProjectPlant can automate the routine.";
 
   return (
@@ -1131,7 +1140,7 @@ function CareSummary({ care, title }: { care: PlantCareProfile; title: string })
     <CollapsibleTile
       id={`my-plants-care-summary-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
       title={title}
-      subtitle={care.warning ?? "Suggested regimen sourced from ProjectPlant or OpenFarm."}
+      subtitle={care.warning ?? "Suggested regimen sourced from the ProjectPlant care engine."}
       className="border border-emerald-500/40 bg-emerald-500/15 p-4 text-sm text-emerald-100"
       bodyClassName="mt-3 space-y-2"
       titleClassName="text-sm font-semibold text-emerald-100"
@@ -1161,6 +1170,50 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <p className="text-[11px] uppercase tracking-wide text-emerald-200/80">{label}</p>
       <p className="text-sm text-emerald-100">{value}</p>
     </div>
+  );
+}
+
+function NormalizedCareSnapshot({ profile }: { profile: CareProfile }) {
+  const formatList = (values?: string[]) => (values && values.length ? values.join(", ") : undefined);
+
+  const rows: { label: string; value?: string }[] = [
+    { label: "Light", value: formatList(profile.light?.value) },
+    { label: "Water", value: profile.water?.value },
+    { label: "Humidity", value: profile.humidity?.value },
+    { label: "Min temp", value: profile.temperature?.minimum?.value?.replace(/_/g, " ") },
+    { label: "Soil drainage", value: profile.soil?.drainage?.value?.replace(/_/g, " ") },
+    { label: "Soil moisture", value: profile.soil?.moisture?.value?.replace(/_/g, " ") },
+    { label: "Soil texture", value: formatList(profile.soil?.texture?.value) },
+    { label: "Soil pH", value: formatList(profile.soil?.ph?.value) },
+    { label: "Habits", value: formatList(profile.habits?.value) },
+    { label: "Tolerances", value: formatList(profile.tolerances?.value) }
+  ];
+
+  const visible = rows.filter((row) => row.value);
+  if (visible.length === 0) return null;
+
+  return (
+    <CollapsibleTile
+      id="care-engine-snapshot"
+      title="Care engine snapshot"
+      subtitle="Raw normalized outputs"
+      className="border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-50"
+      bodyClassName="mt-2 space-y-1"
+      titleClassName="text-sm font-semibold text-emerald-100"
+      subtitleClassName="text-xs text-emerald-200/70"
+    >
+      <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {visible.map((row) => (
+          <div key={row.label} className="space-y-0.5 rounded border border-emerald-500/20 bg-emerald-500/5 p-2">
+            <p className="text-[11px] uppercase tracking-wide text-emerald-200/70">{row.label}</p>
+            <p className="text-sm text-emerald-50">{row.value}</p>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-2 text-[11px] uppercase tracking-wide text-emerald-200/60">
+        Inference: {profile.metadata.inferenceVersion}
+      </p>
+    </CollapsibleTile>
   );
 }
 

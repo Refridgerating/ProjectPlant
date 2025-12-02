@@ -9,6 +9,7 @@ import type {
   SoilPh
 } from "@projectplant/care-engine";
 import type { PlantDetails, PlantCareProfile } from "../api/hubClient";
+import { findLocalCareProfile } from "../data/localCareProfiles";
 
 const LEGACY_SOURCE = { id: "projectplant-legacy", name: "ProjectPlant Legacy" };
 
@@ -126,4 +127,16 @@ export function mapPlantCareProfileToCareProfile(detail: PlantDetails): CareProf
       : undefined,
     notes: buildNotes(care)
   };
+}
+
+export function getCareProfileFromDetail(detail: PlantDetails): CareProfile | null {
+  const local = findLocalCareProfile(detail.scientific_name);
+  if (local) {
+    return local;
+  }
+
+  if (detail.care_profile_normalized) {
+    return detail.care_profile_normalized;
+  }
+  return mapPlantCareProfileToCareProfile(detail);
 }

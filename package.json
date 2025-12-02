@@ -8,8 +8,8 @@
     "mobile:android:open": "pnpm --filter @projectplant/android run open",
     "mobile:android:build": "pnpm --filter @projectplant/android run build",
     "build:mobile": "pnpm --filter @projectplant/android run sync"
+  },
+  "devDependencies": {
+    "tsc-alias": "^1.8.16"
   }
 }
-
-
-

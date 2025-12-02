@@ -8,23 +8,45 @@ import type {
   SourceTarget
 } from "./types";
 
-const DEFAULT_POWO_BASE_URL = "https://powo.science.kew.org/api/3";
+const DEFAULT_POWO_BASE_URL = "https://powo.science.kew.org/api/2";
 
 export interface PowoAdapterOptions {
   baseUrl?: string;
   cache?: CacheProvider;
 }
 
+const normalizeStringArray = (value: unknown): string[] | undefined => {
+  if (value == null) return undefined;
+  const items = Array.isArray(value) ? value : [value];
+  const normalized = items
+    .map((item) => (typeof item === "string" ? item.trim() : undefined))
+    .filter((item): item is string => Boolean(item));
+  return normalized.length ? normalized : undefined;
+};
+
+const normalizeTextSnippets = (
+  entries: { heading?: unknown; text?: unknown }[] | undefined
+): { heading: string; text: string }[] | undefined => {
+  if (!Array.isArray(entries) || entries.length === 0) return undefined;
+  const normalized = entries
+    .map((entry) => ({
+      heading: typeof entry.heading === "string" ? entry.heading : "",
+      text: typeof entry.text === "string" ? entry.text : ""
+    }))
+    .filter((entry) => entry.heading || entry.text);
+  return normalized.length ? normalized : undefined;
+};
+
 export interface PowoTaxonRecord {
   id: string;
   name: string;
   family?: string;
-  lifeform?: string[];
-  habitats?: string[];
-  biome?: string[];
+  lifeform?: string | string[] | null;
+  habitats?: string | string[] | null;
+  biome?: string | string[] | null;
   distribution?: {
-    native?: string[];
-    introduced?: string[];
+    native?: string | string[] | null;
+    introduced?: string | string[] | null;
   };
   elevation?: {
     min?: number | null;
@@ -44,6 +66,8 @@ export interface PowoSignals {
   nativeRegions?: string[];
   introducedRegions?: string[];
   textSnippets?: { heading: string; text: string }[];
+  references?: { title: string; url?: string }[];
+  notes?: string;
 }
 
 export class PowoAdapter implements SourceAdapter<PowoTaxonRecord, PowoSignals> {
@@ -82,7 +106,13 @@ export class PowoAdapter implements SourceAdapter<PowoTaxonRecord, PowoSignals> 
     }
 
     const url = this.resolveUrl(powoId);
-    const response = await fetch(url, { signal: options.signal });
+    const response = await fetch(url, {
+      signal: options.signal,
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "ProjectPlantCareEngine/0.1.0"
+      }
+    });
     if (!response.ok) {
       throw new Error(`POWO request failed: ${response.status} ${response.statusText}`);
     }
@@ -105,18 +135,20 @@ export class PowoAdapter implements SourceAdapter<PowoTaxonRecord, PowoSignals> 
   async parse(payload: SourcePayload<PowoTaxonRecord>): Promise<SourceSignals<PowoSignals>> {
     const record = payload.raw;
     const signals: PowoSignals = {
-      lifeforms: record.lifeform ?? undefined,
-      habitats: record.habitats ?? undefined,
-      biome: record.biome ?? undefined,
+      lifeforms: normalizeStringArray(record.lifeform),
+      habitats: normalizeStringArray(record.habitats),
+      biome: normalizeStringArray(record.biome),
       elevationMeters: record.elevation
         ? {
             min: record.elevation.min ?? undefined,
             max: record.elevation.max ?? undefined
           }
         : undefined,
-      nativeRegions: record.distribution?.native ?? undefined,
-      introducedRegions: record.distribution?.introduced ?? undefined,
-      textSnippets: record.descriptions ?? undefined
+      nativeRegions: normalizeStringArray(record.distribution?.native),
+      introducedRegions: normalizeStringArray(record.distribution?.introduced),
+      textSnippets: normalizeTextSnippets(record.descriptions),
+      references: Array.isArray(record.references) && record.references.length ? record.references : undefined,
+      notes: typeof record.notes === "string" ? record.notes : undefined
     };
 
     return {

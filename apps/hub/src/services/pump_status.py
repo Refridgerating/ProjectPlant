@@ -16,6 +16,8 @@ class PumpStatusSnapshot:
     timestamp: Optional[str]
     timestamp_ms: Optional[int]
     received_at: str
+    fan_on: Optional[bool] = None
+    mister_on: Optional[bool] = None
 
     def to_dict(self) -> Dict[str, object]:
         payload: Dict[str, object] = {"potId": self.pot_id, "receivedAt": self.received_at}
@@ -23,6 +25,10 @@ class PumpStatusSnapshot:
             payload["status"] = self.status
         if self.pump_on is not None:
             payload["pumpOn"] = self.pump_on
+        if self.fan_on is not None:
+            payload["fanOn"] = self.fan_on
+        if self.mister_on is not None:
+            payload["misterOn"] = self.mister_on
         if self.request_id is not None:
             payload["requestId"] = self.request_id
         if self.timestamp is not None:

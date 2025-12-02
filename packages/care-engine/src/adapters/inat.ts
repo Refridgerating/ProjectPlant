@@ -51,6 +51,9 @@ export interface InatSignals {
   globalEstablishment?: string;
   seasonality?: { month: number; observationCount: number }[];
   wikipediaSummary?: string;
+  iconicTaxonName?: string;
+  commonName?: string;
+  observationsCount?: number;
 }
 
 export interface InatPayload {
@@ -154,7 +157,10 @@ export class InatAdapter implements SourceAdapter<InatPayload, InatSignals> {
       establishment: establishment.length > 0 ? establishment : undefined,
       globalEstablishment: taxon.establishment_means ?? undefined,
       seasonality: seasonalityEntries,
-      wikipediaSummary: taxon.wikipedia_summary ?? undefined
+      wikipediaSummary: taxon.wikipedia_summary ?? undefined,
+      iconicTaxonName: taxon.iconic_taxon_name ?? undefined,
+      commonName: taxon.preferred_common_name ?? undefined,
+      observationsCount: typeof taxon.observations_count === "number" ? taxon.observations_count : undefined
     };
 
     return {

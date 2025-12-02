@@ -9,7 +9,9 @@ import type {
 } from "../src/adapters";
 import type { PowoSignals, PowoTaxonRecord } from "../src/adapters/powo";
 import type { InatSignals, InatPayload } from "../src/adapters/inat";
-import { RuleBasedCareEngine, createMemoryStorage, CareProfileBatchBuilder } from "../src";
+import { RuleBasedCareEngine } from "../src";
+import { CareProfileBatchBuilder } from "../src/batch";
+import { createMemoryStorage } from "../src/storage";
 
 const fakePowoSignals: PowoSignals = {
   lifeforms: ["vine"],

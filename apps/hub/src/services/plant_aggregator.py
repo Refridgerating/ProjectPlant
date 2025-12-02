@@ -4,7 +4,7 @@ import asyncio
 import re
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 from config import settings
 from services.plant_lookup import (
@@ -42,6 +42,10 @@ class AggregatedPlantProfile:
     images: list[str]
     sources: list[str]
     care: PlantCareProfile
+    powo_id: str | None
+    inat_id: int | None
+    gbif_id: str | None
+    care_profile_normalized: dict[str, Any] | None
 
 
 class PlantAggregatorService:
@@ -139,6 +143,10 @@ class PlantAggregatorService:
             images=detail.images,
             sources=detail.sources,
             care=detail.care,
+            powo_id=detail.powo_id,
+            inat_id=detail.inat_id,
+            gbif_id=detail.gbif_id,
+            care_profile_normalized=detail.care_profile_normalized,
         )
 
     @staticmethod

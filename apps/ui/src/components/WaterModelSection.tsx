@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { useEffect, useMemo, useState } from "react";
 import { fetchEtkcMetrics } from "../api/hubClient";
+import type { EtkcMetric, EtkcMetricMetadata } from "../api/hubClient";
 import { CollapsibleTile } from "./CollapsibleTile";
 
 const RANGE_OPTIONS = [
@@ -51,6 +52,8 @@ type ChartDatum = {
   Dr_mm: number;
   need_irrigation: boolean;
   recommend_mm: number;
+  context?: EtkcMetric["context"];
+  metadata?: EtkcMetric["metadata"];
 };
 
 type HourlyPoint = {
@@ -128,6 +131,92 @@ function computeBadge(summary: DailySummary | null): { label: string; className:
   return { label: "RED · check model", className: "bg-rose-500/20 text-rose-100 border border-rose-400/60" };
 }
 
+type SensorInfo = {
+  label: string;
+  timestampLabel: string | null;
+};
+
+type TelemetryInfo = {
+  ageLabel: string;
+  timestampLabel: string | null;
+};
+
+type RecommendationDetail = {
+  metric: ChartDatum;
+  sensor: SensorInfo;
+  telemetry: TelemetryInfo;
+};
+
+function parseIsoDate(iso?: string | null): number | null {
+  if (!iso) {
+    return null;
+  }
+  const value = Date.parse(iso);
+  return Number.isNaN(value) ? null : value;
+}
+
+function formatTimestamp(ms: number | null): string | null {
+  if (ms === null) {
+    return null;
+  }
+  return new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function formatRelativeAge(seconds: number | null): string {
+  if (seconds === null) {
+    return "Unknown";
+  }
+  const safe = Math.max(0, seconds);
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const secs = safe % 60;
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ago`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${secs}s ago`;
+  }
+  return `${secs}s ago`;
+}
+
+function describeSensorSource(metadata?: EtkcMetricMetadata): SensorInfo {
+  const label =
+    metadata?.environment?.label ??
+    metadata?.environment?.source ??
+    metadata?.payload?.source ??
+    "Unknown source";
+  const timestampMs = parseIsoDate(metadata?.environment?.timestamp ?? metadata?.payload?.timestamp ?? null);
+  return {
+    label: label || "Unknown source",
+    timestampLabel: formatTimestamp(timestampMs),
+  };
+}
+
+function describeTelemetryAge(metadata: EtkcMetricMetadata | undefined, fallbackMs?: number): TelemetryInfo {
+  const telemetryMs = parseIsoDate(metadata?.telemetry?.received_at ?? metadata?.payload?.timestamp ?? null);
+  const fallback = typeof fallbackMs === "number" && Number.isFinite(fallbackMs) ? fallbackMs : null;
+  const resolved = telemetryMs ?? fallback;
+  if (resolved === null) {
+    return { ageLabel: "Unknown", timestampLabel: null };
+  }
+  const ageSeconds = Math.max(0, Math.round((Date.now() - resolved) / 1000));
+  return {
+    ageLabel: formatRelativeAge(ageSeconds),
+    timestampLabel: formatTimestamp(resolved),
+  };
+}
+
+function formatEventTime(ms: number): string {
+  return new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function formatMillimeters(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "--";
+  }
+  return `${value.toFixed(2)} mm`;
+}
+
 export function WaterModelSection({ plantId }: WaterModelSectionProps) {
   const [range, setRange] = useState<RangeOption>(RANGE_OPTIONS[0]);
   const [loading, setLoading] = useState(false);
@@ -179,6 +268,8 @@ export function WaterModelSection({ plantId }: WaterModelSectionProps) {
               Dr_mm: item.Dr_mm ?? 0,
               need_irrigation: Boolean(item.need_irrigation),
               recommend_mm: item.recommend_mm ?? 0,
+              context: item.context,
+              metadata: item.metadata,
             };
           })
           .sort((a, b) => a.timeValue - b.timeValue);
@@ -229,16 +320,33 @@ export function WaterModelSection({ plantId }: WaterModelSectionProps) {
   const dailySummaries = useMemo(() => computeDailySummaries(metrics), [metrics]);
   const latestSummary = dailySummaries.length ? dailySummaries[dailySummaries.length - 1] : null;
   const badge = computeBadge(latestSummary);
-  const irrigationEvents = useMemo(
+  const recommendations = useMemo<RecommendationDetail[]>(
     () =>
       metrics
         .filter((item) => item.need_irrigation && item.recommend_mm > 0)
         .map((item) => ({
-          timeValue: item.timeValue,
-          recommend_mm: item.recommend_mm,
+          metric: item,
+          sensor: describeSensorSource(item.metadata),
+          telemetry: describeTelemetryAge(item.metadata, item.timeValue),
         })),
     [metrics]
   );
+  const irrigationEvents = useMemo(
+    () =>
+      recommendations.map((entry) => ({
+        timeValue: entry.metric.timeValue,
+        recommend_mm: entry.metric.recommend_mm,
+      })),
+    [recommendations]
+  );
+  const latestRecommendation = recommendations.length ? recommendations[recommendations.length - 1] : null;
+  const recentRecommendationRows = useMemo(() => recommendations.slice(-6).reverse(), [recommendations]);
+  const latestRecommendationTime = latestRecommendation ? formatEventTime(latestRecommendation.metric.timeValue) : null;
+  const latestRecommendationValue = latestRecommendation ? formatMillimeters(latestRecommendation.metric.recommend_mm) : "--";
+  const latestSensorLabel = latestRecommendation?.sensor.label ?? "Unknown source";
+  const latestSensorTimestamp = latestRecommendation?.sensor.timestampLabel ?? null;
+  const latestTelemetryAge = latestRecommendation?.telemetry.ageLabel ?? "Unknown";
+  const latestTelemetryTimestamp = latestRecommendation?.telemetry.timestampLabel ?? null;
   const hourlySeries = useMemo<HourlyPoint[]>(() => {
     if (!metrics.length) {
       return [];
@@ -376,6 +484,70 @@ export function WaterModelSection({ plantId }: WaterModelSectionProps) {
       )}
       {!loading && !error && metrics.length === 0 && (
         <p className="text-xs text-emerald-200/70">No ET model metrics available for the selected window.</p>
+      )}
+
+      {latestRecommendation && (
+        <div className="rounded-2xl border border-emerald-700/50 bg-[rgba(4,20,14,0.85)] p-4">
+          <h3 className="text-sm font-semibold text-emerald-50">Irrigation Recommendations</h3>
+          <div className="mt-3 grid gap-4 md:grid-cols-3">
+            <div className="rounded-xl border border-emerald-700/40 bg-[rgba(5,24,16,0.7)] p-4">
+              <p className="text-[11px] uppercase tracking-wide text-emerald-200/60">Latest Recommendation</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-50">{latestRecommendationValue}</p>
+              {latestRecommendationTime && (
+                <p className="text-[11px] text-emerald-200/70">{latestRecommendationTime}</p>
+              )}
+            </div>
+            <div className="rounded-xl border border-emerald-700/40 bg-[rgba(5,24,16,0.7)] p-4">
+              <p className="text-[11px] uppercase tracking-wide text-emerald-200/60">Sensor Source</p>
+              <p className="mt-1 text-base font-semibold text-emerald-50">{latestSensorLabel}</p>
+              {latestSensorTimestamp && (
+                <p className="text-[11px] text-emerald-200/70">at {latestSensorTimestamp}</p>
+              )}
+            </div>
+            <div className="rounded-xl border border-emerald-700/40 bg-[rgba(5,24,16,0.7)] p-4">
+              <p className="text-[11px] uppercase tracking-wide text-emerald-200/60">Telemetry Age</p>
+              <p className="mt-1 text-base font-semibold text-emerald-50">{latestTelemetryAge}</p>
+              {latestTelemetryTimestamp && (
+                <p className="text-[11px] text-emerald-200/70">{latestTelemetryTimestamp}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full table-auto text-left text-xs text-emerald-100/80">
+              <thead>
+                <tr className="text-emerald-200/70">
+                  <th className="px-3 py-2 font-semibold">Time</th>
+                  <th className="px-3 py-2 font-semibold">Recommendation</th>
+                  <th className="px-3 py-2 font-semibold">Sensor Source</th>
+                  <th className="px-3 py-2 font-semibold">Telemetry Age</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentRecommendationRows.map((entry) => (
+                  <tr key={`${entry.metric.timeLabel}-${entry.metric.recommend_mm}`} className="border-t border-emerald-800/40">
+                    <td className="whitespace-nowrap px-3 py-2 text-emerald-50">
+                      {formatEventTime(entry.metric.timeValue)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">{formatMillimeters(entry.metric.recommend_mm)}</td>
+                    <td className="px-3 py-2">
+                      <div className="text-emerald-50">{entry.sensor.label}</div>
+                      {entry.sensor.timestampLabel && (
+                        <div className="text-[11px] text-emerald-200/70">at {entry.sensor.timestampLabel}</div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="text-emerald-50">{entry.telemetry.ageLabel}</div>
+                      {entry.telemetry.timestampLabel && (
+                        <div className="text-[11px] text-emerald-200/70">{entry.telemetry.timestampLabel}</div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {metrics.length > 0 ? (

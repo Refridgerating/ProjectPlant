@@ -25,6 +25,8 @@ import { WaterModelSection } from "./components/WaterModelSection";
 import { CollapsibleTile } from "./components/CollapsibleTile";
 import { useSensorRead } from "./hooks/useSensorRead";
 import { usePumpControl } from "./hooks/usePumpControl";
+import { useFanControl } from "./hooks/useFanControl";
+import { useMisterControl } from "./hooks/useMisterControl";
 import { TelemetrySample, SensorReadPayload, exportPotTelemetry, fetchPotTelemetry } from "./api/hubClient";
 import { useHealthDiagnostics } from "./hooks/useHealthDiagnostics";
 import { DiagnosticsPage } from "./pages/DiagnosticsPage";
@@ -1294,6 +1296,26 @@ function PlantControlPanel({
     toggle: togglePump,
     syncTelemetry: syncPumpTelemetry,
   } = usePumpControl();
+  const {
+    isOn: fanIsOn,
+    pending: fanPending,
+    requestId: fanRequestId,
+    lastConfirmedAt: fanLastConfirmedAt,
+    feedback: fanFeedback,
+    clearFeedback: clearFanFeedback,
+    toggle: toggleFan,
+    syncTelemetry: syncFanTelemetry,
+  } = useFanControl();
+  const {
+    isOn: misterIsOn,
+    pending: misterPending,
+    requestId: misterRequestId,
+    lastConfirmedAt: misterLastConfirmedAt,
+    feedback: misterFeedback,
+    clearFeedback: clearMisterFeedback,
+    toggle: toggleMister,
+    syncTelemetry: syncMisterTelemetry,
+  } = useMisterControl();
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const lastRequestIdRef = useRef<string | null>(null);
 
@@ -1367,6 +1389,20 @@ function PlantControlPanel({
     const timer = setTimeout(() => clearPumpFeedback(), 5000);
     return () => clearTimeout(timer);
   }, [pumpFeedback, clearPumpFeedback]);
+  useEffect(() => {
+    if (!fanFeedback) {
+      return;
+    }
+    const timer = setTimeout(() => clearFanFeedback(), 5000);
+    return () => clearTimeout(timer);
+  }, [fanFeedback, clearFanFeedback]);
+  useEffect(() => {
+    if (!misterFeedback) {
+      return;
+    }
+    const timer = setTimeout(() => clearMisterFeedback(), 5000);
+    return () => clearTimeout(timer);
+  }, [misterFeedback, clearMisterFeedback]);
 
   const handleSensorSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1389,27 +1425,48 @@ function PlantControlPanel({
     if (!sensorSnapshot) {
       return;
     }
-    syncPumpTelemetry({
+    const payload = {
       ...sensorSnapshot,
       requestId: sensorRead.requestId ?? null,
-    });
-  }, [sensorSnapshot, sensorRead.requestId, syncPumpTelemetry]);
+    };
+    syncPumpTelemetry(payload);
+    syncFanTelemetry(payload);
+    syncMisterTelemetry(payload);
+  }, [sensorSnapshot, sensorRead.requestId, syncPumpTelemetry, syncFanTelemetry, syncMisterTelemetry]);
 
   useEffect(() => {
     if (!trimmedPotId) {
       return;
     }
     const status = pumpStatusMap[trimmedPotId];
-    if (!status || typeof status.pumpOn !== "boolean") {
+    if (!status) {
       return;
     }
-    syncPumpTelemetry({
-      valveOpen: status.pumpOn,
-      timestamp: status.timestamp ?? null,
-      timestampMs: status.timestampMs ?? null,
-      requestId: status.requestId ?? null,
-    });
-  }, [pumpStatusMap, syncPumpTelemetry, trimmedPotId]);
+    if (typeof status.pumpOn === "boolean") {
+      syncPumpTelemetry({
+        valveOpen: status.pumpOn,
+        timestamp: status.timestamp ?? null,
+        timestampMs: status.timestampMs ?? null,
+        requestId: status.requestId ?? null,
+      });
+    }
+    if (typeof status.fanOn === "boolean") {
+      syncFanTelemetry({
+        fanOn: status.fanOn,
+        timestamp: status.timestamp ?? null,
+        timestampMs: status.timestampMs ?? null,
+        requestId: status.requestId ?? null,
+      });
+    }
+    if (typeof status.misterOn === "boolean") {
+      syncMisterTelemetry({
+        misterOn: status.misterOn,
+        timestamp: status.timestamp ?? null,
+        timestampMs: status.timestampMs ?? null,
+        requestId: status.requestId ?? null,
+      });
+    }
+  }, [pumpStatusMap, syncPumpTelemetry, syncFanTelemetry, syncMisterTelemetry, trimmedPotId]);
 
   const isSubmitDisabled = sensorRead.loading || !trimmedPotId;
   const snapshotTimestamp = sensorSnapshot
@@ -1424,6 +1481,16 @@ function PlantControlPanel({
     ? sensorSnapshot.valveOpen
       ? "Open"
       : "Closed"
+    : "Unknown";
+  const fanDisplay = typeof sensorSnapshot?.fanOn === "boolean"
+    ? sensorSnapshot.fanOn
+      ? "On"
+      : "Off"
+    : "Unknown";
+  const misterDisplay = typeof sensorSnapshot?.misterOn === "boolean"
+    ? sensorSnapshot.misterOn
+      ? "On"
+      : "Off"
     : "Unknown";
   const soilRawDisplay =
     sensorSnapshot && typeof sensorSnapshot.soilRaw === "number" && !Number.isNaN(sensorSnapshot.soilRaw)
@@ -1458,6 +1525,58 @@ function PlantControlPanel({
     void togglePump({ potId: trimmedPotId });
   }, [togglePump, trimmedPotId]);
 
+  const fanStatusLabel = fanPending
+    ? "Pending"
+    : fanIsOn === null
+      ? "Unknown"
+      : fanIsOn
+        ? "On"
+        : "Off";
+  const fanHelper = (() => {
+    if (!trimmedPotId) {
+      return "Enter a pot id above to enable fan control.";
+    }
+    if (fanPending) {
+      return "Awaiting confirmation from the hub...";
+    }
+    if (fanLastConfirmedAt) {
+      return fanRequestId
+        ? `Last confirmed ${fanLastConfirmedAt} · Request ${fanRequestId}`
+        : `Last confirmed ${fanLastConfirmedAt}`;
+    }
+    return "Tap to toggle the fan.";
+  })();
+  const fanButtonDisabled = !trimmedPotId || fanPending;
+  const handleFanToggle = useCallback(() => {
+    void toggleFan({ potId: trimmedPotId });
+  }, [toggleFan, trimmedPotId]);
+
+  const misterStatusLabel = misterPending
+    ? "Pending"
+    : misterIsOn === null
+      ? "Unknown"
+      : misterIsOn
+        ? "On"
+        : "Off";
+  const misterHelper = (() => {
+    if (!trimmedPotId) {
+      return "Enter a pot id above to enable mister control.";
+    }
+    if (misterPending) {
+      return "Awaiting confirmation from the hub...";
+    }
+    if (misterLastConfirmedAt) {
+      return misterRequestId
+        ? `Last confirmed ${misterLastConfirmedAt} - Request ${misterRequestId}`
+        : `Last confirmed ${misterLastConfirmedAt}`;
+    }
+    return "Tap to toggle the mister.";
+  })();
+  const misterButtonDisabled = !trimmedPotId || misterPending;
+  const handleMisterToggle = useCallback(() => {
+    void toggleMister({ potId: trimmedPotId });
+  }, [toggleMister, trimmedPotId]);
+
   return (
     <div className="space-y-4">
       <WateringRecommendationCard
@@ -1466,7 +1585,7 @@ function PlantControlPanel({
         error={watering.error}
         onRetry={watering.refresh}
       />
-      <PenmanMonteithEquation />
+      <PenmanMonteithEquation recommendation={watering.data} />
       <CollapsibleTile
         id="plant-control-manual-controls"
         title="Manual Controls"
@@ -1517,18 +1636,46 @@ function PlantControlPanel({
               {feedback.message}
             </div>
           ) : null}
-          {pumpFeedback ? (
+        {pumpFeedback ? (
             <div
               role="status"
               className={`rounded-lg border px-3 py-2 text-xs ${
                 pumpFeedback.type === "success"
                   ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
-                  : pumpFeedback.type === "error"
+                : pumpFeedback.type === "error"
+                  ? "border-rose-500/50 bg-rose-500/10 text-rose-200"
+                  : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200/80"
+              }`}
+            >
+              {pumpFeedback.message}
+            </div>
+          ) : null}
+          {fanFeedback ? (
+            <div
+              role="status"
+              className={`rounded-lg border px-3 py-2 text-xs ${
+                fanFeedback.type === "success"
+                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
+                : fanFeedback.type === "error"
+                  ? "border-rose-500/50 bg-rose-500/10 text-rose-200"
+                  : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200/80"
+              }`}
+            >
+              {fanFeedback.message}
+            </div>
+          ) : null}
+          {misterFeedback ? (
+            <div
+              role="status"
+              className={`rounded-lg border px-3 py-2 text-xs ${
+                misterFeedback.type === "success"
+                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
+                  : misterFeedback.type === "error"
                     ? "border-rose-500/50 bg-rose-500/10 text-rose-200"
                     : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200/80"
               }`}
             >
-              {pumpFeedback.message}
+              {misterFeedback.message}
             </div>
           ) : null}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -1543,6 +1690,32 @@ function PlantControlPanel({
                     helper={pumpHelper}
                     disabled={pumpButtonDisabled}
                     onClick={handlePumpToggle}
+                  />
+                );
+              }
+              if (device.id === "fan") {
+                return (
+                  <ControlToggleButton
+                    key={device.id}
+                    label={device.label}
+                    isOn={fanIsOn ?? false}
+                    status={fanStatusLabel}
+                    helper={fanHelper}
+                    disabled={fanButtonDisabled}
+                    onClick={handleFanToggle}
+                  />
+                );
+              }
+              if (device.id === "mister") {
+                return (
+                  <ControlToggleButton
+                    key={device.id}
+                    label={device.label}
+                    isOn={misterIsOn ?? false}
+                    status={misterStatusLabel}
+                    helper={misterHelper}
+                    disabled={misterButtonDisabled}
+                    onClick={handleMisterToggle}
                   />
                 );
               }
@@ -1579,6 +1752,14 @@ function PlantControlPanel({
                     <div>
                       <dt className="text-[10px] uppercase tracking-wide text-emerald-200/60">Valve</dt>
                       <dd className="text-sm text-emerald-100">{valveDisplay}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wide text-emerald-200/60">Fan</dt>
+                      <dd className="text-sm text-emerald-100">{fanDisplay}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wide text-emerald-200/60">Mister</dt>
+                      <dd className="text-sm text-emerald-100">{misterDisplay}</dd>
                     </div>
                     <div>
                       <dt className="text-[10px] uppercase tracking-wide text-emerald-200/60">Reservoir float</dt>

@@ -23,6 +23,8 @@ def _build_payload(pot_id: str) -> dict[str, object]:
         "moisture": 42.5,
         "temperature": 21.3,
         "valveOpen": False,
+        "fanOn": False,
+        "misterOn": False,
         "timestamp": "2025-10-14T12:00:00.000Z",
         "humidity": 48.2,
     }
@@ -212,12 +214,104 @@ def test_control_pump_endpoint_service_error(client: TestClient, monkeypatch: py
     mock.assert_awaited_once()
 
 
+def test_control_fan_endpoint_success(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pot_id = "pot-fan"
+    payload = _build_payload(pot_id)
+    mock = AsyncMock(return_value=SensorReadResult(request_id="fan-req-1", payload=payload))
+    monkeypatch.setattr(command_service, "control_fan", mock)
+
+    response = client.post(
+        f"/api/v1/plant-control/{pot_id}/fan",
+        json={"on": False, "durationMs": 0, "timeout": 1.0},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == payload
+    assert response.headers["X-Command-Request-Id"] == "fan-req-1"
+    mock.assert_awaited_once()
+    kwargs = mock.await_args.kwargs
+    assert kwargs["on"] is False
+    assert kwargs["duration_ms"] == pytest.approx(0.0)
+    assert kwargs["timeout"] == pytest.approx(1.0)
+
+
+def test_control_fan_endpoint_timeout(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pot_id = "pot-fan-timeout"
+    mock = AsyncMock(side_effect=CommandTimeoutError("Timed out waiting for fan response"))
+    monkeypatch.setattr(command_service, "control_fan", mock)
+
+    response = client.post(f"/api/v1/plant-control/{pot_id}/fan", json={"on": True})
+
+    assert response.status_code == 504
+    assert response.json() == {"detail": "Timed out waiting for fan response"}
+    mock.assert_awaited_once()
+
+
+def test_control_fan_endpoint_service_error(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pot_id = "pot-fan-error"
+    mock = AsyncMock(side_effect=CommandServiceError("MQTT manager is not connected"))
+    monkeypatch.setattr(command_service, "control_fan", mock)
+
+    response = client.post(f"/api/v1/plant-control/{pot_id}/fan", json={"on": True})
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "MQTT manager is not connected"}
+    mock.assert_awaited_once()
+
+
+def test_control_mister_endpoint_success(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pot_id = "pot-mister"
+    payload = _build_payload(pot_id)
+    mock = AsyncMock(return_value=SensorReadResult(request_id="mister-req-1", payload=payload))
+    monkeypatch.setattr(command_service, "control_mister", mock)
+
+    response = client.post(
+        f"/api/v1/plant-control/{pot_id}/mister",
+        json={"on": True, "durationMs": 1000, "timeout": 2.5},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == payload
+    assert response.headers["X-Command-Request-Id"] == "mister-req-1"
+    mock.assert_awaited_once()
+    kwargs = mock.await_args.kwargs
+    assert kwargs["on"] is True
+    assert kwargs["duration_ms"] == pytest.approx(1000.0)
+    assert kwargs["timeout"] == pytest.approx(2.5)
+
+
+def test_control_mister_endpoint_timeout(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pot_id = "pot-mister-timeout"
+    mock = AsyncMock(side_effect=CommandTimeoutError("Timed out waiting for mister response"))
+    monkeypatch.setattr(command_service, "control_mister", mock)
+
+    response = client.post(f"/api/v1/plant-control/{pot_id}/mister", json={"on": False})
+
+    assert response.status_code == 504
+    assert response.json() == {"detail": "Timed out waiting for mister response"}
+    mock.assert_awaited_once()
+
+
+def test_control_mister_endpoint_service_error(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pot_id = "pot-mister-error"
+    mock = AsyncMock(side_effect=CommandServiceError("MQTT manager is not connected"))
+    monkeypatch.setattr(command_service, "control_mister", mock)
+
+    response = client.post(f"/api/v1/plant-control/{pot_id}/mister", json={"on": True})
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "MQTT manager is not connected"}
+    mock.assert_awaited_once()
+
+
 def test_get_pump_status_endpoint_success(client: TestClient) -> None:
     pot_id = "pot-status"
     snapshot = PumpStatusSnapshot(
         pot_id=pot_id,
         status="pump_on",
         pump_on=True,
+        fan_on=False,
+        mister_on=True,
         request_id="req-42",
         timestamp="2025-10-14T12:00:00.000Z",
         timestamp_ms=1_700_000_000_000,
@@ -232,6 +326,8 @@ def test_get_pump_status_endpoint_success(client: TestClient) -> None:
         "potId": pot_id,
         "status": "pump_on",
         "pumpOn": True,
+        "fanOn": False,
+        "misterOn": True,
         "requestId": "req-42",
         "timestamp": "2025-10-14T12:00:00.000Z",
         "timestampMs": 1_700_000_000_000,

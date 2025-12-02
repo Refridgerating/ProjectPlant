@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
@@ -40,6 +42,10 @@ class PlantGuideModel(BaseModel):
     images: list[str]
     sources: list[str]
     care: CareProfileModel
+    powo_id: str | None = None
+    inat_id: int | None = None
+    gbif_id: str | None = None
+    care_profile_normalized: dict[str, Any] | None = None
 
 
 @router.get("/search", response_model=list[SearchSuggestionModel])
@@ -87,6 +93,10 @@ def _to_guide_model(profile: AggregatedPlantProfile) -> PlantGuideModel:
         images=list(profile.images),
         sources=profile.sources,
         care=_to_care_model(profile.care),
+        powo_id=profile.powo_id,
+        inat_id=profile.inat_id,
+        gbif_id=profile.gbif_id,
+        care_profile_normalized=profile.care_profile_normalized,
     )
 
 

@@ -122,11 +122,25 @@ def upsert_state(conn: sqlite3.Connection, plant_id: str, state: PotState) -> No
     conn.commit()
 
 
-def store_metric(conn: sqlite3.Connection, plant_id: str, result: StepResult, ts: Optional[float] = None) -> None:
+def store_metric(
+    conn: sqlite3.Connection,
+    plant_id: str,
+    result: StepResult,
+    ts: Optional[float] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> None:
     timestamp = time.time() if ts is None else ts
+    payload = result.model_dump(mode="json", exclude_none=True)
+    if metadata:
+        merged = dict(result.metadata or {})
+        merged.update(metadata)
+        payload["metadata"] = merged
+    elif result.metadata:
+        payload["metadata"] = result.metadata
+
     conn.execute(
         "INSERT INTO etkc_metrics (ts, plant_id, json) VALUES (?, ?, ?)",
-        (timestamp, plant_id, json.dumps(result.model_dump())),
+        (timestamp, plant_id, json.dumps(payload)),
     )
     conn.commit()
 

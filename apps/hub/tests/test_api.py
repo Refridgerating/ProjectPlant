@@ -25,6 +25,15 @@ def test_v1_info(client: TestClient) -> None:
     assert payload["pot_telemetry_max_rows"] == settings.pot_telemetry_max_rows
 
 
+def test_issue_auth_token(client: TestClient) -> None:
+    response = client.post("/api/v1/auth/token")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["token_type"] == "bearer"
+    assert payload["expires_in"] == 3600
+    assert payload["access_token"].startswith("dummy.user-demo-owner.")
+
+
 def test_etkc_metrics_endpoint(client: TestClient) -> None:
     response = client.get("/api/v1/etkc/metrics/test-pot")
     assert response.status_code == 200

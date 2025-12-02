@@ -13,6 +13,8 @@ typedef enum {
     MQTT_CMD_PUMP_OVERRIDE,
     MQTT_CMD_CONFIG_UPDATE,
     MQTT_CMD_SENSOR_READ,
+    MQTT_CMD_FAN_OVERRIDE,
+    MQTT_CMD_MISTER_OVERRIDE,
 } mqtt_command_type_t;
 
 #define MQTT_REQUEST_ID_MAX_LEN 64
@@ -21,6 +23,8 @@ typedef struct {
     mqtt_command_type_t type;
     char request_id[MQTT_REQUEST_ID_MAX_LEN];
     bool pump_on;
+    bool fan_on;
+    bool mister_on;
     uint32_t duration_ms;
 } mqtt_command_t;
 

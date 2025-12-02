@@ -1,7 +1,7 @@
 # ProjectPlant Care Engine
 
 TypeScript schema, enums, and helper interfaces for normalizing plant care
-signals (POWO, iNaturalist, etc.) into a single contract. The types are designed
+signals (POWO, iNaturalist, GBIF, etc.) into a single contract. The types are designed
 for both rule-based NLP pipelines today and ML-driven inference in the future.
 
 ## Quick start
@@ -13,7 +13,8 @@ const profile: CareProfile = {
   taxon: {
     canonicalName: "Monstera deliciosa",
     powoId: "urn:lsid:ipni.org:names:327761-2",
-    inatId: 48234
+    inatId: 48234,
+    gbifId: "2868241"
   },
   metadata: {
     schemaVersion: "2024-10-12",
@@ -43,9 +44,9 @@ can be wired using the interfaces in `src/guidance.ts`.
 
 ## Adapters & caching
 
-- `src/adapters/powo.ts` and `src/adapters/inat.ts` provide fetch/parse
-  scaffolding for POWO and iNaturalist (with pluggable caching and optional
-  seasonality pulls).
+- `src/adapters/powo.ts`, `src/adapters/inat.ts`, and `src/adapters/gbif.ts`
+  provide fetch/parse scaffolding for POWO, iNaturalist, and GBIF (with pluggable
+  caching and optional seasonality pulls).
 - `src/cache/` exposes `FileCache` and `MemoryCache` helpers implementing the
   shared `CacheProvider` contract so pipelines can persist raw payloads for
   auditing or offline runs.
@@ -62,6 +63,8 @@ import {
   createFileCache,
   createPowoAdapter,
   createInatAdapter,
+  createGbifAdapter,
+  createGbifAdapter,
   RuleBasedCareEngine,
   createDefaultGuidanceEngine
 } from "@projectplant/care-engine";
@@ -69,19 +72,23 @@ import {
 const cache = createFileCache({ rootDir: ".projectplant/cache", namespace: "sources" });
 const powo = createPowoAdapter({ cache });
 const inat = createInatAdapter({ cache });
+const gbif = createGbifAdapter({ cache });
 
-const target = { taxon: { canonicalName: "Monstera deliciosa", powoId: "48234", inatId: 48234 } };
+const target = {
+  taxon: { canonicalName: "Monstera deliciosa", powoId: "48234", inatId: 48234, gbifId: "2868241" }
+};
 
 const powoSignals = await powo.parse(await powo.fetch(target));
 const inatSignals = await inat.parse(await inat.fetch(target));
+const gbifSignals = await gbif.parse(await gbif.fetch(target));
 
 const engine = new RuleBasedCareEngine();
 const careProfile = engine.map({
   target,
-  signals: { powo: powoSignals, inat: inatSignals }
+  signals: { powo: powoSignals, inat: inatSignals, gbif: gbifSignals }
 });
 
-console.log(careProfile.light?.value); // → ["bright_indirect"]
+console.log(careProfile.light?.value); // ["bright_indirect"]
 
 const guidanceEngine = createDefaultGuidanceEngine();
 const guidanceBlocks = guidanceEngine.render(careProfile);
@@ -109,13 +116,13 @@ import {
 const storage = createJsonFileStorage({ rootDir: ".projectplant/care-profiles" });
 const engine = new RuleBasedCareEngine();
 const builder = new CareProfileBatchBuilder({
-  adapters: { powo: createPowoAdapter(), inat: createInatAdapter() },
+  adapters: { powo: createPowoAdapter(), inat: createInatAdapter(), gbif: createGbifAdapter() },
   careEngine: engine,
   storage,
   runId: "powo-inat-rule-v1"
 });
 
 await builder.run([
-  { id: "327761-2", taxon: { canonicalName: "Monstera deliciosa", powoId: "327761-2", inatId: 48234 } }
+  { id: "327761-2", taxon: { canonicalName: "Monstera deliciosa", powoId: "327761-2", inatId: 48234, gbifId: "2868241" } }
 ]);
 ```

@@ -154,3 +154,20 @@ def test_weather_endpoint_returns_503_when_hrrr_unavailable(
     assert response.status_code == 503
     assert response.json()["detail"] == "HRRR grid not ready"
     assert stub_hrrr.latest_calls
+
+
+def test_weather_endpoint_uses_station_when_hrrr_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    monkeypatch.setattr(weather_router.settings, "hrrr_enabled", False)
+
+    response = client.get("/api/v1/weather/local", params={"lat": 38.9072, "lon": -77.0369, "hours": 6})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["hrrr_used"] is False
+    assert payload["hrrr_error"] == "HRRR integration disabled"
+    assert payload["station"]["identifier"] == "KDCA"
+    assert payload["sources"] == ["noaa_nws"]
+    assert payload["requested_hours"] == pytest.approx(1.0)

@@ -116,7 +116,7 @@ class EtkcWorker:
 
         try:
             payload = json.loads(message.payload.decode("utf-8"))
-            sensors = await _build_step_sensors(payload)
+            sensors, sensor_meta = await _build_step_sensors(payload)
         except Exception as exc:
             LOGGER.debug("Failed to parse telemetry for %s: %s", plant_id, exc)
             return
@@ -137,7 +137,9 @@ class EtkcWorker:
 
             new_state, result = step(pot, state, sensors, cfg)
             upsert_state(conn, plant_id, new_state)
-            store_metric(conn, plant_id, result)
+            metadata = _build_metric_metadata(message, sensor_meta)
+            result = result.model_copy(update={"metadata": metadata})
+            store_metric(conn, plant_id, result, metadata=metadata)
         finally:
             conn.close()
 
@@ -245,8 +247,10 @@ def _extract_plant_id(topic: Any) -> Optional[str]:
     return None
 
 
-async def _build_step_sensors(payload: Dict[str, Any]) -> StepSensors:
-    T_C, RH_pct, source_used, source_label = await _select_temperature_humidity(payload)
+async def _build_step_sensors(payload: Dict[str, Any]) -> tuple[StepSensors, Dict[str, Any]]:
+    payload_source = _coerce_source(payload.get("source"))
+    payload_timestamp = _extract_payload_timestamp(payload)
+    T_C, RH_pct, source_used, source_label, source_timestamp = await _select_temperature_humidity(payload)
 
     Rs = _coerce_float(payload, ["Rs_MJ_m2_h", "Rs", "solar_rad"])
     PAR = _coerce_float(payload, ["PAR_umol_m2_s", "PAR"])
@@ -268,7 +272,7 @@ async def _build_step_sensors(payload: Dict[str, Any]) -> StepSensors:
     if source_used != "sensor":
         LOGGER.info("Using %s environment data for ET step temperature/humidity inputs", source_label)
 
-    return StepSensors(
+    sensors = StepSensors(
         T_C=T_C,
         RH_pct=RH_pct,
         Rs_MJ_m2_h=Rs,
@@ -280,8 +284,33 @@ async def _build_step_sensors(payload: Dict[str, Any]) -> StepSensors:
         AC_on=AC_on if AC_on is not None else False,
     )
 
+    metadata = {
+        "environment": {
+            "source": source_used,
+            "label": source_label,
+            "timestamp": _isoformat_ts(source_timestamp),
+        },
+        "payload": {
+            "source": payload_source,
+            "timestamp": _isoformat_ts(payload_timestamp),
+        },
+    }
 
-async def _select_temperature_humidity(payload: Dict[str, Any]) -> tuple[float, float, str, str]:
+    return sensors, metadata
+
+
+def _build_metric_metadata(message: Message, sensor_meta: Dict[str, Any]) -> Dict[str, Any]:
+    metadata = dict(sensor_meta)
+    metadata["telemetry"] = {
+        "topic": str(message.topic),
+        "qos": getattr(message, "qos", None),
+        "retain": bool(getattr(message, "retain", False)),
+        "received_at": _isoformat_ts(datetime.now(timezone.utc)),
+    }
+    return metadata
+
+
+async def _select_temperature_humidity(payload: Dict[str, Any]) -> tuple[float, float, str, str, Optional[datetime]]:
     window = _env_sensor_freshness()
     now = datetime.now(timezone.utc)
 
@@ -289,7 +318,7 @@ async def _select_temperature_humidity(payload: Dict[str, Any]) -> tuple[float, 
     if payload_temp is not None and payload_rh is not None and _payload_is_local(payload_source):
         if window is None or payload_ts is None or (now - payload_ts) <= window:
             display = payload_source or "sensor"
-            return payload_temp, payload_rh, "sensor", display
+            return payload_temp, payload_rh, "sensor", display, payload_ts
 
     sample = await telemetry_store.latest_matching(
         source_filter=("sensor",),
@@ -298,13 +327,13 @@ async def _select_temperature_humidity(payload: Dict[str, Any]) -> tuple[float, 
     )
     if sample is not None:
         display = sample.source or "sensor"
-        return sample.temperature_c, sample.humidity_pct, display.lower(), display
+        return sample.temperature_c, sample.humidity_pct, display.lower(), display, sample.timestamp
 
     if payload_temp is not None and payload_rh is not None:
         if window is None or payload_ts is None or (now - payload_ts) <= window:
             display = payload_source or "payload"
             canonical = display.lower()
-            return payload_temp, payload_rh, canonical, display
+            return payload_temp, payload_rh, canonical, display, payload_ts
 
     fallback = await telemetry_store.latest_matching(
         max_age=window,
@@ -312,7 +341,7 @@ async def _select_temperature_humidity(payload: Dict[str, Any]) -> tuple[float, 
     )
     if fallback is not None:
         display = fallback.source or "weather"
-        return fallback.temperature_c, fallback.humidity_pct, display.lower(), display
+        return fallback.temperature_c, fallback.humidity_pct, display.lower(), display, fallback.timestamp
 
     raise ValueError("Missing required temperature or humidity measurements.")
 
@@ -354,6 +383,15 @@ def _extract_payload_timestamp(payload: Dict[str, Any]) -> Optional[datetime]:
         except ValueError:
             LOGGER.debug("Ignoring invalid ISO timestamp in telemetry payload")
     return None
+
+
+def _isoformat_ts(value: Optional[datetime]) -> Optional[str]:
+    if value is None:
+        return None
+    iso = value.astimezone(timezone.utc).isoformat(timespec="seconds")
+    if iso.endswith("+00:00"):
+        return iso[:-6] + "Z"
+    return iso
 
 
 def _payload_is_local(source: Optional[str]) -> bool:

@@ -21,9 +21,17 @@ function toTimestamp(value: string | undefined | null): number | null {
   return Number.isNaN(time) ? null : time;
 }
 
-function formatTick(time: number): string {
+function formatDateTime(time: number): string {
   const date = new Date(time);
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return date.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 type TelemetryChartProps = {
@@ -113,7 +121,7 @@ export function TelemetryChart({
               dataKey="timeValue"
               type="number"
               domain={[minTime, maxTime]}
-              tickFormatter={formatTick}
+              tickFormatter={formatDateTime}
               stroke="#6ee7b7"
               tick={{ fontSize: 12, fill: "#bbf7d0" }}
             />
@@ -164,7 +172,7 @@ export function TelemetryChart({
             ) : null}
             <Tooltip
               contentStyle={{ background: "#052016", borderColor: "#10402a", color: "#ecfdf5" }}
-              labelFormatter={(value) => formatTick(Number(value))}
+              labelFormatter={(value) => formatDateTime(Number(value))}
             />
             <Legend />
             <Line

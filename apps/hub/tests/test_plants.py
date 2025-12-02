@@ -6,16 +6,9 @@ from typing import Any, Sequence
 from fastapi.testclient import TestClient
 from httpx import Response
 
-TREFLE_SEARCH_URL = "https://trefle.io/api/v1/plants/search"
 POWO_SEARCH_URL = "https://powo.science.kew.org/api/2/search"
 INAT_TAXA_URL = "https://api.inaturalist.org/v1/taxa"
-OPENFARM_CROPS_URL = "https://openfarm.cc/api/v1/crops"
-
-
-def _stub_trefle(respx_mock, entries: Sequence[dict[str, Any]] | None = None, status: int = 200) -> None:
-    respx_mock.get(TREFLE_SEARCH_URL).mock(
-        return_value=Response(status, json={"data": list(entries or [])})
-    )
+GBIF_MATCH_URL = "https://api.gbif.org/v1/species/match"
 
 
 def _stub_powo(respx_mock, results: Sequence[dict[str, Any]] | None = None, status: int = 200) -> None:
@@ -30,9 +23,9 @@ def _stub_inat(respx_mock, results: Sequence[dict[str, Any]] | None = None, stat
     )
 
 
-def _stub_openfarm(respx_mock, crops: Sequence[dict[str, Any]] | None = None, status: int = 200) -> None:
-    respx_mock.get(OPENFARM_CROPS_URL).mock(
-        return_value=Response(status, json={"data": list(crops or [])})
+def _stub_gbif_match(respx_mock, species_key: int = 2868241, status: int = 200) -> None:
+    respx_mock.get(GBIF_MATCH_URL).mock(
+        return_value=Response(status, json={"usageKey": species_key, "speciesKey": species_key})
     )
 
 
@@ -47,22 +40,19 @@ def test_reference_search(client: TestClient) -> None:
 
 
 def test_suggest_plants_remote_and_local(
-    client: TestClient, respx_mock, settings_override
+    client: TestClient, respx_mock
 ) -> None:
-    settings_override(trefle_token="test-token")
-    _stub_trefle(
+    _stub_powo(
         respx_mock,
-        entries=[
+        results=[
             {
-                "scientific_name": "Monstera deliciosa",
-                "common_name": "Swiss cheese plant",
-                "image_url": "https://img/monstera.jpg",
+                "name": "Monstera deliciosa",
+                "mainCommonName": "Swiss cheese plant",
                 "rank": "species",
-                "bibliography": "Araceae",
+                "thumbnail": "https://img/powo_monstera.jpg",
             }
         ],
     )
-    _stub_powo(respx_mock, results=[])
     _stub_inat(
         respx_mock,
         results=[
@@ -80,11 +70,10 @@ def test_suggest_plants_remote_and_local(
     assert response.status_code == 200
     data = response.json()
     sources = {item["source"] for item in data}
-    assert {"trefle", "local", "inaturalist"}.issubset(sources)
+    assert {"powo", "local", "inaturalist"}.issubset(sources)
 
 
-def test_suggest_plants_common_name(client: TestClient, respx_mock, settings_override) -> None:
-    settings_override(trefle_token=None)
+def test_suggest_plants_common_name(client: TestClient, respx_mock) -> None:
     _stub_powo(respx_mock, results=[])
     _stub_inat(
         respx_mock,
@@ -108,26 +97,9 @@ def test_suggest_plants_common_name(client: TestClient, respx_mock, settings_ove
     assert viola_entry["source"] == "inaturalist"
 
 
-def test_details_endpoint_with_openfarm(
-    client: TestClient, respx_mock, settings_override
+def test_details_endpoint_with_powo_data(
+    client: TestClient, respx_mock, care_profile_payload: dict[str, Any]
 ) -> None:
-    settings_override(trefle_token="test-token")
-    _stub_trefle(
-        respx_mock,
-        entries=[
-            {
-                "scientific_name": "Monstera deliciosa",
-                "common_name": "Swiss cheese plant",
-                "family": "Araceae",
-                "genus": "Monstera",
-                "rank": "species",
-                "synonyms": ["Monstera borsigiana"],
-                "native_status": "Central America",
-                "bibliography": "Some botanical notes",
-                "image_url": "https://img/monstera.jpg",
-            }
-        ],
-    )
     _stub_powo(
         respx_mock,
         results=[
@@ -140,60 +112,7 @@ def test_details_endpoint_with_openfarm(
                 "synonyms": [{"name": "Philodendron pertusum"}],
                 "distribution": {"native": [{"name": "Mexico"}, {"name": "Guatemala"}]},
                 "summary": "Climbing evergreen",
-            }
-        ],
-    )
-    _stub_openfarm(
-        respx_mock,
-        crops=[
-            {
-                "attributes": {
-                    "name": "Monstera deliciosa",
-                    "binomial_name": "Monstera deliciosa",
-                    "sun_requirements": "Partial shade",
-                    "description": "Tropical vine",
-                    "soil": "Aroid mix rich in organic matter",
-                    "spacing": 45,
-                    "life_cycle": "perennial",
-                    "temperature_minimum": 18,
-                    "temperature_maximum": 29,
-                    "ph_minimum": 5.5,
-                    "ph_maximum": 7.0,
-                }
-            }
-        ],
-    )
-
-    detail = client.get("/api/v1/plants/details", params={"name": "Monstera deliciosa"})
-    assert detail.status_code == 200
-    body = detail.json()
-    assert body["scientific_name"] == "Monstera deliciosa"
-    care = body["care"]
-    assert care["level"] == "species"
-    assert care["light"].startswith("Partial")
-    assert care["soil"] == "Aroid mix rich in organic matter"
-
-
-def test_search_endpoint_merges_sources(client: TestClient, respx_mock, settings_override) -> None:
-    settings_override(trefle_token="test-token")
-    _stub_trefle(
-        respx_mock,
-        entries=[
-            {
-                "scientific_name": "Monstera deliciosa",
-                "common_name": "Swiss cheese plant",
-                "image_url": "https://img/monstera.jpg",
-                "rank": "species",
-            }
-        ],
-    )
-    _stub_powo(
-        respx_mock,
-        results=[
-            {
-                "name": "Monstera deliciosa",
-                "rank": "species",
-                "mainCommonName": "Swiss cheese plant",
+                "fqId": "urn:lsid:ipni.org:names:87478-1",
             }
         ],
     )
@@ -201,6 +120,53 @@ def test_search_endpoint_merges_sources(client: TestClient, respx_mock, settings
         respx_mock,
         results=[
             {
+                "id": 48234,
+                "name": "Monstera deliciosa",
+                "rank": "species",
+                "preferred_common_name": "Swiss cheese plant",
+                "default_photo": {"medium_url": "https://img/inat_monstera.jpg"},
+            }
+        ],
+    )
+    _stub_gbif_match(respx_mock, species_key=2868241)
+
+    detail = client.get("/api/v1/plants/details", params={"name": "Monstera deliciosa"})
+    assert detail.status_code == 200
+    body = detail.json()
+    assert body["scientific_name"] == "Monstera deliciosa"
+    assert body["gbif_id"] == "2868241"
+    assert set(body["sources"]) == {"powo", "inaturalist", "gbif"}
+    assert body["synonyms"] == ["Philodendron pertusum"]
+    assert body["distribution"] == ["Mexico", "Guatemala"]
+    assert body["powo_id"] == "urn:lsid:ipni.org:names:87478-1"
+    assert body["inat_id"] == 48234
+    assert body["care_profile_normalized"] == care_profile_payload
+    care = body["care"]
+    assert care["level"] == "custom"
+    assert care["source"] == "projectplant"
+    assert care["warning"]
+    assert care["allow_user_input"] is True
+
+
+def test_search_endpoint_merges_sources(
+    client: TestClient, respx_mock, care_profile_payload: dict[str, Any]
+) -> None:
+    _stub_powo(
+        respx_mock,
+        results=[
+            {
+                "name": "Monstera deliciosa",
+                "rank": "species",
+                "mainCommonName": "Swiss cheese plant",
+                "fqId": "urn:lsid:ipni.org:names:87478-1",
+            }
+        ],
+    )
+    _stub_inat(
+        respx_mock,
+        results=[
+            {
+                "id": 122521,
                 "name": "Monstera",
                 "rank": "genus",
                 "preferred_common_name": "monstera",
@@ -214,26 +180,13 @@ def test_search_endpoint_merges_sources(client: TestClient, respx_mock, settings
     payload = response.json()
     assert payload
     assert payload[0]["id"] == "monstera-deliciosa"
-    assert any("trefle" in item["sources"] for item in payload)
     assert any("powo" in item["sources"] for item in payload)
     assert any("inaturalist" in item["sources"] for item in payload)
 
 
-def test_plant_profile_endpoint_includes_openfarm_fields(
-    client: TestClient, respx_mock, settings_override
+def test_plant_profile_endpoint_uses_projectplant_care(
+    client: TestClient, respx_mock, care_profile_payload: dict[str, Any]
 ) -> None:
-    settings_override(trefle_token="test-token")
-    trefle_response = {
-        "scientific_name": "Monstera deliciosa",
-        "common_name": "Swiss cheese plant",
-        "family": "Araceae",
-        "genus": "Monstera",
-        "rank": "species",
-        "synonyms": ["Monstera borsigiana"],
-        "native_status": "Central America",
-        "bibliography": "Some botanical notes",
-        "image_url": "https://img/monstera.jpg",
-    }
     powo_response = {
         "name": "Monstera deliciosa",
         "family": "Araceae",
@@ -243,30 +196,22 @@ def test_plant_profile_endpoint_includes_openfarm_fields(
         "synonyms": [{"name": "Philodendron pertusum"}],
         "distribution": {"native": [{"name": "Mexico"}, {"name": "Guatemala"}]},
         "summary": "Climbing evergreen",
+        "fqId": "urn:lsid:ipni.org:names:87478-1",
     }
-    _stub_trefle(respx_mock, entries=[trefle_response])
     _stub_powo(respx_mock, results=[powo_response])
-    _stub_inat(respx_mock, results=[])
-    _stub_openfarm(
+    _stub_inat(
         respx_mock,
-        crops=[
+        results=[
             {
-                "attributes": {
-                    "name": "Monstera deliciosa",
-                    "binomial_name": "Monstera deliciosa",
-                    "sun_requirements": "Partial shade",
-                    "description": "Tropical vine",
-                    "soil": "Aroid mix rich in organic matter",
-                    "spacing": 45,
-                    "life_cycle": "perennial",
-                    "temperature_minimum": 18,
-                    "temperature_maximum": 29,
-                    "ph_minimum": 5.5,
-                    "ph_maximum": 7.0,
-                }
+                "id": 48234,
+                "name": "Monstera deliciosa",
+                "rank": "species",
+                "preferred_common_name": "Swiss cheese plant",
+                "default_photo": {"medium_url": "https://img/inat_monstera.jpg"},
             }
         ],
     )
+    _stub_gbif_match(respx_mock, species_key=2868241)
 
     search = client.get("/api/search", params={"q": "Monstera"})
     assert search.status_code == 200
@@ -276,10 +221,13 @@ def test_plant_profile_endpoint_includes_openfarm_fields(
     assert detail.status_code == 200
     payload = detail.json()
     care = payload["care"]
-    assert care["soil"] == "Aroid mix rich in organic matter"
-    assert care["spacing"] == "45 cm"
-    assert care["lifecycle"] == "perennial"
-    assert payload["sources"]
+    assert care["source"] == "projectplant"
+    assert care["allow_user_input"] is True
+    assert care["warning"]
+    assert set(payload["sources"]) == {"powo", "inaturalist", "gbif"}
+    assert payload["care_profile_normalized"] == care_profile_payload
+    assert payload["powo_id"] == "urn:lsid:ipni.org:names:87478-1"
+    assert payload["gbif_id"] == "2868241"
 
 
 def test_create_smart_pot_auto_detect(client: TestClient) -> None:

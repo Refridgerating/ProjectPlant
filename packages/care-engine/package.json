@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "type": "module",
   "sideEffects": false,
+  "bin": {
+    "projectplant-care-engine": "./bin/run-care-engine.js"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema.ts",
@@ -14,11 +17,13 @@
     "./batch": "./src/batch/index.ts"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && pnpm run build:cli",
+    "build:cli": "esbuild src/cli/run-care-engine.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/cli/run-care-engine.js",
     "test": "vitest run"
   },
   "dependencies": {},
   "devDependencies": {
+    "esbuild": "^0.24.0",
     "@types/node": "^22.5.3",
     "typescript": "^5.5.4",
     "vitest": "^1.6.0"

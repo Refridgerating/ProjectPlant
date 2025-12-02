@@ -25,8 +25,14 @@
 #define SOIL_SENSOR_RAW_DRY     17040       // Completely dry soil
 #define SOIL_SENSOR_RAW_WET     7507        // Waterlogged soil
 
-// Pump control GPIO (drives IRLZ44N gate via 100Ω)
-#define PUMP_GPIO               GPIO_NUM_23 // Matches wiring: GPIO23 → MOSFET gate
+// Pump control GPIO (drives IRLZ44N gate via 100 ohm gate resistor)
+#define PUMP_GPIO               GPIO_NUM_23 // Pump MOSFET gate input
+
+// Fan control GPIO (circulation fan MOSFET/relay)
+#define FAN_GPIO                GPIO_NUM_25
+
+// Ultrasonic mister control GPIO (logic-level MOSFET)
+#define MISTER_GPIO             GPIO_NUM_33
 
 // Sensor power switch (P-MOSFET FQP27P06 via 2N3904)
 // Logic: drive HIGH to enable sensors (pull P-MOSFET gate low via NPN)

@@ -159,6 +159,8 @@ class NormalizedTelemetry:
     waterCutoff: Optional[bool] = None
     soilRaw: Optional[float] = None
     requestId: Optional[str] = None
+    fanOn: Optional[bool] = None
+    misterOn: Optional[bool] = None
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -182,6 +184,10 @@ class NormalizedTelemetry:
             payload["soilRaw"] = self.soilRaw
         if self.requestId:
             payload["requestId"] = self.requestId
+        if self.fanOn is not None:
+            payload["fanOn"] = self.fanOn
+        if self.misterOn is not None:
+            payload["misterOn"] = self.misterOn
         payload["source"] = "bridge"
         return payload
 
@@ -392,6 +398,8 @@ class MqttBridge:
             solar=None,
             wind=None,
             valve_open=telemetry.valveOpen,
+            fan_on=telemetry.fanOn,
+            mister_on=telemetry.misterOn,
             flow_rate=telemetry.flowRateLpm,
             water_low=telemetry.waterLow,
             water_cutoff=telemetry.waterCutoff,
@@ -475,6 +483,16 @@ class MqttBridge:
         if valve_open is None:
             valve_open = _coerce_bool(data.get("valve_open"))
 
+        fan_on = _coerce_bool(data.get("fanOn"))
+        if fan_on is None:
+            fan_on = _coerce_bool(data.get("fan_on"))
+
+        mister_on = _coerce_bool(data.get("misterOn"))
+        if mister_on is None:
+            mister_on = _coerce_bool(data.get("mister_on"))
+        if mister_on is None:
+            mister_on = _coerce_bool(data.get("mister"))
+
         flow_rate = _coerce_float(data.get("flowRateLpm"))
         if flow_rate is None:
             flow_rate = _coerce_float(data.get("flow_rate_lpm"))
@@ -510,6 +528,8 @@ class MqttBridge:
             solar=solar,
             wind=wind,
             valve_open=valve_open,
+            fan_on=fan_on,
+            mister_on=mister_on,
             flow_rate=flow_rate,
             water_low=water_low,
             water_cutoff=water_cutoff,
@@ -588,6 +608,16 @@ def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[Normalized
     if pump_on is None:
         pump_on = _coerce_bool(data.get("valveOpen"))
 
+    fan_on = _coerce_bool(data.get("fanOn"))
+    if fan_on is None:
+        fan_on = _coerce_bool(data.get("fan_on"))
+
+    mister_on = _coerce_bool(data.get("misterOn"))
+    if mister_on is None:
+        mister_on = _coerce_bool(data.get("mister_on"))
+    if mister_on is None:
+        mister_on = _coerce_bool(data.get("mister"))
+
     request_id = _coerce_str(data.get("requestId"))
     if request_id is None:
         request_id = _coerce_str(data.get("request_id"))
@@ -651,6 +681,8 @@ def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[Normalized
         waterCutoff=water_cutoff,
         soilRaw=soil_raw,
         requestId=request_id,
+        fanOn=fan_on,
+        misterOn=mister_on,
     )
 
 
@@ -676,8 +708,22 @@ def build_status_payload(raw_payload: bytes, pot_id: str) -> Optional[PumpStatus
         pump_on = _coerce_bool(data.get("pumpOn"))
     if pump_on is None:
         pump_on = _coerce_bool(data.get("pump"))
+    fan_on = _coerce_bool(data.get("fan_on"))
+    if fan_on is None:
+        fan_on = _coerce_bool(data.get("fanOn"))
+    if fan_on is None:
+        fan_on = _coerce_bool(data.get("fan"))
+    mister_on = _coerce_bool(data.get("mister_on"))
+    if mister_on is None:
+        mister_on = _coerce_bool(data.get("misterOn"))
+    if mister_on is None:
+        mister_on = _coerce_bool(data.get("mister"))
     if pump_on is None and status:
         pump_on = _infer_pump_state(status)
+    if fan_on is None and status:
+        fan_on = _infer_fan_state(status)
+    if mister_on is None and status:
+        mister_on = _infer_mister_state(status)
 
     request_id = _coerce_str(data.get("requestId"))
     if request_id is None:
@@ -699,6 +745,8 @@ def build_status_payload(raw_payload: bytes, pot_id: str) -> Optional[PumpStatus
         pot_id=pot_id,
         status=status,
         pump_on=pump_on,
+        fan_on=fan_on,
+        mister_on=mister_on,
         request_id=request_id,
         timestamp=timestamp_iso,
         timestamp_ms=timestamp_ms,
@@ -820,6 +868,53 @@ def _infer_pump_state(status: str) -> Optional[bool]:
         return True
     if "off" in lowered and "on" not in lowered:
         return False
+    return None
+
+
+def _infer_fan_state(status: str) -> Optional[bool]:
+    lowered = status.strip().lower()
+    if not lowered:
+        return None
+
+    positive_markers = {"fan_on", "fan_enabled", "fan_active", "fan_running", "cooling_on"}
+    negative_markers = {"fan_off", "fan_timeout_off", "fan_disabled", "fan_idle", "cooling_off"}
+
+    if lowered in positive_markers:
+        return True
+    if lowered in negative_markers:
+        return False
+
+    if lowered.endswith("_on") and "fan" in lowered:
+        return True
+    if lowered.endswith("_off") and "fan" in lowered:
+        return False
+
+    if "fan" in lowered:
+        if "on" in lowered and "off" not in lowered:
+            return True
+        if "off" in lowered and "on" not in lowered:
+            return False
+    return None
+
+
+def _infer_mister_state(status: str) -> Optional[bool]:
+    lowered = status.strip().lower()
+    if not lowered:
+        return None
+
+    positive_markers = {"mister_on", "mist_on", "fogger_on"}
+    negative_markers = {"mister_off", "mist_off", "fogger_off"}
+
+    if lowered in positive_markers:
+        return True
+    if lowered in negative_markers:
+        return False
+
+    if "mister" in lowered or "mist" in lowered or "fogger" in lowered:
+        if "on" in lowered and "off" not in lowered:
+            return True
+        if "off" in lowered and "on" not in lowered:
+            return False
     return None
 
 

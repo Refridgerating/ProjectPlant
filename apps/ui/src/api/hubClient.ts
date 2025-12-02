@@ -1,3 +1,5 @@
+import type { CareProfile } from "@projectplant/care-engine";
+
 export type HubInfo = {
   name: string;
   version: string;
@@ -66,6 +68,7 @@ export type WeatherCacheHealth = {
   latest_modified: string | null;
   oldest_modified: string | null;
   age_seconds: number | null;
+  state?: string | null;
 };
 
 export type CacheEntryKind = "grib" | "metadata" | "log" | "other";
@@ -163,6 +166,10 @@ export type TelemetrySample = {
   pot_id?: string | null;
   valve_open?: boolean | null;
   valveOpen?: boolean | null;
+  fan_on?: boolean | null;
+  fanOn?: boolean | null;
+  mister_on?: boolean | null;
+  misterOn?: boolean | null;
   flow_rate_lpm?: number | null;
   flowRateLpm?: number | null;
   waterLow?: boolean | null;
@@ -296,6 +303,8 @@ export type SensorReadPayload = {
   waterCutoff?: boolean | null;
   soilRaw?: number | null;
   timestampMs?: number | null;
+  fanOn?: boolean | null;
+  misterOn?: boolean | null;
   [key: string]: unknown;
 };
 
@@ -310,6 +319,20 @@ export type RequestSensorReadOptions = {
 };
 
 export type ControlPumpOptions = {
+  on: boolean;
+  durationMs?: number;
+  timeout?: number;
+  signal?: AbortSignal;
+};
+
+export type ControlFanOptions = {
+  on: boolean;
+  durationMs?: number;
+  timeout?: number;
+  signal?: AbortSignal;
+};
+
+export type ControlMisterOptions = {
   on: boolean;
   durationMs?: number;
   timeout?: number;
@@ -412,6 +435,9 @@ export type PlantDetails = {
   care_profile: PlantCareProfile;
   care_suggestions: PlantCareSuggestions;
   sources: string[];
+  care_profile_normalized?: CareProfile | null;
+  powo_id?: string | null;
+  inat_id?: number | null;
 };
 
 export type ShareRole = "owner" | "contractor" | "viewer";
@@ -993,6 +1019,138 @@ export async function controlPump(potId: string, options: ControlPumpOptions): P
   return { payload: payloadJson, requestId };
 }
 
+export async function controlFan(potId: string, options: ControlFanOptions): Promise<SensorReadResponse> {
+  const trimmedId = potId.trim();
+  if (!trimmedId) {
+    throw new Error("Pot ID is required to control the fan");
+  }
+
+  const { on, durationMs, timeout, signal } = options;
+  if (typeof on !== "boolean") {
+    throw new Error("Fan command requires an on/off state");
+  }
+
+  if (durationMs !== undefined) {
+    if (Number.isNaN(durationMs) || !Number.isFinite(durationMs)) {
+      throw new Error("Fan duration must be a finite number of milliseconds");
+    }
+    if (durationMs < 0) {
+      throw new Error("Fan duration must be zero or greater");
+    }
+  }
+
+  if (timeout !== undefined) {
+    if (Number.isNaN(timeout) || !Number.isFinite(timeout)) {
+      throw new Error("Fan timeout must be a finite number of seconds");
+    }
+    if (timeout <= 0) {
+      throw new Error("Fan timeout must be greater than zero");
+    }
+  }
+
+  const payload: Record<string, unknown> = { on };
+  if (durationMs !== undefined) {
+    payload["durationMs"] = durationMs;
+  }
+  if (timeout !== undefined) {
+    payload["timeout"] = timeout;
+  }
+
+  const url = `${apiBase()}/plant-control/${encodeURIComponent(trimmedId)}/fan`;
+  const response = await fetch(
+    url,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    })
+  );
+
+  if (!response.ok) {
+    let message = `Failed to control fan (${response.status})`;
+    try {
+      const problem = await response.json();
+      if (problem && typeof problem.detail === "string") {
+        message = problem.detail;
+      }
+    } catch {
+      // ignore JSON parsing errors
+    }
+    throw new Error(message);
+  }
+
+  const payloadJson = (await response.json()) as SensorReadPayload;
+  const requestId = response.headers.get("x-command-request-id");
+  return { payload: payloadJson, requestId };
+}
+
+export async function controlMister(potId: string, options: ControlMisterOptions): Promise<SensorReadResponse> {
+  const trimmedId = potId.trim();
+  if (!trimmedId) {
+    throw new Error("Pot ID is required to control the mister");
+  }
+
+  const { on, durationMs, timeout, signal } = options;
+  if (typeof on !== "boolean") {
+    throw new Error("Mister command requires an on/off state");
+  }
+
+  if (durationMs !== undefined) {
+    if (Number.isNaN(durationMs) || !Number.isFinite(durationMs)) {
+      throw new Error("Mister duration must be a finite number of milliseconds");
+    }
+    if (durationMs < 0) {
+      throw new Error("Mister duration must be zero or greater");
+    }
+  }
+
+  if (timeout !== undefined) {
+    if (Number.isNaN(timeout) || !Number.isFinite(timeout)) {
+      throw new Error("Mister timeout must be a finite number of seconds");
+    }
+    if (timeout <= 0) {
+      throw new Error("Mister timeout must be greater than zero");
+    }
+  }
+
+  const payload: Record<string, unknown> = { on };
+  if (durationMs !== undefined) {
+    payload["durationMs"] = durationMs;
+  }
+  if (timeout !== undefined) {
+    payload["timeout"] = timeout;
+  }
+
+  const url = `${apiBase()}/plant-control/${encodeURIComponent(trimmedId)}/mister`;
+  const response = await fetch(
+    url,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    })
+  );
+
+  if (!response.ok) {
+    let message = `Failed to control mister (${response.status})`;
+    try {
+      const problem = await response.json();
+      if (problem && typeof problem.detail === "string") {
+        message = problem.detail;
+      }
+    } catch {
+      // ignore JSON parsing errors
+    }
+    throw new Error(message);
+  }
+
+  const payloadJson = (await response.json()) as SensorReadPayload;
+  const requestId = response.headers.get("x-command-request-id");
+  return { payload: payloadJson, requestId };
+}
+
 export async function fetchLocalWeather(
   params: { lat: number; lon: number; hours: number },
   signal?: AbortSignal
@@ -1247,6 +1405,42 @@ export async function fetchPlants(signal?: AbortSignal): Promise<PlantRecord[]> 
   return (await response.json()) as PlantRecord[];
 }
 
+export type StepSensorsSnapshot = {
+  T_C: number;
+  RH_pct: number;
+  Rs_MJ_m2_h: number;
+  u2_ms: number | null;
+  theta: number | null;
+  inflow_mL: number;
+  drain_mL: number;
+  dStorage_mL: number | null;
+  AC_on: boolean;
+};
+
+export type EtkcMetricContext = {
+  dt_h: number;
+  pot_area_m2: number;
+  sensors: StepSensorsSnapshot;
+};
+
+export type EtkcMetricMetadata = {
+  telemetry?: {
+    topic: string | null;
+    qos: number | null;
+    retain: boolean;
+    received_at: string | null;
+  };
+  environment?: {
+    source: string | null;
+    label: string | null;
+    timestamp: string | null;
+  };
+  payload?: {
+    source: string | null;
+    timestamp: string | null;
+  };
+};
+
 export type EtkcMetric = {
   ts: number;
   ET0_mm: number;
@@ -1263,7 +1457,109 @@ export type EtkcMetric = {
   tau_e_h: number;
   need_irrigation: boolean;
   recommend_mm: number;
+  context?: EtkcMetricContext;
+  metadata?: EtkcMetricMetadata;
 };
+
+function numberOr(value: unknown, fallback: number): number {
+  if (value === null || value === undefined || value === "") {
+    return fallback;
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function stringOrNull(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  return String(value);
+}
+
+function parseSensorsSnapshot(value: unknown): StepSensorsSnapshot | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  return {
+    T_C: numberOr(record["T_C"], 0),
+    RH_pct: numberOr(record["RH_pct"], 0),
+    Rs_MJ_m2_h: numberOr(record["Rs_MJ_m2_h"], 0),
+    u2_ms: numberOrNull(record["u2_ms"]),
+    theta: numberOrNull(record["theta"]),
+    inflow_mL: numberOr(record["inflow_mL"], 0),
+    drain_mL: numberOr(record["drain_mL"], 0),
+    dStorage_mL: numberOrNull(record["dStorage_mL"]),
+    AC_on: Boolean(record["AC_on"]),
+  };
+}
+
+function parseEtkcContext(value: unknown): EtkcMetricContext | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const ctx = value as Record<string, unknown>;
+  const sensors = parseSensorsSnapshot(ctx["sensors"]);
+  if (!sensors) {
+    return undefined;
+  }
+  return {
+    dt_h: numberOr(ctx["dt_h"], 0),
+    pot_area_m2: numberOr(ctx["pot_area_m2"], 0),
+    sensors,
+  };
+}
+
+function parseEtkcMetadata(value: unknown): EtkcMetricMetadata | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const meta = value as Record<string, unknown>;
+  const telemetryRaw = meta["telemetry"];
+  const environmentRaw = meta["environment"];
+  const payloadRaw = meta["payload"];
+
+  const telemetry =
+    telemetryRaw && typeof telemetryRaw === "object"
+      ? {
+          topic: stringOrNull((telemetryRaw as Record<string, unknown>)["topic"]),
+          qos: numberOrNull((telemetryRaw as Record<string, unknown>)["qos"]),
+          retain: Boolean((telemetryRaw as Record<string, unknown>)["retain"]),
+          received_at: stringOrNull((telemetryRaw as Record<string, unknown>)["received_at"]),
+        }
+      : undefined;
+
+  const environment =
+    environmentRaw && typeof environmentRaw === "object"
+      ? {
+          source: stringOrNull((environmentRaw as Record<string, unknown>)["source"]),
+          label: stringOrNull((environmentRaw as Record<string, unknown>)["label"]),
+          timestamp: stringOrNull((environmentRaw as Record<string, unknown>)["timestamp"]),
+        }
+      : undefined;
+
+  const payload =
+    payloadRaw && typeof payloadRaw === "object"
+      ? {
+          source: stringOrNull((payloadRaw as Record<string, unknown>)["source"]),
+          timestamp: stringOrNull((payloadRaw as Record<string, unknown>)["timestamp"]),
+        }
+      : undefined;
+
+  if (!telemetry && !environment && !payload) {
+    return undefined;
+  }
+
+  return { telemetry, environment, payload };
+}
 
 export async function fetchEtkcMetrics(
   plantId: string,
@@ -1302,6 +1598,8 @@ export async function fetchEtkcMetrics(
     tau_e_h: Number(item["tau_e_h"] ?? 0),
     need_irrigation: Boolean(item["need_irrigation"]),
     recommend_mm: Number(item["recommend_mm"] ?? 0),
+    context: parseEtkcContext(item["context"]),
+    metadata: parseEtkcMetadata(item["metadata"]),
   }));
 }
 

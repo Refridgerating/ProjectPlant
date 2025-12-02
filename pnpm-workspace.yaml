@@ -1,5 +1,7 @@
-﻿packages:
+packages:
   - "apps/web"
   - "apps/android"
+  - "packages/care-engine"
   - "packages/sdk"
   - "packages/native-bridge"
+  - "apps/ui"

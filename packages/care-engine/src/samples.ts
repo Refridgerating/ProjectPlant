@@ -7,7 +7,8 @@ export const EXAMPLE_MONSTERA_PROFILE: CareProfile = {
   taxon: {
     canonicalName: "Monstera deliciosa",
     powoId: "urn:lsid:ipni.org:names:327761-2",
-    inatId: 48234
+    inatId: 48234,
+    gbifId: "2868241"
   },
   metadata: {
     schemaVersion: "2024-10-12",

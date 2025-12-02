@@ -1,6 +1,7 @@
 import type { SourceSignals } from "../adapters";
 import type { PowoSignals } from "../adapters/powo";
 import type { InatSignals } from "../adapters/inat";
+import type { GbifSignals } from "../adapters/gbif";
 import type { CareProfile } from "../schema";
 import type {
   BatchBuilder,
@@ -53,6 +54,19 @@ export class CareProfileBatchBuilder implements BatchBuilder {
         }
       } catch (error) {
         if (this.options.failOnInatError) {
+          throw error;
+        }
+      }
+    }
+
+    if (adapters.gbif) {
+      try {
+        const gbifSignals = await this.fetchGbifSignals(job);
+        if (gbifSignals) {
+          bundle.gbif = gbifSignals;
+        }
+      } catch (error) {
+        if (this.options.failOnGbifError) {
           throw error;
         }
       }
@@ -127,6 +141,35 @@ export class CareProfileBatchBuilder implements BatchBuilder {
     } catch (error) {
       if (this.options.onAdapterError) {
         await this.options.onAdapterError({ job, adapter: "inat", error });
+      }
+      throw error;
+    }
+  }
+
+  private async fetchGbifSignals(job: TaxonJob): Promise<SourceSignals<GbifSignals> | undefined> {
+    const gbifAdapter = this.options.adapters.gbif;
+    if (!gbifAdapter) return undefined;
+
+    const fetchOptions = {
+      ...this.options.gbifFetchOptions,
+      cacheKey: this.options.gbifFetchOptions?.cacheKey ?? `gbif:${job.id}`
+    };
+
+    let payload: Awaited<ReturnType<typeof gbifAdapter.fetch>>;
+    try {
+      payload = await gbifAdapter.fetch(job, fetchOptions);
+    } catch (error) {
+      if (this.options.onAdapterError) {
+        await this.options.onAdapterError({ job, adapter: "gbif", error });
+      }
+      throw error;
+    }
+
+    try {
+      return await gbifAdapter.parse(payload, this.options.gbifParseOptions);
+    } catch (error) {
+      if (this.options.onAdapterError) {
+        await this.options.onAdapterError({ job, adapter: "gbif", error });
       }
       throw error;
     }

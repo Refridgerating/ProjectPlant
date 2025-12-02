@@ -1,11 +1,15 @@
 import type { SourceSignals } from "../adapters";
+import type { GbifSignals } from "../adapters/gbif";
 import type { InatSignals } from "../adapters/inat";
 import type { PowoSignals } from "../adapters/powo";
+import type { WikipediaSignals } from "../adapters/wikipedia";
 import type { CorpusToken } from "../rules/apply-keywords";
 
 export interface AdapterSignalBundle {
   powo?: SourceSignals<PowoSignals>;
   inat?: SourceSignals<InatSignals>;
+  gbif?: SourceSignals<GbifSignals>;
+  wikipedia?: SourceSignals<WikipediaSignals>;
 }
 
 export interface AttributedValue {
@@ -23,9 +27,15 @@ export interface SignalCorpus {
   biomes: AttributedValue[];
   nativeRegions: AttributedValue[];
   introducedRegions: AttributedValue[];
-  seasonality?: InatSignals["seasonality"];
+  seasonality: SeasonalitySignal[];
   wikipediaSummary?: string;
   bundle: AdapterSignalBundle;
+}
+
+export interface SeasonalitySignal {
+  sourceId: string;
+  url?: string;
+  histogram: { month: number; observationCount: number }[];
 }
 
 export const collectSignalCorpus = (bundle: AdapterSignalBundle): SignalCorpus => {
@@ -35,7 +45,7 @@ export const collectSignalCorpus = (bundle: AdapterSignalBundle): SignalCorpus =
   const biomes: AttributedValue[] = [];
   const nativeRegions: AttributedValue[] = [];
   const introducedRegions: AttributedValue[] = [];
-  let seasonality: InatSignals["seasonality"];
+  const seasonality: SeasonalitySignal[] = [];
   let wikipediaSummary: string | undefined;
 
   if (bundle.powo) {
@@ -84,17 +94,43 @@ export const collectSignalCorpus = (bundle: AdapterSignalBundle): SignalCorpus =
         }
       }
     }
+    if (powo.references) {
+      for (const reference of powo.references) {
+        if (!reference.title) continue;
+        texts.push({
+          text: reference.title,
+          sourceId: "powo",
+          url: reference.url ?? url,
+          field: "reference:title",
+          structured: true
+        });
+      }
+    }
+    if (powo.notes) {
+      texts.push({
+        text: powo.notes,
+        sourceId: "powo",
+        url,
+        field: "notes"
+      });
+    }
   }
 
   if (bundle.inat) {
     const inat = bundle.inat.signals;
     const url = bundle.inat.context.url;
-    if (inat.seasonality) seasonality = inat.seasonality;
+    if (inat.seasonality && inat.seasonality.length > 0) {
+      seasonality.push({
+        sourceId: "inat",
+        url,
+        histogram: inat.seasonality
+      });
+    }
     if (inat.wikipediaSummary) {
       wikipediaSummary = inat.wikipediaSummary;
       texts.push({
         text: inat.wikipediaSummary,
-        sourceId: "inat",
+        sourceId: "wikipedia",
         url,
         field: "wikipedia_summary"
       });
@@ -117,6 +153,89 @@ export const collectSignalCorpus = (bundle: AdapterSignalBundle): SignalCorpus =
           });
         }
       }
+    }
+    if (inat.iconicTaxonName) {
+      lifeforms.push({
+        value: inat.iconicTaxonName,
+        sourceId: "inat",
+        url,
+        field: "iconic_taxon",
+        structured: true
+      });
+    }
+    if (inat.commonName) {
+      texts.push({
+        text: inat.commonName,
+        sourceId: "inat",
+        url,
+        field: "common_name",
+        structured: true
+      });
+    }
+  }
+
+  if (bundle.wikipedia) {
+    const wiki = bundle.wikipedia.signals;
+    const url = bundle.wikipedia.context.url;
+    if (wiki.summary) {
+      texts.push({
+        text: wiki.summary,
+        sourceId: "wikipedia",
+        url,
+        field: "wikipedia_summary"
+      });
+    }
+    if (wiki.description) {
+      texts.push({
+        text: wiki.description,
+        sourceId: "wikipedia",
+        url,
+        field: "wikipedia_description",
+        structured: true
+      });
+    }
+  }
+
+  if (bundle.gbif) {
+    const gbif = bundle.gbif.signals;
+    const url = bundle.gbif.context.url;
+    if (gbif.habitats) {
+      habitats.push(
+        ...gbif.habitats.map((entry) => ({
+          value: entry.name,
+          sourceId: "gbif",
+          field: "habitat",
+          url,
+          structured: true
+        }))
+      );
+    }
+    if (gbif.speciesHabitats) {
+      habitats.push(
+        ...gbif.speciesHabitats.map((name) => ({
+          value: name,
+          sourceId: "gbif",
+          field: "habitat",
+          url,
+          structured: true
+        }))
+      );
+    }
+    if (gbif.seasonality && gbif.seasonality.length > 0) {
+      seasonality.push({
+        sourceId: "gbif",
+        url,
+        histogram: gbif.seasonality
+      });
+    }
+    if (typeof gbif.occurrenceCount === "number") {
+      texts.push({
+        text: `occurrence count: ${gbif.occurrenceCount}`,
+        sourceId: "gbif",
+        url,
+        field: "occurrence_count",
+        structured: true
+      });
     }
   }
 

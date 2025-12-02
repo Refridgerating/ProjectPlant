@@ -3,6 +3,7 @@ import { RuleBasedCareEngine, collectSignalCorpus } from "../src";
 import type { SourceSignals } from "../src/adapters";
 import type { PowoSignals } from "../src/adapters/powo";
 import type { InatSignals } from "../src/adapters/inat";
+import type { GbifSignals } from "../src/adapters/gbif";
 
 const makePowoSignals = (): SourceSignals<PowoSignals> => ({
   signals: {
@@ -39,6 +40,25 @@ const makeInatSignals = (): SourceSignals<InatSignals> => ({
   }
 });
 
+const makeGbifSignals = (): SourceSignals<GbifSignals> => ({
+  signals: {
+    habitats: [
+      { name: "tropical moist forest", count: 120 },
+      { name: "disturbed lowland forest", count: 42 }
+    ],
+    seasonality: [
+      { month: 5, observationCount: 64 },
+      { month: 6, observationCount: 37 }
+    ],
+    occurrenceCount: 1012
+  },
+  context: {
+    fetchedAt: "2024-10-12T00:00:00.000Z",
+    fromCache: false,
+    url: "https://api.gbif.org/v1/occurrence/search?taxonKey=2868241"
+  }
+});
+
 describe("RuleBasedCareEngine", () => {
   it("maps POWO and iNat signals into a care profile", () => {
     const powo = makePowoSignals();
@@ -61,5 +81,27 @@ describe("RuleBasedCareEngine", () => {
     expect(profile.habits?.value).toContain("vine");
     expect(profile.establishment?.global?.value).toBe("native");
     expect(profile.bloom?.default?.value.months).toEqual([4, 3, 8]);
+  });
+
+  it("folds GBIF habitats and seasonality into the corpus", () => {
+    const powo = makePowoSignals();
+    const inat = makeInatSignals();
+    const gbif = makeGbifSignals();
+
+    const corpus = collectSignalCorpus({ powo, inat, gbif });
+    expect(corpus.habitats.some((value) => value.sourceId === "gbif")).toBe(true);
+    expect(corpus.seasonality).toHaveLength(2);
+
+    const engine = new RuleBasedCareEngine();
+    const profile = engine.map({
+      target: {
+        taxon: { canonicalName: "Monstera deliciosa", powoId: "327761-2", inatId: 48234, gbifId: "2868241" }
+      },
+      signals: { powo, inat, gbif },
+      generatedAt: "2024-10-12T00:00:00.000Z"
+    });
+
+    expect(profile.bloom?.default?.value.months).toEqual([5, 6, 4, 3, 8]);
+    expect(profile.bloom?.default?.evidence?.map((entry) => entry.source.id)).toContain("gbif");
   });
 });

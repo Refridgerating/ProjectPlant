@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchLocalWeather, TelemetrySample, WeatherSeries, WeatherStation } from "../api/hubClient";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchHrrrPoint, fetchLocalWeather, TelemetrySample, WeatherSeries, WeatherStation } from "../api/hubClient";
 
 type Coordinates = {
   lat: number;
@@ -8,7 +8,6 @@ type Coordinates = {
 
 type LocalWeatherState = {
   data: TelemetrySample[];
-  allSamples: TelemetrySample[];
   latest: TelemetrySample | null;
   loading: boolean;
   error: string | null;
@@ -16,35 +15,36 @@ type LocalWeatherState = {
   availableWindows: number[];
   station: WeatherStation | null;
   sources: string[];
+  hrrrUsed: boolean;
+  hrrrError: string | null;
+  refreshingHrrr: boolean;
 };
 
 export function useLocalWeather(location: Coordinates | null, hours: number, options?: { maxSamples?: number }) {
   const maxSamples = options?.maxSamples ?? 24;
   const controllerRef = useRef<AbortController | null>(null);
-  const [{ data, latest, loading, error, coverageHours, availableWindows, station, sources }, setState] =
-    useState<LocalWeatherState>({
-      data: [],
-      latest: null,
-      loading: false,
-      error: null,
-      coverageHours: 0,
-      availableWindows: [],
-      station: null,
-      sources: [],
-    });
+  const [
+    { data, latest, loading, error, coverageHours, availableWindows, station, sources, hrrrUsed, hrrrError, refreshingHrrr },
+    setState,
+  ] = useState<LocalWeatherState>({
+    data: [],
+    latest: null,
+    loading: false,
+    error: null,
+    coverageHours: 0,
+    availableWindows: [],
+    station: null,
+    sources: [],
+    hrrrUsed: false,
+    hrrrError: null,
+    refreshingHrrr: false,
+  });
 
   const load = useCallback(
-    async (
-      coords: Coordinates | null,
-      fetchHours: number,
-      filterHours: number,
-      options: { signal?: AbortSignal; indicateLoading?: boolean } = {}
-    ) => {
-      const { signal, indicateLoading = true } = options;
+    async (coords: Coordinates | null, windowHours: number, signal?: AbortSignal) => {
       if (!coords) {
         setState({
           data: [],
-          allSamples: [],
           latest: null,
           loading: false,
           error: null,
@@ -52,42 +52,46 @@ export function useLocalWeather(location: Coordinates | null, hours: number, opt
           availableWindows: [],
           station: null,
           sources: [],
+          hrrrUsed: false,
+          hrrrError: null,
+          refreshingHrrr: false,
         });
         return;
       }
-      if (indicateLoading) {
-        setState((prev) => ({ ...prev, loading: true, error: null }));
-      }
+      setState((prev) => ({ ...prev, loading: true, error: null }));
       try {
         const series: WeatherSeries = await fetchLocalWeather(
-          { lat: coords.lat, lon: coords.lon, hours: fetchHours },
+          { lat: coords.lat, lon: coords.lon, hours: windowHours },
           signal
         );
-        const samples = series.samples ?? [];
-        const filtered = filterSamples(samples, filterHours, maxSamples);
-        const latestSample = filtered.length ? filtered[filtered.length - 1] ?? null : null;
-        setState((prev) => ({
-          ...prev,
-          data: filtered,
-          allSamples: samples,
+        const sorted = [...series.samples].sort((a, b) => {
+          const taRaw = a.timestamp ? Date.parse(a.timestamp) : Number.NaN;
+          const tbRaw = b.timestamp ? Date.parse(b.timestamp) : Number.NaN;
+          const ta = Number.isNaN(taRaw) ? Number.NEGATIVE_INFINITY : taRaw;
+          const tb = Number.isNaN(tbRaw) ? Number.NEGATIVE_INFINITY : tbRaw;
+          return ta - tb;
+        });
+        const trimmed = sorted.slice(-maxSamples);
+        const latestSample = trimmed[trimmed.length - 1] ?? null;
+        setState({
+          data: trimmed,
           latest: latestSample,
-          loading: indicateLoading ? false : prev.loading,
+          loading: false,
           error: null,
-          coverageHours: series.coverageHours ?? calculateCoverage(samples),
-          availableWindows: series.availableWindows ?? [],
+          coverageHours: series.coverageHours,
+          availableWindows: series.availableWindows,
           station: series.station ?? null,
           sources: series.sources ?? [],
+          hrrrUsed: series.hrrrUsed ?? false,
+          hrrrError: series.hrrrError ?? null,
+          refreshingHrrr: false,
         });
       } catch (err) {
         if (signal?.aborted) {
           return;
         }
         const message = err instanceof Error ? err.message : "Unknown error";
-        setState((prev) => ({
-          ...prev,
-          loading: indicateLoading ? false : prev.loading,
-          error: message,
-        }));
+        setState((prev) => ({ ...prev, loading: false, error: message, refreshingHrrr: false }));
       }
     },
     [maxSamples]
@@ -97,46 +101,35 @@ export function useLocalWeather(location: Coordinates | null, hours: number, opt
     if (controllerRef.current) {
       controllerRef.current.abort();
     }
-    if (prefetchControllerRef.current) {
-      prefetchControllerRef.current.abort();
-    }
     const controller = new AbortController();
     controllerRef.current = controller;
-    const primaryFetch = load(location, hours, hours, { signal: controller.signal, indicateLoading: true });
-    primaryFetch.then(() => {
+    void load(location, hours, controller.signal);
+  }, [load, location, hours]);
+
+  const refreshHrrr = useCallback(
+    async (persist = false) => {
       if (!location) {
+        setState((prev) => ({ ...prev, hrrrError: "Location required to refresh HRRR." }));
         return;
       }
-      const prefetchController = new AbortController();
-      prefetchControllerRef.current = prefetchController;
-      void load(location, Math.max(PREFETCH_HOURS, hours), hours, {
-        signal: prefetchController.signal,
-        indicateLoading: false,
-      });
-    });
-  }, [load, location, hours]);
+      setState((prev) => ({ ...prev, refreshingHrrr: true, hrrrError: null }));
+      try {
+        await fetchHrrrPoint({ lat: location.lat, lon: location.lon, refresh: true, persist });
+        await load(location, hours);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to refresh HRRR data";
+        setState((prev) => ({ ...prev, hrrrError: message }));
+      } finally {
+        setState((prev) => ({ ...prev, refreshingHrrr: false }));
+      }
+    },
+    [location, load, hours]
+  );
 
   useEffect(() => {
     refresh();
-    return () => {
-      controllerRef.current?.abort();
-      prefetchControllerRef.current?.abort();
-    };
+    return () => controllerRef.current?.abort();
   }, [refresh]);
-
-  useEffect(() => {
-    setState((prev) => {
-      if (!prev.allSamples.length) {
-        return prev;
-      }
-      const filtered = filterSamples(prev.allSamples, hours, maxSamples);
-      return {
-        ...prev,
-        data: filtered,
-        latest: filtered.length ? filtered[filtered.length - 1] ?? null : null,
-      };
-    });
-  }, [hours, maxSamples]);
 
   return {
     data,
@@ -147,7 +140,10 @@ export function useLocalWeather(location: Coordinates | null, hours: number, opt
     availableWindows,
     station,
     sources,
+    hrrrUsed,
+    hrrrError,
+    refreshingHrrr,
     refresh,
+    refreshHrrr,
   };
 }
-

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
@@ -95,6 +95,12 @@ class PlantDetailsModel(BaseModel):
     images: list[str]
     care: CareProfileModel
     sources: list[str]
+    powo_id: str | None = None
+    inat_id: int | None = None
+    gbif_id: str | None = None
+    care_profile_normalized: dict[str, Any] | None = None
+    powo_raw: dict[str, Any] | None = None
+    inat_raw: dict[str, Any] | None = None
 
 
 class PlantResponse(BaseModel):
@@ -344,6 +350,12 @@ def _to_details_model(detail: PlantDetails) -> PlantDetailsModel:
         images=list(detail.images),
         care=_to_care_model(detail.care),
         sources=detail.sources,
+        powo_id=detail.powo_id,
+        inat_id=detail.inat_id,
+        gbif_id=detail.gbif_id,
+        care_profile_normalized=detail.care_profile_normalized,
+        powo_raw=detail.powo_raw,
+        inat_raw=detail.inat_raw,
     )
 
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Tuple
+from typing import Any, Dict, Tuple
 
 from pydantic import BaseModel
 
@@ -23,6 +23,14 @@ from .state import PotState, PotStatic, StepConfig, StepSensors
 EPSILON: float = 1.0e-6
 
 
+class StepContext(BaseModel):
+    """Snapshot of the inputs that produced a step result."""
+
+    sensors: StepSensors
+    dt_h: float
+    pot_area_m2: float
+
+
 class StepResult(BaseModel):
     ET0_mm: float
     ETc_model_mm: float
@@ -38,6 +46,8 @@ class StepResult(BaseModel):
     tau_e_h: float
     need_irrigation: bool
     recommend_mm: float
+    context: StepContext
+    metadata: Dict[str, Any] | None = None
 
 
 def mm_to_mL(depth_mm: float, area_m2: float) -> float:
@@ -241,6 +251,12 @@ def step(
     Kcb_eff_updated = new_Kcb_struct * (1.0 + new_c_aero + ac_term)
     Kcb_eff_updated = _clamp(Kcb_eff_updated, 0.0, kc_max)
 
+    context = StepContext(
+        sensors=sensors,
+        dt_h=cfg.dt_h,
+        pot_area_m2=static.pot_area_m2,
+    )
+
     result = StepResult(
         ET0_mm=ET0_mm,
         ETc_model_mm=ETc_model_mm,
@@ -256,6 +272,7 @@ def step(
         tau_e_h=tau_e_h,
         need_irrigation=need_irrigation,
         recommend_mm=recommend_mm,
+        context=context,
     )
 
     return new_state, result

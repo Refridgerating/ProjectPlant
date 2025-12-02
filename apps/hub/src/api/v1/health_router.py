@@ -192,14 +192,22 @@ async def health_weather_cache() -> Dict[str, object]:
     latest = stats["latest_modified"]
     age_seconds = (now - latest).total_seconds() if latest else None
 
-    if age_seconds is None:
-        status = "warning" if stats["file_count"] == 0 else "unknown"
+    if stats["file_count"] == 0:
+        status = "ok"
+        state = "empty"
+        age_seconds = None
+    elif age_seconds is None:
+        status = "unknown"
+        state = None
     elif age_seconds >= HRRR_STALE_CRITICAL_SECONDS:
         status = "critical"
+        state = None
     elif age_seconds >= HRRR_STALE_WARN_SECONDS:
         status = "warning"
+        state = None
     else:
         status = "ok"
+        state = None
 
     context = {
         "cache_dir": str(cache_dir),
@@ -252,6 +260,7 @@ async def health_weather_cache() -> Dict[str, object]:
         "latest_modified": _isoformat(latest),
         "oldest_modified": _isoformat(stats["oldest_modified"]),
         "age_seconds": age_seconds,
+        "state": state,
     }
     return payload
 
@@ -444,6 +453,8 @@ async def _gather_heartbeat(now: datetime) -> Dict[str, object]:
                 "age_seconds": age_seconds,
                 "status": status,
                 "pump_on": snapshot.pump_on,
+                "fan_on": snapshot.fan_on,
+                "mister_on": snapshot.mister_on,
             }
         )
 

@@ -18,8 +18,8 @@ import {
   type CorpusToken
 } from "../rules/apply-keywords";
 import type { KeywordRule } from "../rules/keyword-dictionary";
-import { collectSignalCorpus, type AdapterSignalBundle, type AttributedValue } from "./signal-collector";
-import { weightToConfidence } from "./confidence";
+import { collectSignalCorpus, type AdapterSignalBundle, type AttributedValue } from "./signal-collector.js";
+import { weightToConfidence } from "./confidence.js";
 import {
   type CareProfile,
   type CareValue,
@@ -43,13 +43,27 @@ import type { SourceTarget } from "../adapters/types";
 const SOURCE_NAMES: Record<string, string> = {
   powo: "Plants of the World Online",
   inat: "iNaturalist",
+  gbif: "Global Biodiversity Information Facility",
+  wikipedia: "Wikipedia (via iNaturalist)",
   derived: "ProjectPlant Rule Engine"
+};
+
+const SOURCE_WEIGHTS: Record<string, number> = {
+  powo: 1.3,
+  gbif: 1.1,
+  inat: 0.9,
+  wikipedia: 0.6,
+  derived: 1
 };
 
 export interface RuleEngineOptions {
   schemaVersion?: string;
   inferenceVersion?: string;
   locale?: string;
+  /**
+   * Minimum aggregated weight required to emit a value; below this the field is undefined.
+   */
+  minMatchWeight?: number;
 }
 
 export interface RuleEngineInput {
@@ -62,11 +76,13 @@ export class RuleBasedCareEngine {
   private readonly schemaVersion: string;
   private readonly inferenceVersion: string;
   private readonly locale?: string;
+  private readonly minMatchWeight: number;
 
   constructor(options: RuleEngineOptions = {}) {
     this.schemaVersion = options.schemaVersion ?? "2024-10-12";
     this.inferenceVersion = options.inferenceVersion ?? "rule-based-v1";
     this.locale = options.locale;
+    this.minMatchWeight = options.minMatchWeight ?? 0.8;
   }
 
   map(input: RuleEngineInput): CareProfile {
@@ -205,11 +221,12 @@ export class RuleBasedCareEngine {
     tokens: CorpusToken[];
     rules: readonly KeywordRule<T>[];
   }): CareValue<T> | undefined {
-    const matches = matchKeywordRules(tokens, rules);
+    const matches = matchKeywordRules(tokens, rules, { sourceWeights: SOURCE_WEIGHTS });
     return this.buildCareValueFromMatches<T>({
       matches,
       field,
-      limit: 1
+      limit: 1,
+      minWeight: this.minMatchWeight
     }) as CareValue<T> | undefined;
   }
 
@@ -224,22 +241,27 @@ export class RuleBasedCareEngine {
     rules: readonly KeywordRule<T>[];
     limit: number;
   }): CareValue<T[]> | undefined {
-    const matches = matchKeywordRules(tokens, rules);
+    const matches = matchKeywordRules(tokens, rules, { sourceWeights: SOURCE_WEIGHTS });
     return this.buildCareValueFromMatches<T>({
       matches,
       field,
-      limit
+      limit,
+      minWeight: this.minMatchWeight
     }) as CareValue<T[]> | undefined;
   }
 
   private buildCareValueFromMatches<T>({
     matches,
     field,
-    limit
+    limit,
+    minWeight,
+    minEvidenceCount
   }: {
     matches: KeywordMatch<T>[];
     field: string;
     limit: number;
+    minWeight?: number;
+    minEvidenceCount?: number;
   }): CareValue<T | T[]> | undefined {
     if (matches.length === 0) {
       return undefined;
@@ -253,8 +275,16 @@ export class RuleBasedCareEngine {
       entry.examples.map((example) => this.toEvidence(example, field, value))
     );
 
+    const topWeight = selected[0]?.[1].weight ?? 0;
+    const minimumWeight = minWeight ?? 0;
+    const minimumEvidence = minEvidenceCount ?? 1;
+
+    if (topWeight < minimumWeight || evidence.length < minimumEvidence) {
+      return undefined;
+    }
+
     const confidence = weightToConfidence({
-      weight: selected[0][1].weight,
+      weight: topWeight,
       evidenceCount: evidence.length,
       structuredOverride: selected[0][1].examples.some((example) => example.token.structured)
     });
@@ -288,7 +318,7 @@ export class RuleBasedCareEngine {
       {
         source: { id: "derived", name: SOURCE_NAMES.derived },
         signal: `Derived frost tolerance from minimum band ${minimum.value}`,
-        notes: "Bands at or below 5°C imply frost tolerance."
+        notes: "Bands at or below 5C imply frost tolerance."
       }
     ];
     const confidence: Confidence = {
@@ -319,34 +349,41 @@ export class RuleBasedCareEngine {
   }
 
   private composeBloom(corpus: ReturnType<typeof collectSignalCorpus>): CareProfile["bloom"] | undefined {
-    const seasonality = corpus.seasonality;
-    if (!seasonality || seasonality.length === 0) return undefined;
-    const months: MonthNumber[] = seasonality
-      .filter((entry) => entry.observationCount > 0)
-      .sort((a, b) => b.observationCount - a.observationCount)
+    const seasonalitySources = corpus.seasonality;
+    if (!seasonalitySources || seasonalitySources.length === 0) return undefined;
+
+    const monthTotals = new Map<number, number>();
+    for (const record of seasonalitySources) {
+      for (const entry of record.histogram) {
+        const clampedMonth = Number.isFinite(entry.month) ? entry.month : NaN;
+        if (!Number.isInteger(clampedMonth) || clampedMonth < 1 || clampedMonth > 12) continue;
+        monthTotals.set(clampedMonth, (monthTotals.get(clampedMonth) ?? 0) + entry.observationCount);
+      }
+    }
+
+    const months: MonthNumber[] = Array.from(monthTotals.entries())
+      .sort((a, b) => b[1] - a[1])
       .slice(0, 6)
-      .map((entry) => entry.month as MonthNumber);
+      .map(([month]) => month as MonthNumber);
 
     if (months.length === 0) return undefined;
 
-    const evidence: Evidence[] = [
-      {
-        source: {
-          id: "inat",
-          name: SOURCE_NAMES.inat,
-          url: corpus.bundle.inat?.context.url
-        },
-        signal: "Observation histogram (month)",
-        notes: "Top observation months used as bloom proxy."
-      }
-    ];
+    const evidence: Evidence[] = seasonalitySources.map((record) => ({
+      source: {
+        id: record.sourceId,
+        name: SOURCE_NAMES[record.sourceId] ?? record.sourceId,
+        url: record.url
+      },
+      signal: "Observation histogram (month)",
+      notes: "Top observation months used as bloom proxy."
+    }));
 
     return {
       default: {
         value: { months },
         confidence: weightToConfidence({
           weight: Math.min(2, months.length * 0.4),
-          evidenceCount: 1,
+          evidenceCount: evidence.length,
           structuredOverride: true
         }),
         evidence
@@ -429,7 +466,7 @@ export class RuleBasedCareEngine {
         url: match.token.url
       },
       signal: `Keyword match for ${field}`,
-      notes: match.rule.rationale ?? `Matched text: "${truncated}" → ${String(value)}`
+      notes: match.rule.rationale ?? `Matched text: "${truncated}" -> ${String(value)}`
     };
   }
 }
@@ -450,3 +487,4 @@ const normalizeEstablishmentStatus = (status?: string | null): EstablishmentStat
       return "uncertain";
   }
 };
+

@@ -10,7 +10,7 @@ import {
   buildOutdoorRecommendations,
   joinList,
   type ScenarioRecommendations
-} from "./scenario-transforms";
+} from "./scenario-transforms.js";
 
 const CONFIDENCE_ORDER: ConfidenceLevel[] = ["speculative", "low", "medium", "high"];
 

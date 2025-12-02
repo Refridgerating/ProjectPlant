@@ -5,7 +5,7 @@ ProjectPlant Hub is the backend API for ProjectPlant. It aggregates sensor telem
 ## Feature Highlights
 - Versioned REST API (`/api/v1`) with shared FastAPI middleware, request logging, and CORS configuration.
 - Weather ingestion from weather.gov with caching, station resolution, and normalization for UI consumption.
-- Plant intelligence that merges local reference data with remote sources (POWO, Trefle, OpenFarm) and caches suggestions + care profiles.
+- Plant intelligence that merges local reference data with remote sources (POWO, iNaturalist) and caches suggestions + care profiles.
 - Penman-Monteith irrigation modeller that turns climate samples into actionable watering guidance for smart pots and garden zones.
 - Local catalog of pots, irrigation zones, and plant records with mock data to bootstrap the UI.
 - Optional MQTT connection (asyncio-mqtt) to publish/subscribe to hardware devices, ready for local Mosquitto.
@@ -51,8 +51,8 @@ Settings are loaded via Pydantic from `apps/hub/.env` (case-insensitive keys) an
 | `HRRR_AVAILABILITY_DELAY_MINUTES` | Publication lag to subtract when selecting cycles. | `90` |
 | `HRRR_DEFAULT_LAT` / `HRRR_DEFAULT_LON` | Coordinates used by the background refresh job. | unset |
 | `HRRR_REFRESH_INTERVAL_MINUTES` | Default cadence (minutes) for the HRRR scheduler when no preset is chosen. | `60` |
-| `TREFLE_TOKEN` | Optional token to enrich plant data via Trefle. | empty |
-| `OPENFARM_BASE_URL`, `POWO_BASE_URL` | Override remote plant data providers. | production APIs |
+| `POWO_BASE_URL` | Override remote plant data provider. | production APIs |
+| `INAT_BASE_URL` | Override iNaturalist API base URL. | production API |
 
 Update `apps/hub/.env` or export env vars before starting the server. When `MQTT_ENABLED=true`, ensure a broker is reachable or the startup will log connection failures.
 
@@ -101,7 +101,7 @@ See `docs/observability/hrrr_monitoring.md` for dashboards and alerting examples
 ## Development Workflow
 - Run tests: `uv run pytest` (or `pytest` inside your venv).
 - Static checks: `uv run ruff check` for linting, `uv run black --check apps/hub/src` for formatting, and `uv run mypy apps/hub/src` for typing.
-- Weather and plant services hit public APIs; tests use mocks and are network-safe. Supply `TREFLE_TOKEN` in `.env` for richer plant data during manual testing.
+- Weather and plant services hit public APIs; tests use mocks and are network-safe.
 - Stop the app with `Ctrl+C`; FastAPI triggers shutdown routines that close MQTT and HTTP clients cleanly.
 
 Android release build

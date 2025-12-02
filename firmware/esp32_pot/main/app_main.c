@@ -70,6 +70,42 @@ static void handle_command_task(void *arg)
                     }
                 }
                 break;
+            case MQTT_CMD_FAN_OVERRIDE: {
+                ESP_LOGI(TAG, "Fan command: %s duration %u ms", cmd.fan_on ? "ON" : "OFF", (unsigned)cmd.duration_ms);
+                sensors_set_fan_state(cmd.fan_on);
+                const char *fan_request_id = cmd.request_id[0] ? cmd.request_id : NULL;
+                if (mqtt_client) {
+                    mqtt_publish_status(mqtt_client, DEVICE_ID, FW_VERSION,
+                                        cmd.fan_on ? "fan_on" : "fan_off",
+                                        fan_request_id);
+                }
+                if (cmd.fan_on && cmd.duration_ms > 0) {
+                    vTaskDelay(pdMS_TO_TICKS(cmd.duration_ms));
+                    sensors_set_fan_state(false);
+                    if (mqtt_client) {
+                        mqtt_publish_status(mqtt_client, DEVICE_ID, FW_VERSION, "fan_timeout_off", fan_request_id);
+                    }
+                }
+                break;
+            }
+            case MQTT_CMD_MISTER_OVERRIDE: {
+                ESP_LOGI(TAG, "Mister command: %s duration %u ms", cmd.mister_on ? "ON" : "OFF", (unsigned)cmd.duration_ms);
+                sensors_set_mister_state(cmd.mister_on);
+                const char *mister_request_id = cmd.request_id[0] ? cmd.request_id : NULL;
+                if (mqtt_client) {
+                    mqtt_publish_status(mqtt_client, DEVICE_ID, FW_VERSION,
+                                        cmd.mister_on ? "mister_on" : "mister_off",
+                                        mister_request_id);
+                }
+                if (cmd.mister_on && cmd.duration_ms > 0) {
+                    vTaskDelay(pdMS_TO_TICKS(cmd.duration_ms));
+                    sensors_set_mister_state(false);
+                    if (mqtt_client) {
+                        mqtt_publish_status(mqtt_client, DEVICE_ID, FW_VERSION, "mister_timeout_off", mister_request_id);
+                    }
+                }
+                break;
+            }
             case MQTT_CMD_SENSOR_READ: {
                 sensor_reading_t reading;
                 sensors_collect(&reading);

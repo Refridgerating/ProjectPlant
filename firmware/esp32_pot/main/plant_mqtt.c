@@ -38,26 +38,7 @@ static void log_stack_metrics(const char *label)
     ESP_LOGD(TAG, "%s high-water mark unavailable", label);
 #endif
 
-#if defined(__GNUC__)
-    void *frames[4] = {0};
-    int depth = 0;
-    for (; depth < (int)(sizeof(frames) / sizeof(frames[0])); ++depth) {
-        void *frame = __builtin_frame_address(depth);
-        if (!frame) {
-            break;
-        }
-        frames[depth] = frame;
-    }
-    ESP_LOGD(TAG, "%s call depth approx %d frames: %p %p %p %p",
-             label,
-             depth,
-             frames[0],
-             frames[1],
-             frames[2],
-             frames[3]);
-#else
     (void)label;
-#endif
 }
 
 static bool topic_equals(const char *topic, int topic_len, const char *expected)
@@ -286,6 +267,8 @@ void mqtt_publish_reading(esp_mqtt_client_handle_t client,
         cJSON_AddNumberToObject(root, "humidity", reading->humidity_pct);
     }
     cJSON_AddBoolToObject(root, "valveOpen", reading->pump_is_on);
+    cJSON_AddBoolToObject(root, "fanOn", reading->fan_is_on);
+    cJSON_AddBoolToObject(root, "misterOn", reading->mister_is_on);
     cJSON_AddBoolToObject(root, "waterLow", reading->water_low);
     cJSON_AddBoolToObject(root, "waterCutoff", reading->water_cutoff);
     cJSON_AddNumberToObject(root, "soilRaw", reading->soil_raw);
@@ -344,6 +327,8 @@ mqtt_command_t mqtt_parse_command(const char *payload, int payload_len)
         .type = MQTT_CMD_UNKNOWN,
         .request_id = "",
         .pump_on = false,
+        .fan_on = false,
+        .mister_on = false,
         .duration_ms = 0,
     };
 
@@ -409,6 +394,44 @@ mqtt_command_t mqtt_parse_command(const char *payload, int payload_len)
         cJSON *duration = cJSON_GetObjectItemCaseSensitive(root, "duration_ms");
         if (cJSON_IsNumber(duration) && duration->valueint > 0) {
             cmd.duration_ms = (uint32_t)duration->valueint;
+        }
+    } else {
+        cJSON *fan = cJSON_GetObjectItemCaseSensitive(root, "fan");
+        if (fan && (cJSON_IsBool(fan) || (cJSON_IsString(fan) && fan->valuestring))) {
+            bool fan_on = false;
+            if (cJSON_IsBool(fan)) {
+                fan_on = cJSON_IsTrue(fan);
+            } else if (strcmp(fan->valuestring, "on") == 0) {
+                fan_on = true;
+            } else if (strcmp(fan->valuestring, "off") == 0) {
+                fan_on = false;
+            }
+            cmd.type = MQTT_CMD_FAN_OVERRIDE;
+            cmd.fan_on = fan_on;
+
+            cJSON *duration = cJSON_GetObjectItemCaseSensitive(root, "duration_ms");
+            if (cJSON_IsNumber(duration) && duration->valueint > 0) {
+                cmd.duration_ms = (uint32_t)duration->valueint;
+            }
+        } else {
+            cJSON *mister = cJSON_GetObjectItemCaseSensitive(root, "mister");
+            if (mister && (cJSON_IsBool(mister) || (cJSON_IsString(mister) && mister->valuestring))) {
+                bool mister_on = false;
+                if (cJSON_IsBool(mister)) {
+                    mister_on = cJSON_IsTrue(mister);
+                } else if (strcmp(mister->valuestring, "on") == 0) {
+                    mister_on = true;
+                } else if (strcmp(mister->valuestring, "off") == 0) {
+                    mister_on = false;
+                }
+                cmd.type = MQTT_CMD_MISTER_OVERRIDE;
+                cmd.mister_on = mister_on;
+
+                cJSON *duration = cJSON_GetObjectItemCaseSensitive(root, "duration_ms");
+                if (cJSON_IsNumber(duration) && duration->valueint > 0) {
+                    cmd.duration_ms = (uint32_t)duration->valueint;
+                }
+            }
         }
     }
 

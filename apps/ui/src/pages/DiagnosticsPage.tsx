@@ -117,11 +117,11 @@ export function DiagnosticsPage({
           title="HRRR Cache"
           status={weather?.status ?? "unknown"}
           lines={[
-            { label: "Files", value: weather ? weather.file_count.toString() : "0" },
-            { label: "Size", value: formatBytes(weather?.bytes ?? 0) },
+            { label: "Files", value: formatCacheFileCount(weather) },
+            { label: "Size", value: formatCacheSize(weather) },
             {
               label: "Last update",
-              value: weather?.latest_modified ? formatRelative(weather.latest_modified) : "never"
+              value: formatCacheLastUpdate(weather)
             }
           ]}
         />
@@ -375,4 +375,32 @@ function formatAbsolute(timestamp: string): string {
     return timestamp;
   }
   return parsed.toLocaleString();
+}
+
+function cacheIsEmpty(weather: WeatherCacheHealth | null | undefined): boolean {
+  if (!weather) {
+    return false;
+  }
+  return weather.state === "empty" || weather.file_count === 0;
+}
+
+function formatCacheFileCount(weather: WeatherCacheHealth | null): string {
+  if (!weather) {
+    return "0";
+  }
+  return cacheIsEmpty(weather) ? "empty" : weather.file_count.toString();
+}
+
+function formatCacheSize(weather: WeatherCacheHealth | null): string {
+  if (!weather) {
+    return "0 B";
+  }
+  return formatBytes(weather.bytes ?? 0);
+}
+
+function formatCacheLastUpdate(weather: WeatherCacheHealth | null): string {
+  if (!weather || cacheIsEmpty(weather)) {
+    return "n/a";
+  }
+  return weather.latest_modified ? formatRelative(weather.latest_modified) : "unknown";
 }

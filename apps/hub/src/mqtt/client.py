@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import ssl
+from datetime import datetime, timezone
 from typing import Optional
 
 from asyncio_mqtt import Client, MqttCodeError, MqttError
@@ -8,9 +9,30 @@ from asyncio_mqtt import Client, MqttCodeError, MqttError
 from .bridge import MqttBridge
 from etkc.worker import start_worker as start_etkc_worker, stop_worker as stop_etkc_worker
 
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _iso(dt: Optional[datetime]) -> Optional[str]:
+    if dt is None:
+        return None
+    iso = dt.astimezone(timezone.utc).isoformat(timespec="seconds")
+    if iso.endswith("+00:00"):
+        return iso[:-6] + "Z"
+    return iso
+
+
 class MqttManager:
-    def __init__(self, host: str, port: int, username: Optional[str] = None, password: Optional[str] = None,
-                 client_id: Optional[str] = None, tls: bool = False):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        client_id: Optional[str] = None,
+        tls: bool = False,
+    ):
         self.host = host
         self.port = port
         self.username = username
@@ -24,6 +46,9 @@ class MqttManager:
         self._connected_event = asyncio.Event()
         self._should_run = True
         self._reconnect_task: Optional[asyncio.Task[None]] = None
+        self._last_connect_time: Optional[datetime] = None
+        self._last_disconnect_time: Optional[datetime] = None
+        self._last_disconnect_reason: Optional[str] = None
 
     async def connect(self):
         self._should_run = True
@@ -54,8 +79,11 @@ class MqttManager:
         self._connected_event.clear()
         if exc:
             self.log.warning("MQTT disconnect reported by %s: %s", source, exc)
+            self._last_disconnect_reason = f"{source}: {exc}"
         else:
             self.log.warning("MQTT disconnect reported by %s", source)
+            self._last_disconnect_reason = source
+        self._last_disconnect_time = _utc_now()
 
         if self._reconnect_task is None or self._reconnect_task.done():
             self._reconnect_task = asyncio.create_task(self._reconnect_loop(), name="mqtt-reconnect")
@@ -102,6 +130,8 @@ class MqttManager:
         self._client = client
         self._connected_event.set()
         self.log.info("MQTT connected to %s:%s", self.host, self.port)
+        self._last_connect_time = _utc_now()
+        self._last_disconnect_reason = None
         self._bridge = MqttBridge(client, on_disconnect=self.notify_disconnect)
         await self._bridge.start()
         await start_etkc_worker(client, on_disconnect=self.notify_disconnect)
@@ -122,6 +152,23 @@ class MqttManager:
             finally:
                 self.log.info("MQTT disconnected")
                 self._client = None
+                self._last_disconnect_time = _utc_now()
+                if self._last_disconnect_reason is None:
+                    self._last_disconnect_reason = "shutdown"
+
+    def status_snapshot(self) -> dict:
+        connected = self._client is not None
+        reconnecting = self._reconnect_task is not None and not self._reconnect_task.done()
+        return {
+            "connected": connected,
+            "reconnecting": reconnecting,
+            "host": self.host,
+            "port": self.port,
+            "client_id": self.client_id,
+            "last_connect_time": _iso(self._last_connect_time),
+            "last_disconnect_time": _iso(self._last_disconnect_time),
+            "last_disconnect_reason": self._last_disconnect_reason,
+        }
 
 _manager: Optional[MqttManager] = None
 

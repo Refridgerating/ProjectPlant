@@ -1,6 +1,7 @@
 import logging
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
             await plant_lookup_service.close()
 
     app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=lifespan)
+    app.state.started_at = datetime.now(timezone.utc)
 
     app.add_middleware(
         CORSMiddleware,
