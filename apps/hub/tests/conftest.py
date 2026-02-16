@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from config import settings
 from main import create_app
 from services.plant_lookup import plant_lookup_service
+from services.plant_schedule import plant_schedule_service
 from services.pump_status import pump_status_cache
 from services.telemetry import telemetry_store
 from services.plant_telemetry import plant_telemetry_store
@@ -40,6 +41,7 @@ def _reset_plant_services() -> None:
     plant_lookup_service._suggest_cache.clear()  # type: ignore[attr-defined]
     plant_lookup_service._details_cache.clear()  # type: ignore[attr-defined]
     pump_status_cache.clear()
+    plant_schedule_service.reset()
     asyncio.run(telemetry_store.clear())
     asyncio.run(plant_telemetry_store.clear())
     asyncio.run(provisioning_store.clear())
@@ -49,6 +51,7 @@ def _reset_plant_services() -> None:
     plant_lookup_service._suggest_cache.clear()  # type: ignore[attr-defined]
     plant_lookup_service._details_cache.clear()  # type: ignore[attr-defined]
     pump_status_cache.clear()
+    plant_schedule_service.reset()
     asyncio.run(telemetry_store.clear())
     asyncio.run(plant_telemetry_store.clear())
     asyncio.run(provisioning_store.clear())

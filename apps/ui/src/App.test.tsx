@@ -91,6 +91,7 @@ describe("App", () => {
   ];
 
   beforeEach(() => {
+    window.localStorage.clear();
     vi.spyOn(hubClient, "fetchHubInfo").mockResolvedValue(mockInfo);
     vi.spyOn(hubClient, "fetchMockTelemetry").mockResolvedValue(mockTelemetry);
     vi.spyOn(hubClient, "fetchLiveTelemetry").mockResolvedValue(mockTelemetry);
@@ -109,6 +110,22 @@ describe("App", () => {
       },
     });
     vi.spyOn(hubClient, "fetchWateringRecommendation").mockResolvedValue(mockWateringRecommendation);
+    vi.spyOn(hubClient, "fetchPlantControlSchedule").mockImplementation(async (potId: string) => ({
+      potId: potId.trim().toLowerCase(),
+      light: { enabled: false, startTime: "06:00", endTime: "20:00" },
+      pump: { enabled: false, startTime: "07:00", endTime: "07:15" },
+      mister: { enabled: false, startTime: "08:00", endTime: "08:15" },
+      fan: { enabled: false, startTime: "09:00", endTime: "18:00" },
+      updatedAt: "2026-02-11T00:00:00Z",
+    }));
+    vi.spyOn(hubClient, "updatePlantControlSchedule").mockImplementation(async (potId: string, payload) => ({
+      potId: potId.trim().toLowerCase(),
+      light: { ...payload.light },
+      pump: { ...payload.pump },
+      mister: { ...payload.mister },
+      fan: { ...payload.fan },
+      updatedAt: "2026-02-11T00:05:00Z",
+    }));
 
     const coords: GeolocationCoordinates = {
       latitude: 38.9,
@@ -210,7 +227,9 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: /manual controls/i })).toBeInTheDocument());
     expect(screen.getByRole("heading", { name: /penman-monteith equation/i })).toBeInTheDocument();
 
-    const input = screen.getByLabelText(/pot id/i);
+    const controlPotSelect = screen.getByLabelText(/control pot/i);
+    await userEvent.selectOptions(controlPotSelect, "__custom__");
+    const input = await screen.findByLabelText(/custom pot id/i);
     await userEvent.type(input, " pot-55 ");
 
     const submitButton = screen.getByRole("button", { name: /sensor read/i });
@@ -234,7 +253,7 @@ describe("App", () => {
     expect(screen.getByText("22.7 deg C")).toBeInTheDocument();
     expect(screen.getByText("48.0 %")).toBeInTheDocument();
     expect(screen.getByText("0.12 L/min")).toBeInTheDocument();
-    expect(screen.getByText(/Request req-42/)).toBeInTheDocument();
+    expect(screen.getByText(/Request req-42 - Pot pot-55/i)).toBeInTheDocument();
     expect(screen.getByText(/Pot pot-55/)).toBeInTheDocument();
     expect(screen.getByText(/Reservoir low/)).toBeInTheDocument();
     expect(screen.getByText(/Cutoff OK/)).toBeInTheDocument();
@@ -281,7 +300,10 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: /manual controls/i })).toBeInTheDocument());
     expect(screen.getByRole("heading", { name: /penman-monteith equation/i })).toBeInTheDocument();
 
-    const input = screen.getByLabelText(/pot id/i);
+    const controlPotSelect = screen.getByLabelText(/control pot/i);
+    await userEvent.selectOptions(controlPotSelect, "__custom__");
+    const input = await screen.findByLabelText(/custom pot id/i);
+    await userEvent.clear(input);
     await userEvent.type(input, " pot-88 ");
 
     const submitButton = screen.getByRole("button", { name: /sensor read/i });

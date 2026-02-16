@@ -18,6 +18,8 @@ from pydantic import BaseModel, Field
 from config import settings
 from mqtt.client import get_mqtt_manager
 from services.alerts import alerts_service
+from services.device_registry import device_registry
+from services.pot_ids import normalize_pot_id
 from services.pump_status import pump_status_cache
 
 HEARTBEAT_WARN_SECONDS = 180.0
@@ -427,17 +429,24 @@ def _ping_sqlite(db_path: Path) -> None:
 
 async def _gather_heartbeat(now: datetime) -> Dict[str, object]:
     snapshots = pump_status_cache.list()
-    if not snapshots:
-        return {"status": "unknown", "count": 0, "pots": [], "latest_received_at": None}
+    manual_entries = device_registry.list_entries()
+    manual_ids = {entry.pot_id for entry in manual_entries}
+
+    latest_by_pot: Dict[str, tuple[datetime, object]] = {}
+    for snapshot in snapshots:
+        received_dt = _parse_iso(snapshot.received_at)
+        if received_dt is None:
+            continue
+        pot_id = normalize_pot_id(snapshot.pot_id) or snapshot.pot_id
+        existing = latest_by_pot.get(pot_id)
+        if existing is None or received_dt > existing[0]:
+            latest_by_pot[pot_id] = (received_dt, snapshot)
 
     entries: List[Dict[str, object]] = []
     worst_status = "ok"
     latest_seen: Optional[datetime] = None
 
-    for snapshot in snapshots:
-        received_dt = _parse_iso(snapshot.received_at)
-        if received_dt is None:
-            continue
+    for pot_id, (received_dt, snapshot) in latest_by_pot.items():
         age_seconds = (now - received_dt).total_seconds()
         if age_seconds >= HEARTBEAT_CRITICAL_SECONDS:
             status = "critical"
@@ -448,13 +457,17 @@ async def _gather_heartbeat(now: datetime) -> Dict[str, object]:
 
         entries.append(
             {
-                "pot_id": snapshot.pot_id,
+                "pot_id": pot_id,
                 "received_at": snapshot.received_at,
                 "age_seconds": age_seconds,
                 "status": status,
                 "pump_on": snapshot.pump_on,
                 "fan_on": snapshot.fan_on,
                 "mister_on": snapshot.mister_on,
+                "light_on": snapshot.light_on,
+                "deviceName": snapshot.device_name,
+                "isNamed": snapshot.is_named,
+                "manual": pot_id in manual_ids,
             }
         )
 
@@ -464,13 +477,32 @@ async def _gather_heartbeat(now: datetime) -> Dict[str, object]:
         if _status_rank(status) > _status_rank(worst_status):
             worst_status = status
 
-        await _update_heartbeat_alert(snapshot.pot_id, status, age_seconds, snapshot.received_at)
+        await _update_heartbeat_alert(pot_id, status, age_seconds, snapshot.received_at)
+
+    for entry in manual_entries:
+        if entry.pot_id in latest_by_pot:
+            continue
+        entries.append(
+            {
+                "pot_id": entry.pot_id,
+                "received_at": None,
+                "age_seconds": None,
+                "status": "unknown",
+                "pump_on": None,
+                "fan_on": None,
+                "mister_on": None,
+                "light_on": None,
+                "deviceName": None,
+                "isNamed": None,
+                "manual": True,
+            }
+        )
 
     entries.sort(key=lambda entry: entry["pot_id"])
 
     return {
-        "status": worst_status if entries else "unknown",
-        "count": len(entries),
+        "status": worst_status if latest_by_pot else "unknown",
+        "count": len(latest_by_pot),
         "pots": entries,
         "latest_received_at": _isoformat(latest_seen),
     }

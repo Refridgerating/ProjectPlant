@@ -1,0 +1,49 @@
+{
+  "type": "standard",
+  "title": "Rhizophora mangle",
+  "displaytitle": "<i>Rhizophora mangle</i>",
+  "namespace": {
+    "id": 0,
+    "text": ""
+  },
+  "wikibase_item": "Q853914",
+  "titles": {
+    "canonical": "Rhizophora_mangle",
+    "normalized": "Rhizophora mangle",
+    "display": "<i>Rhizophora mangle</i>"
+  },
+  "pageid": 4372188,
+  "thumbnail": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Rhizophora_mangle00.jpg/330px-Rhizophora_mangle00.jpg",
+    "width": 320,
+    "height": 562
+  },
+  "originalimage": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/a/a3/Rhizophora_mangle00.jpg",
+    "width": 683,
+    "height": 1200
+  },
+  "lang": "en",
+  "dir": "ltr",
+  "revision": "1315260119",
+  "tid": "e5b0c5c1-a217-11f0-ba99-2baf9008e38a",
+  "timestamp": "2025-10-05T18:19:57Z",
+  "description": "Species of flowering plant in the mangrove family Rhizophoraceae",
+  "description_source": "local",
+  "content_urls": {
+    "desktop": {
+      "page": "https://en.wikipedia.org/wiki/Rhizophora_mangle",
+      "revisions": "https://en.wikipedia.org/wiki/Rhizophora_mangle?action=history",
+      "edit": "https://en.wikipedia.org/wiki/Rhizophora_mangle?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Rhizophora_mangle"
+    },
+    "mobile": {
+      "page": "https://en.wikipedia.org/wiki/Rhizophora_mangle",
+      "revisions": "https://en.wikipedia.org/wiki/Special:History/Rhizophora_mangle",
+      "edit": "https://en.wikipedia.org/wiki/Rhizophora_mangle?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Rhizophora_mangle"
+    }
+  },
+  "extract": "Rhizophora mangle, also known as the red mangrove, is a salt-tolerant, small-to-medium sized evergreen tree restricted to coastal, estuarine ecosystems along the southern portions of North America, the Caribbean as well as Central America and tropical West Africa. Its viviparous \"seeds\", in actuality called propagules, become fully mature plants before dropping off the parent tree. These are dispersed by water until eventually embedding in the shallows.",
+  "extract_html": "<p><i><b>Rhizophora mangle</b></i>, also known as the <b>red mangrove</b>, is a salt-tolerant, small-to-medium sized evergreen tree restricted to coastal, estuarine ecosystems along the southern portions of North America, the Caribbean as well as Central America and tropical West Africa. Its viviparous \"seeds\", in actuality called propagules, become fully mature plants before dropping off the parent tree. These are dispersed by water until eventually embedding in the shallows.</p>"
+}

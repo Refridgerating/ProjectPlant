@@ -33,10 +33,16 @@ export type HealthSummary = {
 
 export type HeartbeatStatus = {
   pot_id: string;
-  received_at: string;
-  age_seconds: number;
+  received_at: string | null;
+  age_seconds: number | null;
   status: HealthStatus;
-  pump_on: boolean | null;
+  pump_on?: boolean | null;
+  fan_on?: boolean | null;
+  mister_on?: boolean | null;
+  light_on?: boolean | null;
+  deviceName?: string | null;
+  isNamed?: boolean | null;
+  manual?: boolean;
 };
 
 export type MqttHealth = {
@@ -69,6 +75,25 @@ export type WeatherCacheHealth = {
   oldest_modified: string | null;
   age_seconds: number | null;
   state?: string | null;
+};
+
+export type DeviceRegistryEntry = {
+  potId: string;
+  addedAt: string;
+};
+
+export type DeviceRegistryResponse = {
+  devices: DeviceRegistryEntry[];
+};
+
+export type DeviceRegistryUpdateResponse = {
+  device: DeviceRegistryEntry;
+  created: boolean;
+};
+
+export type DeviceRegistryDeleteResponse = {
+  removed: boolean;
+  purged: boolean;
 };
 
 export type CacheEntryKind = "grib" | "metadata" | "log" | "other";
@@ -170,12 +195,16 @@ export type TelemetrySample = {
   fanOn?: boolean | null;
   mister_on?: boolean | null;
   misterOn?: boolean | null;
+  light_on?: boolean | null;
+  lightOn?: boolean | null;
   flow_rate_lpm?: number | null;
   flowRateLpm?: number | null;
   waterLow?: boolean | null;
   waterCutoff?: boolean | null;
   soilRaw?: number | null;
   requestId?: string | null;
+  deviceName?: string | null;
+  isNamed?: boolean | null;
 };
 
 export type WeatherStation = {
@@ -305,6 +334,7 @@ export type SensorReadPayload = {
   timestampMs?: number | null;
   fanOn?: boolean | null;
   misterOn?: boolean | null;
+  lightOn?: boolean | null;
   [key: string]: unknown;
 };
 
@@ -336,6 +366,72 @@ export type ControlMisterOptions = {
   on: boolean;
   durationMs?: number;
   timeout?: number;
+  signal?: AbortSignal;
+};
+
+export type ControlLightOptions = {
+  on: boolean;
+  durationMs?: number;
+  timeout?: number;
+  signal?: AbortSignal;
+};
+
+export type DeviceNameUpdateOptions = {
+  deviceName: string;
+  timeout?: number;
+  signal?: AbortSignal;
+};
+
+export type DeviceNameResponse = {
+  potId: string;
+  status?: string | null;
+  requestId?: string | null;
+  timestamp?: string | null;
+  timestampMs?: number | null;
+  deviceName?: string | null;
+  isNamed?: boolean | null;
+  sensorMode?: string | null;
+};
+
+export type SensorMode = "full" | "control_only";
+
+export type SensorModeUpdateOptions = {
+  sensorMode: SensorMode;
+  timeout?: number;
+  signal?: AbortSignal;
+};
+
+export type SensorModeResponse = {
+  potId: string;
+  status?: string | null;
+  requestId?: string | null;
+  timestamp?: string | null;
+  timestampMs?: number | null;
+  deviceName?: string | null;
+  isNamed?: boolean | null;
+  sensorMode?: string | null;
+};
+
+export type PlantScheduleTimer = {
+  enabled: boolean;
+  startTime: string;
+  endTime: string;
+};
+
+export type PlantControlSchedule = {
+  potId: string;
+  light: PlantScheduleTimer;
+  pump: PlantScheduleTimer;
+  fan: PlantScheduleTimer;
+  mister: PlantScheduleTimer;
+  updatedAt: string;
+};
+
+export type PlantControlScheduleUpdate = {
+  light: PlantScheduleTimer;
+  pump: PlantScheduleTimer;
+  fan: PlantScheduleTimer;
+  mister: PlantScheduleTimer;
   signal?: AbortSignal;
 };
 
@@ -732,6 +828,82 @@ export async function fetchHealthEvents(
   return (await response.json()) as AlertEventsResponse;
 }
 
+export async function fetchDeviceRegistry(signal?: AbortSignal): Promise<DeviceRegistryEntry[]> {
+  const response = await fetch(`${apiBase()}/devices`, withUser({ signal }));
+  if (!response.ok) {
+    throw new Error(`Failed to load device registry (${response.status})`);
+  }
+  const payload = (await response.json()) as DeviceRegistryResponse;
+  return payload.devices ?? [];
+}
+
+export async function addDeviceRegistry(
+  potId: string,
+  signal?: AbortSignal
+): Promise<DeviceRegistryUpdateResponse> {
+  const trimmed = potId.trim();
+  if (!trimmed) {
+    throw new Error("Pot ID is required");
+  }
+  const response = await fetch(
+    `${apiBase()}/devices`,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ potId: trimmed }),
+      signal
+    })
+  );
+  if (!response.ok) {
+    let message = `Failed to add device (${response.status})`;
+    try {
+      const problem = await response.json();
+      if (problem && typeof problem.detail === "string") {
+        message = problem.detail;
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error(message);
+  }
+  return (await response.json()) as DeviceRegistryUpdateResponse;
+}
+
+export async function deleteDeviceRegistry(
+  potId: string,
+  options?: { purgeCache?: boolean; signal?: AbortSignal }
+): Promise<DeviceRegistryDeleteResponse> {
+  const trimmed = potId.trim();
+  if (!trimmed) {
+    throw new Error("Pot ID is required");
+  }
+  const search = new URLSearchParams();
+  if (options?.purgeCache !== undefined) {
+    search.set("purgeCache", options.purgeCache ? "true" : "false");
+  }
+  const url = `${apiBase()}/devices/${encodeURIComponent(trimmed)}${search.toString() ? `?${search}` : ""}`;
+  const response = await fetch(
+    url,
+    withUser({
+      method: "DELETE",
+      signal: options?.signal
+    })
+  );
+  if (!response.ok) {
+    let message = `Failed to delete device (${response.status})`;
+    try {
+      const problem = await response.json();
+      if (problem && typeof problem.detail === "string") {
+        message = problem.detail;
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error(message);
+  }
+  return (await response.json()) as DeviceRegistryDeleteResponse;
+}
+
 export async function fetchMockTelemetry(
   params?: { samples?: number },
   signal?: AbortSignal
@@ -909,6 +1081,23 @@ function _parseContentDispositionFilename(header: string | null): string | undef
     return match[1].trim().replace(/^["']|["']$/g, "");
   }
   return undefined;
+}
+
+const HHMM_TIMER_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+function ensureValidScheduleTimer(timer: PlantScheduleTimer, label: string): PlantScheduleTimer {
+  if (typeof timer.enabled !== "boolean") {
+    throw new Error(`${label} enabled value must be true or false`);
+  }
+  const startTime = timer.startTime.trim();
+  const endTime = timer.endTime.trim();
+  if (!HHMM_TIMER_PATTERN.test(startTime)) {
+    throw new Error(`${label} start time must use HH:MM (24-hour format)`);
+  }
+  if (!HHMM_TIMER_PATTERN.test(endTime)) {
+    throw new Error(`${label} end time must use HH:MM (24-hour format)`);
+  }
+  return { enabled: timer.enabled, startTime, endTime };
 }
 
 export async function requestSensorRead(
@@ -1149,6 +1338,233 @@ export async function controlMister(potId: string, options: ControlMisterOptions
   const payloadJson = (await response.json()) as SensorReadPayload;
   const requestId = response.headers.get("x-command-request-id");
   return { payload: payloadJson, requestId };
+}
+
+export async function controlLight(potId: string, options: ControlLightOptions): Promise<SensorReadResponse> {
+  const trimmedId = potId.trim();
+  if (!trimmedId) {
+    throw new Error("Pot ID is required to control the light");
+  }
+
+  const { on, durationMs, timeout, signal } = options;
+  if (typeof on !== "boolean") {
+    throw new Error("Light command requires an on/off state");
+  }
+
+  if (durationMs !== undefined) {
+    if (Number.isNaN(durationMs) || !Number.isFinite(durationMs)) {
+      throw new Error("Light duration must be a finite number of milliseconds");
+    }
+    if (durationMs < 0) {
+      throw new Error("Light duration must be zero or greater");
+    }
+  }
+
+  if (timeout !== undefined) {
+    if (Number.isNaN(timeout) || !Number.isFinite(timeout)) {
+      throw new Error("Light timeout must be a finite number of seconds");
+    }
+    if (timeout <= 0) {
+      throw new Error("Light timeout must be greater than zero");
+    }
+  }
+
+  const payload: Record<string, unknown> = { on };
+  if (durationMs !== undefined) {
+    payload["durationMs"] = durationMs;
+  }
+  if (timeout !== undefined) {
+    payload["timeout"] = timeout;
+  }
+
+  const url = `${apiBase()}/plant-control/${encodeURIComponent(trimmedId)}/light`;
+  const response = await fetch(
+    url,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    })
+  );
+
+  if (!response.ok) {
+    let message = `Failed to control light (${response.status})`;
+    try {
+      const problem = await response.json();
+      if (problem && typeof problem.detail === "string") {
+        message = problem.detail;
+      }
+    } catch {
+      // ignore JSON parsing errors
+    }
+    throw new Error(message);
+  }
+
+  const payloadJson = (await response.json()) as SensorReadPayload;
+  const requestId = response.headers.get("x-command-request-id");
+  return { payload: payloadJson, requestId };
+}
+
+export async function updateDeviceName(
+  potId: string,
+  options: DeviceNameUpdateOptions
+): Promise<DeviceNameResponse> {
+  const trimmedId = potId.trim();
+  if (!trimmedId) {
+    throw new Error("Pot ID is required to update the device name");
+  }
+
+  const deviceName = options.deviceName.trim();
+  if (!deviceName) {
+    throw new Error("Device name cannot be empty");
+  }
+  if (deviceName.length > 32) {
+    throw new Error("Device name must be 32 characters or fewer");
+  }
+
+  if (options.timeout !== undefined) {
+    if (Number.isNaN(options.timeout) || !Number.isFinite(options.timeout)) {
+      throw new Error("Timeout must be a finite number of seconds");
+    }
+    if (options.timeout <= 0) {
+      throw new Error("Timeout must be greater than zero");
+    }
+  }
+
+  const payload: Record<string, unknown> = { deviceName };
+  if (options.timeout !== undefined) {
+    payload["timeout"] = options.timeout;
+  }
+
+  const url = `${apiBase()}/plant-control/${encodeURIComponent(trimmedId)}/name`;
+  const response = await fetch(
+    url,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: options.signal,
+    })
+  );
+
+  if (!response.ok) {
+    let message = `Failed to update device name (${response.status})`;
+    try {
+      const problem = await response.json();
+      if (problem && typeof problem.detail === "string") {
+        message = problem.detail;
+      }
+    } catch {
+      // ignore JSON parsing errors
+    }
+    throw new Error(message);
+  }
+
+  return (await response.json()) as DeviceNameResponse;
+}
+
+export async function updateSensorMode(
+  potId: string,
+  options: SensorModeUpdateOptions
+): Promise<SensorModeResponse> {
+  const trimmed = potId.trim();
+  if (!trimmed) {
+    throw new Error("Pot ID is required to update sensor mode");
+  }
+  const sensorMode = options.sensorMode;
+  if (!sensorMode) {
+    throw new Error("Sensor mode is required");
+  }
+  const payload: Record<string, unknown> = { sensorMode };
+  if (options.timeout !== undefined) {
+    payload.timeout = options.timeout;
+  }
+  const url = `${apiBase()}/plant-control/${encodeURIComponent(trimmed)}/sensor-mode`;
+  const response = await fetch(
+    url,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: options.signal,
+    })
+  );
+  if (!response.ok) {
+    let message = `Failed to update sensor mode (${response.status})`;
+    try {
+      const problem = await response.json();
+      if (problem && typeof problem.detail === "string") {
+        message = problem.detail;
+      }
+    } catch {
+      // ignore JSON parsing errors
+    }
+    throw new Error(message);
+  }
+  return (await response.json()) as SensorModeResponse;
+}
+
+export async function fetchPlantControlSchedule(
+  potId: string,
+  signal?: AbortSignal
+): Promise<PlantControlSchedule> {
+  const trimmed = potId.trim();
+  if (!trimmed) {
+    throw new Error("Pot ID is required to load the plant schedule");
+  }
+  const url = `${apiBase()}/plant-control/${encodeURIComponent(trimmed)}/schedule`;
+  const response = await fetch(url, withUser({ signal }));
+  if (!response.ok) {
+    let message = `Failed to load plant schedule (${response.status})`;
+    try {
+      const problem = await response.json();
+      if (problem && typeof problem.detail === "string") {
+        message = problem.detail;
+      }
+    } catch {
+      // ignore JSON parsing errors
+    }
+    throw new Error(message);
+  }
+  return (await response.json()) as PlantControlSchedule;
+}
+
+export async function updatePlantControlSchedule(
+  potId: string,
+  payload: PlantControlScheduleUpdate
+): Promise<PlantControlSchedule> {
+  const trimmed = potId.trim();
+  if (!trimmed) {
+    throw new Error("Pot ID is required to save the plant schedule");
+  }
+  const light = ensureValidScheduleTimer(payload.light, "Lights");
+  const pump = ensureValidScheduleTimer(payload.pump, "Pumps");
+  const fan = ensureValidScheduleTimer(payload.fan, "Fans");
+  const mister = ensureValidScheduleTimer(payload.mister, "Misters");
+  const url = `${apiBase()}/plant-control/${encodeURIComponent(trimmed)}/schedule`;
+  const response = await fetch(
+    url,
+    withUser({
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ light, pump, fan, mister }),
+      signal: payload.signal,
+    })
+  );
+  if (!response.ok) {
+    let message = `Failed to save plant schedule (${response.status})`;
+    try {
+      const problem = await response.json();
+      if (problem && typeof problem.detail === "string") {
+        message = problem.detail;
+      }
+    } catch {
+      // ignore JSON parsing errors
+    }
+    throw new Error(message);
+  }
+  return (await response.json()) as PlantControlSchedule;
 }
 
 export async function fetchLocalWeather(

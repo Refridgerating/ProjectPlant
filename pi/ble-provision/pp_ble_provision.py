@@ -160,6 +160,33 @@ class Advertisement(ServiceInterface):
         pass
 
 
+async def ensure_adapter_powered(bus: MessageBus, adapter_path: str = "/org/bluez/hci0") -> None:
+    """Make sure the Bluetooth adapter is powered so LE advertising starts right after boot."""
+    try:
+        adapter_proxy = await bus.introspect(BLUEZ_SERVICE_NAME, adapter_path)
+        adapter_obj = bus.get_proxy_object(BLUEZ_SERVICE_NAME, adapter_path, adapter_proxy)
+        props = adapter_obj.get_interface(PROPERTIES_IFACE)
+        powered_var = await props.call_get("org.bluez.Adapter1", "Powered")
+        powered = powered_var.value if isinstance(powered_var, Variant) else bool(powered_var)
+        if not powered:
+            await props.call_set("org.bluez.Adapter1", "Powered", Variant("b", True))
+        try:
+            discoverable_var = await props.call_get("org.bluez.Adapter1", "Discoverable")
+            discoverable = (
+                discoverable_var.value if isinstance(discoverable_var, Variant) else bool(discoverable_var)
+            )
+        except Exception:
+            discoverable = True  # If property missing, assume discoverable enough for BLE adverts.
+        if not discoverable:
+            await props.call_set("org.bluez.Adapter1", "Discoverable", Variant("b", True))
+    except Exception:
+        # Fallback: try CLI so we don't block provisioning if D-Bus calls fail.
+        try:
+            subprocess.run(["bluetoothctl", "power", "on"], check=False, capture_output=True, text=True)
+        except Exception:
+            pass
+
+
 class ProvisioningState:
     def __init__(self):
         self.state = "idle"
@@ -487,6 +514,8 @@ class ApplicationRoot(ServiceInterface):
 async def main():
     # Must run on the system bus for BlueZ
     bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+    # Ensure the adapter is powered so advertising begins immediately on boot.
+    await ensure_adapter_powered(bus)
     app = PPApplication(bus)
     await app.register()
     # Idle forever; BlueZ will invoke our methods via D-Bus

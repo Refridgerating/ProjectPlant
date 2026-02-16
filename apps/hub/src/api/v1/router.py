@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from config import settings
 from .auth_router import router as auth_router
+from .device_registry_router import router as device_registry_router
 from .health_router import router as health_router
 from .irrigation_router import router as irrigation_router
 from .mock_router import mock_router
@@ -15,6 +16,7 @@ from .events_router import router as events_router
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
 router.include_router(auth_router)
+router.include_router(device_registry_router)
 router.include_router(mock_router)
 router.include_router(plant_control_router)
 router.include_router(irrigation_router)

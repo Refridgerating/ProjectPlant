@@ -1,0 +1,49 @@
+{
+  "type": "standard",
+  "title": "Nymphaea odorata",
+  "displaytitle": "<i>Nymphaea odorata</i>",
+  "namespace": {
+    "id": 0,
+    "text": ""
+  },
+  "wikibase_item": "Q635853",
+  "titles": {
+    "canonical": "Nymphaea_odorata",
+    "normalized": "Nymphaea odorata",
+    "display": "<i>Nymphaea odorata</i>"
+  },
+  "pageid": 14996989,
+  "thumbnail": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/2024-08-20_14_33_27_Fully_open_American_White_Water_Lily_flower_and_leaves_in_a_shallow_cove_of_Success_Lake_within_the_Colliers_Mills_Wildlife_Management_Area_in_Jackson_Township%2C_Ocean_County%2C_New_Jersey.jpg/330px-thumbnail.jpg",
+    "width": 320,
+    "height": 240
+  },
+  "originalimage": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/9/9d/2024-08-20_14_33_27_Fully_open_American_White_Water_Lily_flower_and_leaves_in_a_shallow_cove_of_Success_Lake_within_the_Colliers_Mills_Wildlife_Management_Area_in_Jackson_Township%2C_Ocean_County%2C_New_Jersey.jpg",
+    "width": 4032,
+    "height": 3024
+  },
+  "lang": "en",
+  "dir": "ltr",
+  "revision": "1314988895",
+  "tid": "cd468cad-a0f1-11f0-a285-1f337b7558bb",
+  "timestamp": "2025-10-04T07:14:44Z",
+  "description": "Species of aquatic plant",
+  "description_source": "local",
+  "content_urls": {
+    "desktop": {
+      "page": "https://en.wikipedia.org/wiki/Nymphaea_odorata",
+      "revisions": "https://en.wikipedia.org/wiki/Nymphaea_odorata?action=history",
+      "edit": "https://en.wikipedia.org/wiki/Nymphaea_odorata?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Nymphaea_odorata"
+    },
+    "mobile": {
+      "page": "https://en.wikipedia.org/wiki/Nymphaea_odorata",
+      "revisions": "https://en.wikipedia.org/wiki/Special:History/Nymphaea_odorata",
+      "edit": "https://en.wikipedia.org/wiki/Nymphaea_odorata?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Nymphaea_odorata"
+    }
+  },
+  "extract": "Nymphaea odorata, also known as the American white waterlily, fragrant water-lily, beaver root, fragrant white water lily, white water lily, sweet-scented white water lily, and sweet-scented water lily, is an aquatic plant belonging to the genus Nymphaea. It can commonly be found in shallow lakes, ponds, and permanent slow moving waters throughout North America where it ranges from Central America to northern Canada. It is also reported from Brazil and Guyana.",
+  "extract_html": "<p><i><b>Nymphaea odorata</b></i>, also known as the <b>American white waterlily</b>, <b>fragrant water-lily</b>, <b>beaver root</b>, <b>fragrant white water lily</b>, <b>white water lily</b>, <b>sweet-scented white water lily</b>, and <b>sweet-scented water lily</b>, is an aquatic plant belonging to the genus <i>Nymphaea</i>. It can commonly be found in shallow lakes, ponds, and permanent slow moving waters throughout North America where it ranges from Central America to northern Canada. It is also reported from Brazil and Guyana.</p>"
+}

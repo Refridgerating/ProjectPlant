@@ -13,6 +13,7 @@
 #include "freertos/task.h"
 
 #include "hardware_config.h"
+#include "device_identity.h"
 #include "aht10.h"
 #include "ads1115.h"
 #include "time_sync.h"
@@ -21,6 +22,7 @@ static const char *TAG = "sensors";
 static bool pump_state = false;
 static bool fan_state = false;
 static bool mister_state = false;
+static bool light_state = false;
 static bool i2c_ready = false;
 
 static esp_err_t ensure_i2c_bus(void)
@@ -84,7 +86,7 @@ static float soil_to_percent(uint16_t raw)
 void sensors_set_pump_state(bool on)
 {
     // If turning ON, ensure cutoff float is not low; floats need sensor power
-    if (on) {
+    if (on && device_identity_sensors_enabled()) {
         int prev = gpio_get_level(SENSOR_EN_GPIO);
         if (prev == 0) {
             gpio_set_level(SENSOR_EN_GPIO, 1);
@@ -130,6 +132,17 @@ bool sensors_get_mister_state(void)
     return mister_state;
 }
 
+void sensors_set_light_state(bool on)
+{
+    gpio_set_level(LIGHT_GPIO, on ? 1 : 0);
+    light_state = on;
+}
+
+bool sensors_get_light_state(void)
+{
+    return light_state;
+}
+
 void sensors_init(void)
 {
     gpio_config_t pump_cfg = {
@@ -161,6 +174,16 @@ void sensors_init(void)
     };
     gpio_config(&mister_cfg);
     sensors_set_mister_state(false);
+
+    gpio_config_t light_cfg = {
+        .pin_bit_mask = BIT64(LIGHT_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&light_cfg);
+    sensors_set_light_state(false);
 
     // Sensor power enable (default OFF)
     gpio_config_t sen_cfg = {
@@ -211,6 +234,30 @@ void sensors_collect(sensor_reading_t *out)
         return;
     }
 
+    if (!device_identity_sensors_enabled()) {
+        out->soil_raw = 0;
+        out->soil_percent = 0.0f;
+        out->temperature_c = NAN;
+        out->humidity_pct = NAN;
+        out->water_low = false;
+        out->water_cutoff = false;
+        out->pump_is_on = sensors_get_pump_state();
+        out->fan_is_on = sensors_get_fan_state();
+        out->mister_is_on = sensors_get_mister_state();
+        out->light_is_on = sensors_get_light_state();
+
+        uint64_t timestamp_ms = esp_timer_get_time() / 1000ULL;
+        if (time_sync_is_time_valid()) {
+            struct timeval now;
+            if (gettimeofday(&now, NULL) == 0) {
+                timestamp_ms = ((uint64_t)now.tv_sec * 1000ULL) + ((uint64_t)now.tv_usec / 1000ULL);
+            }
+        }
+        out->timestamp_ms = timestamp_ms;
+        gpio_set_level(SENSOR_EN_GPIO, 0);
+        return;
+    }
+
     if (!i2c_ready && ensure_i2c_bus() != ESP_OK) {
         ESP_LOGE(TAG, "I2C bus unavailable during collection");
         memset(out, 0, sizeof(*out));
@@ -219,6 +266,7 @@ void sensors_collect(sensor_reading_t *out)
         out->pump_is_on = sensors_get_pump_state();
         out->fan_is_on = sensors_get_fan_state();
         out->mister_is_on = sensors_get_mister_state();
+        out->light_is_on = sensors_get_light_state();
         return;
     }
 
@@ -275,6 +323,7 @@ void sensors_collect(sensor_reading_t *out)
     out->pump_is_on = sensors_get_pump_state();
     out->fan_is_on = sensors_get_fan_state();
     out->mister_is_on = sensors_get_mister_state();
+    out->light_is_on = sensors_get_light_state();
 
     uint64_t timestamp_ms = esp_timer_get_time() / 1000ULL;
     if (time_sync_is_time_valid()) {

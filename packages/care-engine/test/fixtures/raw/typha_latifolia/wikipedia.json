@@ -1,0 +1,49 @@
+{
+  "type": "standard",
+  "title": "Typha latifolia",
+  "displaytitle": "<i>Typha latifolia</i>",
+  "namespace": {
+    "id": 0,
+    "text": ""
+  },
+  "wikibase_item": "Q147520",
+  "titles": {
+    "canonical": "Typha_latifolia",
+    "normalized": "Typha latifolia",
+    "display": "<i>Typha latifolia</i>"
+  },
+  "pageid": 2333272,
+  "thumbnail": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Bulrush_%28Typha_latifolia%29_%288139113636%29.jpg/330px-Bulrush_%28Typha_latifolia%29_%288139113636%29.jpg",
+    "width": 320,
+    "height": 428
+  },
+  "originalimage": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/4/4c/Bulrush_%28Typha_latifolia%29_%288139113636%29.jpg",
+    "width": 2738,
+    "height": 3658
+  },
+  "lang": "en",
+  "dir": "ltr",
+  "revision": "1321737258",
+  "tid": "ef17165d-bfad-11f0-99e7-a89d21908343",
+  "timestamp": "2025-11-12T09:57:01Z",
+  "description": "Species of flowering plant",
+  "description_source": "local",
+  "content_urls": {
+    "desktop": {
+      "page": "https://en.wikipedia.org/wiki/Typha_latifolia",
+      "revisions": "https://en.wikipedia.org/wiki/Typha_latifolia?action=history",
+      "edit": "https://en.wikipedia.org/wiki/Typha_latifolia?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Typha_latifolia"
+    },
+    "mobile": {
+      "page": "https://en.wikipedia.org/wiki/Typha_latifolia",
+      "revisions": "https://en.wikipedia.org/wiki/Special:History/Typha_latifolia",
+      "edit": "https://en.wikipedia.org/wiki/Typha_latifolia?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Typha_latifolia"
+    }
+  },
+  "extract": "Typha latifolia is a perennial herbaceous wetland plant in the genus Typha. It is known in English as bulrush, and in North America as broadleaf cattail. It is found as a native plant species throughout most of Eurasia and North America, and more locally in Africa and South America. The genome of T. latifolia was published in 2022.",
+  "extract_html": "<p><i><b>Typha latifolia</b></i> is a perennial herbaceous wetland plant in the genus <i>Typha</i>. It is known in English as <b>bulrush</b>, and in North America as <b>broadleaf cattail.</b> It is found as a native plant species throughout most of Eurasia and North America, and more locally in Africa and South America. The genome of <i>T. latifolia</i> was published in 2022.</p>"
+}

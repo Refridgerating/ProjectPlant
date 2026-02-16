@@ -1,0 +1,49 @@
+{
+  "type": "standard",
+  "title": "Saguaro",
+  "displaytitle": "<span class=\"mw-page-title-main\">Saguaro</span>",
+  "namespace": {
+    "id": 0,
+    "text": ""
+  },
+  "wikibase_item": "Q275573",
+  "titles": {
+    "canonical": "Saguaro",
+    "normalized": "Saguaro",
+    "display": "<span class=\"mw-page-title-main\">Saguaro</span>"
+  },
+  "pageid": 18952895,
+  "thumbnail": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Carnegiea_gigantea_in_Saguaro_National_Park_near_Tucson%2C_Arizona_during_November_%2858%29.jpg/330px-Carnegiea_gigantea_in_Saguaro_National_Park_near_Tucson%2C_Arizona_during_November_%2858%29.jpg",
+    "width": 320,
+    "height": 427
+  },
+  "originalimage": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Carnegiea_gigantea_in_Saguaro_National_Park_near_Tucson%2C_Arizona_during_November_%2858%29.jpg/3000px-Carnegiea_gigantea_in_Saguaro_National_Park_near_Tucson%2C_Arizona_during_November_%2858%29.jpg",
+    "width": 3000,
+    "height": 4000
+  },
+  "lang": "en",
+  "dir": "ltr",
+  "revision": "1321789516",
+  "tid": "666e9971-bff2-11f0-8f9e-c1f1af490509",
+  "timestamp": "2025-11-12T18:07:07Z",
+  "description": "Species of cactus in the Sonoran Desert",
+  "description_source": "local",
+  "content_urls": {
+    "desktop": {
+      "page": "https://en.wikipedia.org/wiki/Saguaro",
+      "revisions": "https://en.wikipedia.org/wiki/Saguaro?action=history",
+      "edit": "https://en.wikipedia.org/wiki/Saguaro?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Saguaro"
+    },
+    "mobile": {
+      "page": "https://en.wikipedia.org/wiki/Saguaro",
+      "revisions": "https://en.wikipedia.org/wiki/Special:History/Saguaro",
+      "edit": "https://en.wikipedia.org/wiki/Saguaro?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Saguaro"
+    }
+  },
+  "extract": "The saguaro is a tree-like cactus species in the monotypic genus Carnegiea that can grow to be over 12 meters tall. It is native to the Sonoran Desert in Arizona, the Mexican state of Sonora, and the Whipple Mountains and Imperial County areas of California. Saguaro typically grow at elevations ranging from sea level to 4,500', although they may be found at up to 5,000'. The saguaro blossom is the state wildflower of Arizona. Its scientific name is given in honor of Andrew Carnegie. In 1933, Saguaro National Park, near Tucson, Arizona, was designated to help protect this species and its habitat.",
+  "extract_html": "<p>The <b>saguaro</b> is a tree-like cactus species in the monotypic genus <i><b>Carnegiea</b></i> that can grow to be over 12 meters tall. It is native to the Sonoran Desert in Arizona, the Mexican state of Sonora, and the Whipple Mountains and Imperial County areas of California. Saguaro typically grow at elevations ranging from sea level to 4,500', although they may be found at up to 5,000'. The saguaro blossom is the state wildflower of Arizona. Its scientific name is given in honor of Andrew Carnegie. In 1933, Saguaro National Park, near Tucson, Arizona, was designated to help protect this species and its habitat.</p>"
+}

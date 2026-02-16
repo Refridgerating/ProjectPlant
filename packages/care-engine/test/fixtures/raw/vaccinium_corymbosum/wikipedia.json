@@ -1,0 +1,49 @@
+{
+  "type": "standard",
+  "title": "Vaccinium corymbosum",
+  "displaytitle": "<i>Vaccinium corymbosum</i>",
+  "namespace": {
+    "id": 0,
+    "text": ""
+  },
+  "wikibase_item": "Q468695",
+  "titles": {
+    "canonical": "Vaccinium_corymbosum",
+    "normalized": "Vaccinium corymbosum",
+    "display": "<i>Vaccinium corymbosum</i>"
+  },
+  "pageid": 3920414,
+  "thumbnail": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Vaccinium_corymbosum%2801%29.jpg/330px-Vaccinium_corymbosum%2801%29.jpg",
+    "width": 320,
+    "height": 349
+  },
+  "originalimage": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/1/17/Vaccinium_corymbosum%2801%29.jpg",
+    "width": 550,
+    "height": 600
+  },
+  "lang": "en",
+  "dir": "ltr",
+  "revision": "1308750893",
+  "tid": "1f067e7d-8641-11f0-8b08-3d825d00be18",
+  "timestamp": "2025-08-31T08:04:30Z",
+  "description": "Species of plant",
+  "description_source": "local",
+  "content_urls": {
+    "desktop": {
+      "page": "https://en.wikipedia.org/wiki/Vaccinium_corymbosum",
+      "revisions": "https://en.wikipedia.org/wiki/Vaccinium_corymbosum?action=history",
+      "edit": "https://en.wikipedia.org/wiki/Vaccinium_corymbosum?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Vaccinium_corymbosum"
+    },
+    "mobile": {
+      "page": "https://en.wikipedia.org/wiki/Vaccinium_corymbosum",
+      "revisions": "https://en.wikipedia.org/wiki/Special:History/Vaccinium_corymbosum",
+      "edit": "https://en.wikipedia.org/wiki/Vaccinium_corymbosum?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Vaccinium_corymbosum"
+    }
+  },
+  "extract": "Vaccinium corymbosum, the northern highbush blueberry, is a North American species of blueberry. Other common names include blue huckleberry, tall huckleberry, swamp huckleberry, high blueberry, and swamp blueberry.",
+  "extract_html": "<p><i><b>Vaccinium corymbosum</b></i>, the <b>northern highbush blueberry</b>, is a North American species of blueberry. Other common names include <b>blue huckleberry</b>, <b>tall huckleberry</b>, <b>swamp huckleberry</b>, <b>high blueberry</b>, and <b>swamp blueberry</b>.</p>"
+}

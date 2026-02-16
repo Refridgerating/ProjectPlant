@@ -1,0 +1,49 @@
+{
+  "type": "standard",
+  "title": "Rhododendron catawbiense",
+  "displaytitle": "<i>Rhododendron catawbiense</i>",
+  "namespace": {
+    "id": 0,
+    "text": ""
+  },
+  "wikibase_item": "Q194521",
+  "titles": {
+    "canonical": "Rhododendron_catawbiense",
+    "normalized": "Rhododendron catawbiense",
+    "display": "<i>Rhododendron catawbiense</i>"
+  },
+  "pageid": 6614609,
+  "thumbnail": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Rhododendron-catawbiense.jpg/330px-Rhododendron-catawbiense.jpg",
+    "width": 320,
+    "height": 240
+  },
+  "originalimage": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/6/6d/Rhododendron-catawbiense.jpg",
+    "width": 2048,
+    "height": 1536
+  },
+  "lang": "en",
+  "dir": "ltr",
+  "revision": "1315310285",
+  "tid": "7f439fc0-a247-11f0-95c8-2ca9661cfc04",
+  "timestamp": "2025-10-06T00:00:41Z",
+  "description": "Species of plant",
+  "description_source": "local",
+  "content_urls": {
+    "desktop": {
+      "page": "https://en.wikipedia.org/wiki/Rhododendron_catawbiense",
+      "revisions": "https://en.wikipedia.org/wiki/Rhododendron_catawbiense?action=history",
+      "edit": "https://en.wikipedia.org/wiki/Rhododendron_catawbiense?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Rhododendron_catawbiense"
+    },
+    "mobile": {
+      "page": "https://en.wikipedia.org/wiki/Rhododendron_catawbiense",
+      "revisions": "https://en.wikipedia.org/wiki/Special:History/Rhododendron_catawbiense",
+      "edit": "https://en.wikipedia.org/wiki/Rhododendron_catawbiense?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Rhododendron_catawbiense"
+    }
+  },
+  "extract": "Rhododendron catawbiense, with common names Catawba rosebay, Catawba rhododendron, mountain rosebay, purple ivy, purple laurel, purple rhododendron, red laurel, rosebay, rosebay laurel, is a species of Rhododendron native to the eastern United States, growing mainly in the southern Appalachian Mountains from West Virginia south to northern Alabama.",
+  "extract_html": "<p><i><b>Rhododendron catawbiense</b></i>, with common names <b>Catawba rosebay</b>, <b>Catawba rhododendron</b>, <b>mountain rosebay</b>, <b>purple ivy</b>, <b>purple laurel</b>, <b>purple rhododendron</b>, <b>red laurel</b>, <b>rosebay</b>, <b>rosebay laurel</b>, is a species of <i>Rhododendron</i> native to the eastern United States, growing mainly in the southern Appalachian Mountains from West Virginia south to northern Alabama.</p>"
+}

@@ -1,0 +1,49 @@
+{
+  "type": "standard",
+  "title": "Lavandula angustifolia",
+  "displaytitle": "<i>Lavandula angustifolia</i>",
+  "namespace": {
+    "id": 0,
+    "text": ""
+  },
+  "wikibase_item": "Q42081",
+  "titles": {
+    "canonical": "Lavandula_angustifolia",
+    "normalized": "Lavandula angustifolia",
+    "display": "<i>Lavandula angustifolia</i>"
+  },
+  "pageid": 3458184,
+  "thumbnail": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Lavandula_angustifolia_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-087.jpg/330px-Lavandula_angustifolia_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-087.jpg",
+    "width": 320,
+    "height": 436
+  },
+  "originalimage": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/4/40/Lavandula_angustifolia_-_K%C3%B6hler%E2%80%93s_Medizinal-Pflanzen-087.jpg",
+    "width": 438,
+    "height": 597
+  },
+  "lang": "en",
+  "dir": "ltr",
+  "revision": "1321574553",
+  "tid": "ee19b47c-bee3-11f0-b0c2-a49179cc09b0",
+  "timestamp": "2025-11-11T09:51:01Z",
+  "description": "Species of plant",
+  "description_source": "local",
+  "content_urls": {
+    "desktop": {
+      "page": "https://en.wikipedia.org/wiki/Lavandula_angustifolia",
+      "revisions": "https://en.wikipedia.org/wiki/Lavandula_angustifolia?action=history",
+      "edit": "https://en.wikipedia.org/wiki/Lavandula_angustifolia?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Lavandula_angustifolia"
+    },
+    "mobile": {
+      "page": "https://en.wikipedia.org/wiki/Lavandula_angustifolia",
+      "revisions": "https://en.wikipedia.org/wiki/Special:History/Lavandula_angustifolia",
+      "edit": "https://en.wikipedia.org/wiki/Lavandula_angustifolia?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Lavandula_angustifolia"
+    }
+  },
+  "extract": "Lavandula angustifolia, formerly L. officinalis, is a flowering plant in the family Lamiaceae, native to the Mediterranean basin. Its common names include lavender, true lavender and English lavender ; also garden lavender, common lavender and narrow-leaved lavender.",
+  "extract_html": "<p><i><b>Lavandula angustifolia</b></i>, formerly <i>L. officinalis</i>, is a flowering plant in the family Lamiaceae, native to the Mediterranean basin. Its common names include <b>lavender</b>, <b>true lavender</b> and <b>English lavender</b> ; also <b>garden lavender</b>, <b>common lavender</b> and <b>narrow-leaved lavender</b>.</p>"
+}

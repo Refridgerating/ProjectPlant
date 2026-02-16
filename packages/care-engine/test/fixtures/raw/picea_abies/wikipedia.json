@@ -1,0 +1,49 @@
+{
+  "type": "standard",
+  "title": "Picea abies",
+  "displaytitle": "<i>Picea abies</i>",
+  "namespace": {
+    "id": 0,
+    "text": ""
+  },
+  "wikibase_item": "Q145992",
+  "titles": {
+    "canonical": "Picea_abies",
+    "normalized": "Picea abies",
+    "display": "<i>Picea abies</i>"
+  },
+  "pageid": 471880,
+  "thumbnail": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/GemeineFichte.jpg/330px-GemeineFichte.jpg",
+    "width": 320,
+    "height": 400
+  },
+  "originalimage": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/b/bf/GemeineFichte.jpg",
+    "width": 800,
+    "height": 1000
+  },
+  "lang": "en",
+  "dir": "ltr",
+  "revision": "1320833180",
+  "tid": "30a55e69-bb7b-11f0-9497-b84a3ff3915b",
+  "timestamp": "2025-11-07T01:43:42Z",
+  "description": "Species of plant",
+  "description_source": "local",
+  "content_urls": {
+    "desktop": {
+      "page": "https://en.wikipedia.org/wiki/Picea_abies",
+      "revisions": "https://en.wikipedia.org/wiki/Picea_abies?action=history",
+      "edit": "https://en.wikipedia.org/wiki/Picea_abies?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Picea_abies"
+    },
+    "mobile": {
+      "page": "https://en.wikipedia.org/wiki/Picea_abies",
+      "revisions": "https://en.wikipedia.org/wiki/Special:History/Picea_abies",
+      "edit": "https://en.wikipedia.org/wiki/Picea_abies?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Picea_abies"
+    }
+  },
+  "extract": "Picea abies, the Norway spruce or European spruce, is a species of spruce native to Northern, Central and Eastern Europe.",
+  "extract_html": "<p><i><b>Picea abies</b></i>, the <b>Norway spruce</b> or <b>European spruce</b>, is a species of spruce native to Northern, Central and Eastern Europe.</p>"
+}

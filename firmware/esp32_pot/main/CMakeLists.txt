@@ -1,6 +1,7 @@
 idf_component_register(
     SRCS
         "app_main.c"
+        "device_identity.c"
         "sensors.c"
         "plant_mqtt.c"
         "wifi.c"

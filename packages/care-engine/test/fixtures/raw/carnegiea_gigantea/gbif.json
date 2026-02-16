@@ -1,0 +1,13 @@
+{
+  "offset": 0,
+  "limit": 0,
+  "endOfRecords": true,
+  "count": 0,
+  "results": [],
+  "facets": [
+    {
+      "field": "MONTH",
+      "counts": []
+    }
+  ]
+}

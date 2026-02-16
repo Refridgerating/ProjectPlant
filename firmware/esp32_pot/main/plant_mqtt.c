@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/time.h>
 #include <time.h>
 
@@ -237,6 +238,13 @@ static void add_common_fields(cJSON *root, const char *device_id, uint64_t times
     if (format_iso8601_timestamp(effective_ts, iso_timestamp, sizeof(iso_timestamp))) {
         cJSON_AddStringToObject(root, "timestamp", iso_timestamp);
     }
+
+    const char *device_name = device_identity_name();
+    if (device_name && device_name[0]) {
+        cJSON_AddStringToObject(root, "deviceName", device_name);
+        cJSON_AddBoolToObject(root, "isNamed", device_identity_is_named());
+    }
+    cJSON_AddStringToObject(root, "sensorMode", device_identity_sensor_mode_label());
 }
 
 void mqtt_publish_reading(esp_mqtt_client_handle_t client,
@@ -269,9 +277,12 @@ void mqtt_publish_reading(esp_mqtt_client_handle_t client,
     cJSON_AddBoolToObject(root, "valveOpen", reading->pump_is_on);
     cJSON_AddBoolToObject(root, "fanOn", reading->fan_is_on);
     cJSON_AddBoolToObject(root, "misterOn", reading->mister_is_on);
-    cJSON_AddBoolToObject(root, "waterLow", reading->water_low);
-    cJSON_AddBoolToObject(root, "waterCutoff", reading->water_cutoff);
-    cJSON_AddNumberToObject(root, "soilRaw", reading->soil_raw);
+    cJSON_AddBoolToObject(root, "lightOn", reading->light_is_on);
+    if (device_identity_sensors_enabled()) {
+        cJSON_AddBoolToObject(root, "waterLow", reading->water_low);
+        cJSON_AddBoolToObject(root, "waterCutoff", reading->water_cutoff);
+        cJSON_AddNumberToObject(root, "soilRaw", reading->soil_raw);
+    }
 
     char *payload = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -326,9 +337,13 @@ mqtt_command_t mqtt_parse_command(const char *payload, int payload_len)
     mqtt_command_t cmd = {
         .type = MQTT_CMD_UNKNOWN,
         .request_id = "",
+        .device_name = "",
+        .has_sensor_mode = false,
+        .sensor_mode = SENSOR_MODE_FULL,
         .pump_on = false,
         .fan_on = false,
         .mister_on = false,
+        .light_on = false,
         .duration_ms = 0,
     };
 
@@ -360,6 +375,52 @@ mqtt_command_t mqtt_parse_command(const char *payload, int payload_len)
             ESP_LOGW(TAG, "requestId too long (%u), ignoring", (unsigned)id_len);
             cmd.request_id[0] = '\0';
         }
+    }
+
+    cJSON *device_name = cJSON_GetObjectItemCaseSensitive(root, "deviceName");
+    if (!device_name) {
+        device_name = cJSON_GetObjectItemCaseSensitive(root, "displayName");
+    }
+    if (cJSON_IsString(device_name) && device_name->valuestring) {
+        size_t name_len = strlen(device_name->valuestring);
+        if (name_len > 0 && name_len < sizeof(cmd.device_name)) {
+            memcpy(cmd.device_name, device_name->valuestring, name_len + 1);
+            cmd.type = MQTT_CMD_CONFIG_UPDATE;
+        } else {
+            ESP_LOGW(TAG, "deviceName too long (%u), ignoring", (unsigned)name_len);
+            cmd.device_name[0] = '\0';
+        }
+    }
+
+    cJSON *sensor_mode = cJSON_GetObjectItemCaseSensitive(root, "sensorMode");
+    if (cJSON_IsString(sensor_mode) && sensor_mode->valuestring) {
+        if (strcasecmp(sensor_mode->valuestring, "control_only") == 0 ||
+            strcasecmp(sensor_mode->valuestring, "control-only") == 0 ||
+            strcasecmp(sensor_mode->valuestring, "control") == 0) {
+            cmd.sensor_mode = SENSOR_MODE_CONTROL_ONLY;
+            cmd.has_sensor_mode = true;
+            cmd.type = MQTT_CMD_CONFIG_UPDATE;
+        } else if (strcasecmp(sensor_mode->valuestring, "full") == 0 ||
+                   strcasecmp(sensor_mode->valuestring, "sensors") == 0 ||
+                   strcasecmp(sensor_mode->valuestring, "enabled") == 0) {
+            cmd.sensor_mode = SENSOR_MODE_FULL;
+            cmd.has_sensor_mode = true;
+            cmd.type = MQTT_CMD_CONFIG_UPDATE;
+        } else {
+            ESP_LOGW(TAG, "Unknown sensorMode %s, ignoring", sensor_mode->valuestring);
+        }
+    }
+
+    cJSON *sensors_enabled = cJSON_GetObjectItemCaseSensitive(root, "sensorsEnabled");
+    if (cJSON_IsBool(sensors_enabled)) {
+        cmd.sensor_mode = cJSON_IsTrue(sensors_enabled) ? SENSOR_MODE_FULL : SENSOR_MODE_CONTROL_ONLY;
+        cmd.has_sensor_mode = true;
+        cmd.type = MQTT_CMD_CONFIG_UPDATE;
+    }
+
+    if (cmd.type == MQTT_CMD_CONFIG_UPDATE) {
+        cJSON_Delete(root);
+        return cmd;
     }
 
     const char *action_value = NULL;
@@ -430,6 +491,25 @@ mqtt_command_t mqtt_parse_command(const char *payload, int payload_len)
                 cJSON *duration = cJSON_GetObjectItemCaseSensitive(root, "duration_ms");
                 if (cJSON_IsNumber(duration) && duration->valueint > 0) {
                     cmd.duration_ms = (uint32_t)duration->valueint;
+                }
+            } else {
+                cJSON *light = cJSON_GetObjectItemCaseSensitive(root, "light");
+                if (light && (cJSON_IsBool(light) || (cJSON_IsString(light) && light->valuestring))) {
+                    bool light_on = false;
+                    if (cJSON_IsBool(light)) {
+                        light_on = cJSON_IsTrue(light);
+                    } else if (strcmp(light->valuestring, "on") == 0) {
+                        light_on = true;
+                    } else if (strcmp(light->valuestring, "off") == 0) {
+                        light_on = false;
+                    }
+                    cmd.type = MQTT_CMD_LIGHT_OVERRIDE;
+                    cmd.light_on = light_on;
+
+                    cJSON *duration = cJSON_GetObjectItemCaseSensitive(root, "duration_ms");
+                    if (cJSON_IsNumber(duration) && duration->valueint > 0) {
+                        cmd.duration_ms = (uint32_t)duration->valueint;
+                    }
                 }
             }
         }

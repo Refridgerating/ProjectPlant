@@ -14,6 +14,7 @@ typedef struct {
     bool pump_is_on;
     bool fan_is_on;
     bool mister_is_on;
+    bool light_is_on;
 } sensor_reading_t;
 
 void sensors_init(void);
@@ -24,3 +25,5 @@ void sensors_set_fan_state(bool on);
 bool sensors_get_fan_state(void);
 void sensors_set_mister_state(bool on);
 bool sensors_get_mister_state(void);
+void sensors_set_light_state(bool on);
+bool sensors_get_light_state(void);

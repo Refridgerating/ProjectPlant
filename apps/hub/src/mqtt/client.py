@@ -185,12 +185,19 @@ async def startup(settings):
         client_id=settings.mqtt_client_id,
         tls=settings.mqtt_tls,
     )
+    _manager = manager
     try:
         await manager.connect()
-        _manager = manager
     except MqttError as e:
-        logging.getLogger("projectplant.hub.mqtt").error("MQTT failed to connect: %s", e)
-        _manager = None
+        logger = logging.getLogger("projectplant.hub.mqtt")
+        logger.error("MQTT failed to connect: %s", e)
+        logger.info("Starting MQTT background reconnect loop after startup failure")
+        await manager.notify_disconnect("startup connect", e)
+    except Exception as e:  # pragma: no cover - defensive logging
+        logger = logging.getLogger("projectplant.hub.mqtt")
+        logger.error("Unexpected MQTT startup failure: %s", e)
+        logger.info("Starting MQTT background reconnect loop after startup failure")
+        await manager.notify_disconnect("startup connect", e)
 
 async def shutdown():
     global _manager

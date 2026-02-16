@@ -11,6 +11,8 @@ from typing import Any, Awaitable, Callable, Optional
 from asyncio_mqtt import Client, Message, MqttCodeError, MqttError
 from paho.mqtt.client import topic_matches_sub
 
+from services.event_bus import event_bus
+from services.pot_ids import normalize_pot_id
 from services.pump_status import PumpStatusSnapshot, pump_status_cache
 from services.telemetry import telemetry_store
 from services.plant_telemetry import plant_telemetry_store
@@ -22,6 +24,7 @@ CANONICAL_SENSOR_TOPIC_FMT = "pots/{pot_id}/sensors"
 CANONICAL_SENSOR_FILTER = "pots/+/sensors"
 LEGACY_FIRMWARE_STATUS_FILTER = "projectplant/pots/+/status"
 CANONICAL_STATUS_TOPIC_FMT = "pots/{pot_id}/status"
+CANONICAL_STATUS_FILTER = "pots/+/status"
 DEVICE_STATE_FILTER = "plant/+/state"
 
 
@@ -161,6 +164,9 @@ class NormalizedTelemetry:
     requestId: Optional[str] = None
     fanOn: Optional[bool] = None
     misterOn: Optional[bool] = None
+    lightOn: Optional[bool] = None
+    deviceName: Optional[str] = None
+    isNamed: Optional[bool] = None
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -188,6 +194,12 @@ class NormalizedTelemetry:
             payload["fanOn"] = self.fanOn
         if self.misterOn is not None:
             payload["misterOn"] = self.misterOn
+        if self.lightOn is not None:
+            payload["lightOn"] = self.lightOn
+        if self.deviceName is not None:
+            payload["deviceName"] = self.deviceName
+        if self.isNamed is not None:
+            payload["isNamed"] = self.isNamed
         payload["source"] = "bridge"
         return payload
 
@@ -259,13 +271,13 @@ class MqttBridge:
         self._logger.debug("Firmware bridge task exiting")
 
     async def _forward_status(self) -> None:
-        topic_filter = LEGACY_FIRMWARE_STATUS_FILTER
+        topic_filters = (LEGACY_FIRMWARE_STATUS_FILTER, CANONICAL_STATUS_FILTER)
         while self._started:
             try:
                 async with self._client.messages() as messages:
-                    await self._client.subscribe(topic_filter)
+                    await self._client.subscribe([(topic_filters[0], 0), (topic_filters[1], 0)])
                     async for message in messages:
-                        if not _topic_matches(message.topic, topic_filter):
+                        if not any(_topic_matches(message.topic, filt) for filt in topic_filters):
                             continue
                         await self._handle_status_message(message)
                         self._reset_backoff()
@@ -275,7 +287,8 @@ class MqttBridge:
                 await self._handle_loop_exception("status bridge", exc)
             finally:
                 try:
-                    await self._client.unsubscribe(topic_filter)
+                    await self._client.unsubscribe(topic_filters[0])
+                    await self._client.unsubscribe(topic_filters[1])
                 except Exception as exc:  # pragma: no cover - best effort clean-up
                     await self._handle_unsubscribe_error("status bridge", exc)
 
@@ -400,6 +413,7 @@ class MqttBridge:
             valve_open=telemetry.valveOpen,
             fan_on=telemetry.fanOn,
             mister_on=telemetry.misterOn,
+            light_on=telemetry.lightOn,
             flow_rate=telemetry.flowRateLpm,
             water_low=telemetry.waterLow,
             water_cutoff=telemetry.waterCutoff,
@@ -408,8 +422,25 @@ class MqttBridge:
             request_id=telemetry.requestId,
         )
 
+        heartbeat_snapshot = PumpStatusSnapshot(
+            pot_id=telemetry.potId,
+            status=None,
+            pump_on=telemetry.valveOpen,
+            fan_on=telemetry.fanOn,
+            mister_on=telemetry.misterOn,
+            light_on=telemetry.lightOn,
+            request_id=telemetry.requestId,
+            timestamp=telemetry.timestamp,
+            timestamp_ms=telemetry.timestampMs,
+            received_at=_utc_now_iso(),
+            device_name=telemetry.deviceName,
+            is_named=telemetry.isNamed,
+        )
+        pump_status_cache.update(heartbeat_snapshot, merge=True)
+        await event_bus.publish("telemetry", {"category": "pot", "sample": telemetry.to_dict()})
+
         payload_json = json.dumps(telemetry.to_dict(), separators=(",", ":"))
-        target_topic = CANONICAL_SENSOR_TOPIC_FMT.format(pot_id=pot_id)
+        target_topic = CANONICAL_SENSOR_TOPIC_FMT.format(pot_id=telemetry.potId)
         await self._client.publish(target_topic, payload_json, retain=True)
         self._logger.debug("Bridged %s -> %s", message.topic, target_topic)
 
@@ -493,6 +524,12 @@ class MqttBridge:
         if mister_on is None:
             mister_on = _coerce_bool(data.get("mister"))
 
+        light_on = _coerce_bool(data.get("lightOn"))
+        if light_on is None:
+            light_on = _coerce_bool(data.get("light_on"))
+        if light_on is None:
+            light_on = _coerce_bool(data.get("light"))
+
         flow_rate = _coerce_float(data.get("flowRateLpm"))
         if flow_rate is None:
             flow_rate = _coerce_float(data.get("flow_rate_lpm"))
@@ -501,6 +538,11 @@ class MqttBridge:
         soil_raw = _coerce_float(data.get("soilRaw"))
         if soil_raw is None:
             soil_raw = _coerce_float(data.get("soil_raw"))
+        device_name = _coerce_str(data.get("deviceName"))
+        if device_name is None:
+            device_name = _coerce_str(data.get("displayName"))
+        is_named = _coerce_bool(data.get("isNamed"))
+        normalized_pot_id = normalize_pot_id(_coerce_str(data.get("potId"))) or pot_id
 
         try:
             timestamp_dt = datetime.fromisoformat(timestamp_iso.replace("Z", "+00:00"))
@@ -518,7 +560,7 @@ class MqttBridge:
         )
 
         await plant_telemetry_store.record(
-            pot_id=data.get("potId") or pot_id,
+            pot_id=normalized_pot_id,
             timestamp=timestamp_iso,
             timestamp_ms=timestamp_ms_int,
             moisture=moisture,
@@ -530,6 +572,7 @@ class MqttBridge:
             valve_open=valve_open,
             fan_on=fan_on,
             mister_on=mister_on,
+            light_on=light_on,
             flow_rate=flow_rate,
             water_low=water_low,
             water_cutoff=water_cutoff,
@@ -538,7 +581,31 @@ class MqttBridge:
             request_id=_coerce_str(data.get("requestId")),
         )
 
+        heartbeat_snapshot = PumpStatusSnapshot(
+            pot_id=normalized_pot_id,
+            status=None,
+            pump_on=valve_open,
+            fan_on=fan_on,
+            mister_on=mister_on,
+            light_on=light_on,
+            request_id=_coerce_str(data.get("requestId")),
+            timestamp=timestamp_iso,
+            timestamp_ms=timestamp_ms_int,
+            received_at=_utc_now_iso(),
+            device_name=device_name,
+            is_named=is_named,
+        )
+        pump_status_cache.update(heartbeat_snapshot, merge=True)
+
+        event_sample = dict(data)
+        event_sample["potId"] = normalized_pot_id
+        event_sample.setdefault("timestamp", timestamp_iso)
+        if timestamp_ms_int is not None:
+            event_sample.setdefault("timestampMs", timestamp_ms_int)
+        await event_bus.publish("telemetry", {"category": "pot", "sample": event_sample})
+
     async def _handle_status_message(self, message: Message) -> None:
+        is_canonical = _topic_matches(message.topic, CANONICAL_STATUS_FILTER)
         pot_id = _extract_pot_id(message.topic)
         if not pot_id:
             self._logger.debug("Ignoring firmware status with unexpected topic: %s", message.topic)
@@ -550,10 +617,14 @@ class MqttBridge:
             return
 
         pump_status_cache.update(snapshot)
+        await event_bus.publish("status", snapshot.to_dict())
         payload_json = json.dumps(snapshot.to_dict(), separators=(",", ":"))
-        target_topic = CANONICAL_STATUS_TOPIC_FMT.format(pot_id=pot_id)
-        await self._client.publish(target_topic, payload_json, retain=True)
-        self._logger.debug("Bridged status %s -> %s", message.topic, target_topic)
+        target_topic = CANONICAL_STATUS_TOPIC_FMT.format(pot_id=snapshot.pot_id)
+        if not is_canonical:
+            await self._client.publish(target_topic, payload_json, retain=True)
+            self._logger.debug("Bridged status %s -> %s", message.topic, target_topic)
+        else:
+            self._logger.debug("Captured canonical status %s", message.topic)
 
     async def _handle_state_message(self, message: Message) -> None:
         device_id = _extract_state_device_id(message.topic)
@@ -618,9 +689,23 @@ def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[Normalized
     if mister_on is None:
         mister_on = _coerce_bool(data.get("mister"))
 
+    light_on = _coerce_bool(data.get("lightOn"))
+    if light_on is None:
+        light_on = _coerce_bool(data.get("light_on"))
+    if light_on is None:
+        light_on = _coerce_bool(data.get("light"))
+
     request_id = _coerce_str(data.get("requestId"))
     if request_id is None:
         request_id = _coerce_str(data.get("request_id"))
+    device_name = _coerce_str(data.get("deviceName"))
+    if device_name is None:
+        device_name = _coerce_str(data.get("displayName"))
+    is_named = _coerce_bool(data.get("isNamed"))
+    sensor_mode = _coerce_str(data.get("sensorMode"))
+    if sensor_mode is None:
+        sensor_mode = _coerce_str(data.get("sensor_mode"))
+    payload_pot_id = normalize_pot_id(_coerce_str(data.get("potId"))) or normalize_pot_id(pot_id) or pot_id
 
     timestamp_ms_float = _coerce_float(data.get("timestampMs"))
     if timestamp_ms_float is None:
@@ -644,6 +729,7 @@ def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[Normalized
         and humidity_pct is None
         and flow_rate is None
         and pump_on is None
+        and light_on is None
     ):
         # Nothing usable in this payload
         return None
@@ -669,7 +755,7 @@ def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[Normalized
     timestamp_ms_int = int(round(timestamp_ms_float)) if timestamp_ms_float is not None else None
 
     return NormalizedTelemetry(
-        potId=pot_id,
+        potId=payload_pot_id,
         moisture=moisture,
         temperature=temperature,
         humidity=humidity,
@@ -683,6 +769,9 @@ def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[Normalized
         requestId=request_id,
         fanOn=fan_on,
         misterOn=mister_on,
+        lightOn=light_on,
+        deviceName=device_name,
+        isNamed=is_named,
     )
 
 
@@ -718,16 +807,31 @@ def build_status_payload(raw_payload: bytes, pot_id: str) -> Optional[PumpStatus
         mister_on = _coerce_bool(data.get("misterOn"))
     if mister_on is None:
         mister_on = _coerce_bool(data.get("mister"))
+    light_on = _coerce_bool(data.get("light_on"))
+    if light_on is None:
+        light_on = _coerce_bool(data.get("lightOn"))
+    if light_on is None:
+        light_on = _coerce_bool(data.get("light"))
     if pump_on is None and status:
         pump_on = _infer_pump_state(status)
     if fan_on is None and status:
         fan_on = _infer_fan_state(status)
     if mister_on is None and status:
         mister_on = _infer_mister_state(status)
+    if light_on is None and status:
+        light_on = _infer_light_state(status)
 
     request_id = _coerce_str(data.get("requestId"))
     if request_id is None:
         request_id = _coerce_str(data.get("request_id"))
+    device_name = _coerce_str(data.get("deviceName"))
+    if device_name is None:
+        device_name = _coerce_str(data.get("displayName"))
+    is_named = _coerce_bool(data.get("isNamed"))
+    sensor_mode = _coerce_str(data.get("sensorMode"))
+    if sensor_mode is None:
+        sensor_mode = _coerce_str(data.get("sensor_mode"))
+    normalized_pot_id = normalize_pot_id(_coerce_str(data.get("potId"))) or normalize_pot_id(pot_id) or pot_id
     timestamp_ms_float = _coerce_float(data.get("timestampMs"))
     if timestamp_ms_float is None:
         timestamp_ms_float = _coerce_float(data.get("timestamp_ms"))
@@ -736,35 +840,53 @@ def build_status_payload(raw_payload: bytes, pot_id: str) -> Optional[PumpStatus
     if timestamp_iso is None and timestamp_ms_float is not None:
         timestamp_iso = _coerce_timestamp(timestamp_ms_float)
 
-    if status is None and pump_on is None and request_id is None and timestamp_iso is None and timestamp_ms is None:
+    if (
+        status is None
+        and pump_on is None
+        and fan_on is None
+        and mister_on is None
+        and light_on is None
+        and request_id is None
+        and device_name is None
+        and is_named is None
+        and sensor_mode is None
+        and timestamp_iso is None
+        and timestamp_ms is None
+    ):
         return None
 
     received_at = _utc_now_iso()
 
     return PumpStatusSnapshot(
-        pot_id=pot_id,
+        pot_id=normalized_pot_id,
         status=status,
         pump_on=pump_on,
         fan_on=fan_on,
         mister_on=mister_on,
+        light_on=light_on,
         request_id=request_id,
         timestamp=timestamp_iso,
         timestamp_ms=timestamp_ms,
         received_at=received_at,
+        device_name=device_name,
+        is_named=is_named,
+        sensor_mode=sensor_mode,
     )
 
 
 def _extract_pot_id(topic: Any) -> Optional[str]:
     parts = str(topic).split("/")
     if len(parts) >= 4 and parts[0] == "projectplant" and parts[1] == "pots":
-        return parts[2]
+        return normalize_pot_id(parts[2])
+    if len(parts) >= 3 and parts[0] == "pots" and parts[2] == "status":
+        return normalize_pot_id(parts[1])
     return None
 
 
 def _extract_canonical_pot_id(topic: Any) -> Optional[str]:
     parts = str(topic).split("/")
     if len(parts) >= 3 and parts[0] == "pots" and parts[2] == "sensors":
-        return parts[1]
+        return normalize_pot_id(parts[1])
     return None
 
 
@@ -856,17 +978,37 @@ def _infer_pump_state(status: str) -> Optional[bool]:
     if not lowered:
         return None
 
-    positive_markers = {"pump_on", "on", "running", "active", "open", "enabled"}
-    negative_markers = {"pump_off", "off", "stopped", "idle", "closed", "disabled"}
+    pump_tokens = ("pump", "valve", "irrigation", "water")
+    if not any(token in lowered for token in pump_tokens):
+        return None
 
-    if lowered in positive_markers or lowered.endswith("_on"):
+    positive_markers = {
+        "pump_on",
+        "pump_running",
+        "pump_active",
+        "pump_enabled",
+        "valve_open",
+        "irrigation_on",
+        "water_on",
+    }
+    negative_markers = {
+        "pump_off",
+        "pump_timeout_off",
+        "pump_disabled",
+        "pump_idle",
+        "valve_closed",
+        "irrigation_off",
+        "water_off",
+    }
+
+    if lowered in positive_markers:
         return True
-    if lowered in negative_markers or lowered.endswith("_off"):
+    if lowered in negative_markers:
         return False
 
-    if "on" in lowered and "off" not in lowered:
+    if lowered.endswith("_on") and any(token in lowered for token in pump_tokens):
         return True
-    if "off" in lowered and "on" not in lowered:
+    if lowered.endswith("_off") and any(token in lowered for token in pump_tokens):
         return False
     return None
 
@@ -911,6 +1053,32 @@ def _infer_mister_state(status: str) -> Optional[bool]:
         return False
 
     if "mister" in lowered or "mist" in lowered or "fogger" in lowered:
+        if "on" in lowered and "off" not in lowered:
+            return True
+        if "off" in lowered and "on" not in lowered:
+            return False
+    return None
+
+
+def _infer_light_state(status: str) -> Optional[bool]:
+    lowered = status.strip().lower()
+    if not lowered:
+        return None
+
+    positive_markers = {"light_on", "light_enabled", "light_active", "grow_light_on"}
+    negative_markers = {"light_off", "light_timeout_off", "light_disabled", "grow_light_off"}
+
+    if lowered in positive_markers:
+        return True
+    if lowered in negative_markers:
+        return False
+
+    if lowered.endswith("_on") and "light" in lowered:
+        return True
+    if lowered.endswith("_off") and "light" in lowered:
+        return False
+
+    if "light" in lowered:
         if "on" in lowered and "off" not in lowered:
             return True
         if "off" in lowered and "on" not in lowered:

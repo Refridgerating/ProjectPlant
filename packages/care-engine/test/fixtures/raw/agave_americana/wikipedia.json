@@ -1,0 +1,49 @@
+{
+  "type": "standard",
+  "title": "Agave americana",
+  "displaytitle": "<i>Agave americana</i>",
+  "namespace": {
+    "id": 0,
+    "text": ""
+  },
+  "wikibase_item": "Q161115",
+  "titles": {
+    "canonical": "Agave_americana",
+    "normalized": "Agave americana",
+    "display": "<i>Agave americana</i>"
+  },
+  "pageid": 662563,
+  "thumbnail": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Agave_July_2011-1.jpg/330px-Agave_July_2011-1.jpg",
+    "width": 320,
+    "height": 449
+  },
+  "originalimage": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/3/3b/Agave_July_2011-1.jpg",
+    "width": 4299,
+    "height": 6035
+  },
+  "lang": "en",
+  "dir": "ltr",
+  "revision": "1318030434",
+  "tid": "366726a4-ae88-11f0-8988-d06b1f3494dc",
+  "timestamp": "2025-10-21T14:14:10Z",
+  "description": "Species of flowering plant",
+  "description_source": "local",
+  "content_urls": {
+    "desktop": {
+      "page": "https://en.wikipedia.org/wiki/Agave_americana",
+      "revisions": "https://en.wikipedia.org/wiki/Agave_americana?action=history",
+      "edit": "https://en.wikipedia.org/wiki/Agave_americana?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Agave_americana"
+    },
+    "mobile": {
+      "page": "https://en.wikipedia.org/wiki/Agave_americana",
+      "revisions": "https://en.wikipedia.org/wiki/Special:History/Agave_americana",
+      "edit": "https://en.wikipedia.org/wiki/Agave_americana?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Agave_americana"
+    }
+  },
+  "extract": "Agave americana, commonly known as the century plant, maguey, or American aloe, is a flowering plant species belonging to the family Asparagaceae. It is native to Mexico and the United States, specifically Texas. This plant is widely cultivated worldwide for its ornamental value and has become naturalized in various regions, including Southern California, the West Indies, South America, the Mediterranean Basin, Africa, the Canary Islands, India, China, Thailand, and Australia.",
+  "extract_html": "<p><i><b>Agave americana</b></i>, commonly known as the <b>century plant</b>, <b>maguey</b>, or <b>American aloe</b>, is a flowering plant species belonging to the family Asparagaceae. It is native to Mexico and the United States, specifically Texas. This plant is widely cultivated worldwide for its ornamental value and has become naturalized in various regions, including Southern California, the West Indies, South America, the Mediterranean Basin, Africa, the Canary Islands, India, China, Thailand, and Australia.</p>"
+}

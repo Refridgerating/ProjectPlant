@@ -69,6 +69,7 @@ class PotTelemetryRow:
     valve_open: Optional[bool]
     fan_on: Optional[bool]
     mister_on: Optional[bool]
+    light_on: Optional[bool]
     flow_rate: Optional[float]
     water_low: Optional[bool]
     water_cutoff: Optional[bool]
@@ -99,6 +100,9 @@ class PotTelemetryRow:
         if self.mister_on is not None:
             payload["mister_on"] = self.mister_on
             payload["misterOn"] = self.mister_on
+        if self.light_on is not None:
+            payload["light_on"] = self.light_on
+            payload["lightOn"] = self.light_on
         if self.flow_rate is not None:
             payload["flow_rate_lpm"] = self.flow_rate
             payload["flowRateLpm"] = self.flow_rate
@@ -165,6 +169,7 @@ class PotTelemetryStore:
                 ("soil_raw", "REAL"),
                 ("fan_on", "INTEGER"),
                 ("mister_on", "INTEGER"),
+                ("light_on", "INTEGER"),
             ):
                 try:
                     conn.execute(
@@ -190,6 +195,7 @@ class PotTelemetryStore:
         valve_open: Any = None,
         fan_on: Any = None,
         mister_on: Any = None,
+        light_on: Any = None,
         flow_rate: Any = None,
         water_low: Any = None,
         water_cutoff: Any = None,
@@ -214,6 +220,7 @@ class PotTelemetryStore:
             valve_open=_coerce_bool(valve_open),
             fan_on=_coerce_bool(fan_on),
             mister_on=_coerce_bool(mister_on),
+            light_on=_coerce_bool(light_on),
             flow_rate=_coerce_float(flow_rate),
             water_low=_coerce_bool(water_low),
             water_cutoff=_coerce_bool(water_cutoff),
@@ -230,9 +237,9 @@ class PotTelemetryStore:
             conn.execute(
                 """
                 INSERT INTO pot_telemetry
-                    (pot_id, ts, ts_ms, moisture, temperature, humidity, pressure, solar, wind, valve_open, fan_on, mister_on, flow_rate, water_low, water_cutoff, soil_raw, source, request_id)
+                    (pot_id, ts, ts_ms, moisture, temperature, humidity, pressure, solar, wind, valve_open, fan_on, mister_on, light_on, flow_rate, water_low, water_cutoff, soil_raw, source, request_id)
                 VALUES
-                    (:pot_id, :ts, :ts_ms, :moisture, :temperature, :humidity, :pressure, :solar, :wind, :valve_open, :fan_on, :mister_on, :flow_rate, :water_low, :water_cutoff, :soil_raw, :source, :request_id);
+                    (:pot_id, :ts, :ts_ms, :moisture, :temperature, :humidity, :pressure, :solar, :wind, :valve_open, :fan_on, :mister_on, :light_on, :flow_rate, :water_low, :water_cutoff, :soil_raw, :source, :request_id);
                 """,
                 {
                     "pot_id": row.pot_id,
@@ -247,6 +254,7 @@ class PotTelemetryStore:
                     "valve_open": 1 if row.valve_open is True else 0 if row.valve_open is False else None,
                     "fan_on": 1 if row.fan_on is True else 0 if row.fan_on is False else None,
                     "mister_on": 1 if row.mister_on is True else 0 if row.mister_on is False else None,
+                    "light_on": 1 if row.light_on is True else 0 if row.light_on is False else None,
                     "flow_rate": row.flow_rate,
                     "water_low": 1 if row.water_low is True else 0 if row.water_low is False else None,
                     "water_cutoff": 1 if row.water_cutoff is True else 0 if row.water_cutoff is False else None,
@@ -296,7 +304,7 @@ class PotTelemetryStore:
         with self._connect() as conn:
             cursor = conn.execute(
                 """
-                SELECT pot_id, ts, ts_ms, moisture, temperature, humidity, pressure, solar, wind, valve_open, fan_on, mister_on, flow_rate, water_low, water_cutoff, soil_raw, source, request_id
+                SELECT pot_id, ts, ts_ms, moisture, temperature, humidity, pressure, solar, wind, valve_open, fan_on, mister_on, light_on, flow_rate, water_low, water_cutoff, soil_raw, source, request_id
                 FROM pot_telemetry
                 WHERE pot_id = ? AND ts >= ?
                 ORDER BY ts ASC
@@ -320,6 +328,7 @@ class PotTelemetryStore:
                         valve_open=bool(row["valve_open"]) if row["valve_open"] is not None else None,
                         fan_on=bool(row["fan_on"]) if row["fan_on"] is not None else None,
                         mister_on=bool(row["mister_on"]) if row["mister_on"] is not None else None,
+                        light_on=bool(row["light_on"]) if row["light_on"] is not None else None,
                         flow_rate=row["flow_rate"],
                         water_low=bool(row["water_low"]) if row["water_low"] is not None else None,
                         water_cutoff=bool(row["water_cutoff"]) if row["water_cutoff"] is not None else None,

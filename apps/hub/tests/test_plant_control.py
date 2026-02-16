@@ -25,6 +25,7 @@ def _build_payload(pot_id: str) -> dict[str, object]:
         "valveOpen": False,
         "fanOn": False,
         "misterOn": False,
+        "lightOn": False,
         "timestamp": "2025-10-14T12:00:00.000Z",
         "humidity": 48.2,
     }
@@ -304,6 +305,51 @@ def test_control_mister_endpoint_service_error(client: TestClient, monkeypatch: 
     mock.assert_awaited_once()
 
 
+def test_control_light_endpoint_success(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pot_id = "pot-light"
+    payload = _build_payload(pot_id)
+    mock = AsyncMock(return_value=SensorReadResult(request_id="light-req-1", payload=payload))
+    monkeypatch.setattr(command_service, "control_light", mock)
+
+    response = client.post(
+        f"/api/v1/plant-control/{pot_id}/light",
+        json={"on": True, "durationMs": 500, "timeout": 2.0},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == payload
+    assert response.headers["X-Command-Request-Id"] == "light-req-1"
+    mock.assert_awaited_once()
+    kwargs = mock.await_args.kwargs
+    assert kwargs["on"] is True
+    assert kwargs["duration_ms"] == pytest.approx(500.0)
+    assert kwargs["timeout"] == pytest.approx(2.0)
+
+
+def test_control_light_endpoint_timeout(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pot_id = "pot-light-timeout"
+    mock = AsyncMock(side_effect=CommandTimeoutError("Timed out waiting for light response"))
+    monkeypatch.setattr(command_service, "control_light", mock)
+
+    response = client.post(f"/api/v1/plant-control/{pot_id}/light", json={"on": False})
+
+    assert response.status_code == 504
+    assert response.json() == {"detail": "Timed out waiting for light response"}
+    mock.assert_awaited_once()
+
+
+def test_control_light_endpoint_service_error(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pot_id = "pot-light-error"
+    mock = AsyncMock(side_effect=CommandServiceError("MQTT manager is not connected"))
+    monkeypatch.setattr(command_service, "control_light", mock)
+
+    response = client.post(f"/api/v1/plant-control/{pot_id}/light", json={"on": True})
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "MQTT manager is not connected"}
+    mock.assert_awaited_once()
+
+
 def test_get_pump_status_endpoint_success(client: TestClient) -> None:
     pot_id = "pot-status"
     snapshot = PumpStatusSnapshot(
@@ -312,6 +358,7 @@ def test_get_pump_status_endpoint_success(client: TestClient) -> None:
         pump_on=True,
         fan_on=False,
         mister_on=True,
+        light_on=False,
         request_id="req-42",
         timestamp="2025-10-14T12:00:00.000Z",
         timestamp_ms=1_700_000_000_000,
@@ -328,6 +375,7 @@ def test_get_pump_status_endpoint_success(client: TestClient) -> None:
         "pumpOn": True,
         "fanOn": False,
         "misterOn": True,
+        "lightOn": False,
         "requestId": "req-42",
         "timestamp": "2025-10-14T12:00:00.000Z",
         "timestampMs": 1_700_000_000_000,
@@ -340,3 +388,47 @@ def test_get_pump_status_endpoint_missing(client: TestClient) -> None:
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Pump status unavailable"}
+
+
+def test_get_plant_schedule_endpoint_returns_defaults(client: TestClient) -> None:
+    response = client.get("/api/v1/plant-control/pot-schedule/schedule")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["potId"] == "pot-schedule"
+    assert payload["light"] == {"enabled": False, "startTime": "06:00", "endTime": "20:00"}
+    assert payload["pump"] == {"enabled": False, "startTime": "07:00", "endTime": "07:15"}
+    assert payload["mister"] == {"enabled": False, "startTime": "08:00", "endTime": "08:15"}
+    assert payload["fan"] == {"enabled": False, "startTime": "09:00", "endTime": "18:00"}
+    assert isinstance(payload["updatedAt"], str)
+    assert payload["updatedAt"]
+
+
+def test_update_plant_schedule_endpoint_persists_per_pot(client: TestClient) -> None:
+    update_payload = {
+        "light": {"enabled": True, "startTime": "06:00", "endTime": "12:00"},
+        "pump": {"enabled": True, "startTime": "07:30", "endTime": "07:45"},
+        "mister": {"enabled": True, "startTime": "08:15", "endTime": "08:45"},
+        "fan": {"enabled": False, "startTime": "09:00", "endTime": "18:00"},
+    }
+
+    response = client.put("/api/v1/plant-control/Pot-42/schedule", json=update_payload)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["potId"] == "pot-42"
+    assert payload["light"] == update_payload["light"]
+    assert payload["pump"] == update_payload["pump"]
+    assert payload["mister"] == update_payload["mister"]
+    assert payload["fan"] == update_payload["fan"]
+    assert isinstance(payload["updatedAt"], str)
+    assert payload["updatedAt"]
+
+    fetch_updated = client.get("/api/v1/plant-control/pot-42/schedule")
+    assert fetch_updated.status_code == 200
+    assert fetch_updated.json()["light"] == update_payload["light"]
+
+    fetch_other = client.get("/api/v1/plant-control/pot-other/schedule")
+    assert fetch_other.status_code == 200
+    assert fetch_other.json()["light"] == {"enabled": False, "startTime": "06:00", "endTime": "20:00"}
+    assert fetch_other.json()["mister"] == {"enabled": False, "startTime": "08:00", "endTime": "08:15"}

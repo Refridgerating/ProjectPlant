@@ -1,0 +1,155 @@
+[
+  {
+    "id": "monstera_deliciosa",
+    "target": {
+      "taxon": {
+        "canonicalName": "Monstera deliciosa",
+        "powoId": "327761-2",
+        "inatId": 122521,
+        "gbifId": "2868241"
+      }
+    },
+    "expected": {},
+    "notes": "Tropical understory aroid; bright indirect, medium water, high humidity, mild minimum temps."
+  },
+  {
+    "id": "carnegiea_gigantea",
+    "target": {
+      "taxon": {
+        "canonicalName": "Carnegiea gigantea",
+        "powoId": "304464-2",
+        "inatId": 54449,
+        "gbifId": "2877446"
+      }
+    },
+    "expected": {
+      "habits": [
+        "tree",
+        "cactus"
+      ]
+    },
+    "notes": "Saguaro cactus; full sun, very low water, arid, fast drainage."
+  },
+  {
+    "id": "rhododendron_catawbiense",
+    "target": {
+      "taxon": {
+        "canonicalName": "Rhododendron catawbiense",
+        "powoId": "332124-1",
+        "inatId": 49486,
+        "gbifId": "3026609"
+      }
+    },
+    "expected": {
+      "habits": [
+        "tree",
+        "shrub"
+      ]
+    },
+    "notes": "Temperate shrub; partial sun, evenly moist, acidic soil."
+  },
+  {
+    "id": "vaccinium_corymbosum",
+    "target": {
+      "taxon": {
+        "canonicalName": "Vaccinium corymbosum",
+        "powoId": "253855-1",
+        "inatId": 52740,
+        "gbifId": "2932659"
+      }
+    },
+    "expected": {},
+    "notes": "Highbush blueberry; partial sun, evenly moist, acidic, medium drainage."
+  },
+  {
+    "id": "rhizophora_mangle",
+    "target": {
+      "taxon": {
+        "canonicalName": "Rhizophora mangle",
+        "powoId": "274979-2",
+        "inatId": 60335,
+        "gbifId": "5416848"
+      }
+    },
+    "expected": {
+      "habits": [
+        "shrub",
+        "tree"
+      ]
+    },
+    "notes": "Red mangrove; full sun, standing water tolerant, saline, tropical."
+  },
+  {
+    "id": "typha_latifolia",
+    "target": {
+      "taxon": {
+        "canonicalName": "Typha latifolia",
+        "powoId": "270134-2",
+        "inatId": 48685,
+        "gbifId": "5289171"
+      }
+    },
+    "expected": {},
+    "notes": "Broadleaf cattail; aquatic/wetland, full sun, standing water OK."
+  },
+  {
+    "id": "lavandula_angustifolia",
+    "target": {
+      "taxon": {
+        "canonicalName": "Lavandula angustifolia",
+        "powoId": "449008-1",
+        "inatId": 133395,
+        "gbifId": "2923574"
+      }
+    },
+    "expected": {},
+    "notes": "Lavender; full sun, low water, fast drainage, alkaline-leaning."
+  },
+  {
+    "id": "picea_abies",
+    "target": {
+      "taxon": {
+        "canonicalName": "Picea abies",
+        "powoId": "266379-1",
+        "inatId": 63567,
+        "gbifId": "2685485"
+      }
+    },
+    "expected": {
+      "habits": [
+        "tree"
+      ]
+    },
+    "notes": "Norway spruce; full sun to partial, cold hardy, medium drainage."
+  },
+  {
+    "id": "nymphaea_odorata",
+    "target": {
+      "taxon": {
+        "canonicalName": "Nymphaea odorata",
+        "powoId": "70630-1",
+        "inatId": 51119,
+        "gbifId": "2873024"
+      }
+    },
+    "expected": {},
+    "notes": "Water lily; aquatic, full sun, standing water, neutral to slightly acidic."
+  },
+  {
+    "id": "agave_americana",
+    "target": {
+      "taxon": {
+        "canonicalName": "Agave americana",
+        "powoId": "282819-2",
+        "inatId": 64103,
+        "gbifId": "2759888"
+      }
+    },
+    "expected": {
+      "habits": [
+        "tree"
+      ]
+    },
+    "notes": "Century plant; full sun, very low water, fast drainage, drought tolerant."
+  }
+]

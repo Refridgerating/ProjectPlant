@@ -1,7 +1,8 @@
 #pragma once
 
-// Device identity (override via menuconfig or NVS in future revisions)
-#define DEVICE_ID               "pot-01"
+// Device identity defaults (derived from MAC; display name stored in NVS)
+#define DEVICE_ID_PREFIX        "pot"
+#define DEVICE_NAME_PREFIX      "Pot"
 
 // Wi-Fi credentials (placeholder - replace before flashing)
 #define WIFI_SSID               "ARRIS-D982"
@@ -33,6 +34,9 @@
 
 // Ultrasonic mister control GPIO (logic-level MOSFET)
 #define MISTER_GPIO             GPIO_NUM_33
+
+// Grow light control GPIO (relay/MOSFET)
+#define LIGHT_GPIO              GPIO_NUM_19
 
 // Sensor power switch (P-MOSFET FQP27P06 via 2N3904)
 // Logic: drive HIGH to enable sensors (pull P-MOSFET gate low via NPN)

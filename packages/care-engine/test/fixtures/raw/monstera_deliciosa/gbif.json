@@ -1,0 +1,62 @@
+{
+  "offset": 0,
+  "limit": 0,
+  "endOfRecords": false,
+  "count": 5534,
+  "results": [],
+  "facets": [
+    {
+      "field": "MONTH",
+      "counts": [
+        {
+          "name": "4",
+          "count": 679
+        },
+        {
+          "name": "5",
+          "count": 555
+        },
+        {
+          "name": "3",
+          "count": 462
+        },
+        {
+          "name": "8",
+          "count": 462
+        },
+        {
+          "name": "7",
+          "count": 447
+        },
+        {
+          "name": "9",
+          "count": 432
+        },
+        {
+          "name": "6",
+          "count": 402
+        },
+        {
+          "name": "1",
+          "count": 382
+        },
+        {
+          "name": "10",
+          "count": 381
+        },
+        {
+          "name": "2",
+          "count": 349
+        },
+        {
+          "name": "11",
+          "count": 346
+        },
+        {
+          "name": "12",
+          "count": 300
+        }
+      ]
+    }
+  ]
+}

@@ -6,6 +6,7 @@
 #include "esp_err.h"
 #include <mqtt_client.h>
 
+#include "device_identity.h"
 #include "sensors.h"
 
 typedef enum {
@@ -15,6 +16,7 @@ typedef enum {
     MQTT_CMD_SENSOR_READ,
     MQTT_CMD_FAN_OVERRIDE,
     MQTT_CMD_MISTER_OVERRIDE,
+    MQTT_CMD_LIGHT_OVERRIDE,
 } mqtt_command_type_t;
 
 #define MQTT_REQUEST_ID_MAX_LEN 64
@@ -22,9 +24,13 @@ typedef enum {
 typedef struct {
     mqtt_command_type_t type;
     char request_id[MQTT_REQUEST_ID_MAX_LEN];
+    char device_name[DEVICE_NAME_MAX_LEN];
+    bool has_sensor_mode;
+    sensor_mode_t sensor_mode;
     bool pump_on;
     bool fan_on;
     bool mister_on;
+    bool light_on;
     uint32_t duration_ms;
 } mqtt_command_t;
 

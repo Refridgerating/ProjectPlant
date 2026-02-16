@@ -1,0 +1,45 @@
+{
+  "modified": "2014-03-10T20:09:37.000Z",
+  "bibliographicCitation": "IPNI 2025. Published on the Internet http://www.ipni.org; WCVP 2025. WCVP. Facilitated by the Royal Botanic Gardens, Kew. Published on the Internet; https://powo.science.kew.org/ Retrieved 2011 onwards",
+  "genus": "Xyris",
+  "taxonomicStatus": "Heterotypic_Synonym",
+  "kingdom": "Plantae",
+  "phylum": "Streptophyta",
+  "clazz": "Equisetopsida",
+  "subclass": "Magnoliidae",
+  "order": "Poales",
+  "family": "Xyridaceae",
+  "nomenclaturalCode": "Botanical",
+  "source": "wcvp:272919",
+  "namePublishedInYear": 1933,
+  "taxonRemarks": "Brazil (Minas Gerais)",
+  "nomenclaturalStatus": "Available",
+  "lifeform": "Unknown",
+  "climate": "seasonally dry tropical",
+  "hybrid": false,
+  "plantae": true,
+  "fungi": false,
+  "accepted": {
+    "fqId": "urn:lsid:ipni.org:names:77171730-1",
+    "name": "Xyris pterygoblephara var. pterygoblephara",
+    "author": "",
+    "rank": "VARIETY",
+    "taxonomicStatus": "Accepted"
+  },
+  "synonym": true,
+  "fqId": "urn:lsid:ipni.org:names:270134-2",
+  "name": "Xyris peregrina",
+  "authors": "Malme",
+  "species": "peregrina",
+  "rank": "SPECIES",
+  "reference": "Ark. Bot. 25A(12): 9 (1933)",
+  "classification": [
+    {
+      "fqId": "urn:lsid:ipni.org:names:270134-2",
+      "name": "Xyris peregrina",
+      "author": "Malme",
+      "rank": "SPECIES",
+      "taxonomicStatus": "Heterotypic_Synonym"
+    }
+  ]
+}

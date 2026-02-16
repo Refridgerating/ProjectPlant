@@ -1,0 +1,54 @@
+{
+  "modified": "2022-07-11T23:00:00.000Z",
+  "bibliographicCitation": "IPNI 2025. Published on the Internet http://www.ipni.org; WCVP 2025. WCVP. Facilitated by the Royal Botanic Gardens, Kew. Published on the Internet; https://powo.science.kew.org/ Retrieved 2011 onwards",
+  "genus": "Cordia",
+  "taxonomicStatus": "Homotypic_Synonym",
+  "kingdom": "Plantae",
+  "phylum": "Streptophyta",
+  "clazz": "Equisetopsida",
+  "subclass": "Magnoliidae",
+  "order": "Boraginales",
+  "family": "Boraginaceae",
+  "nomenclaturalCode": "Botanical",
+  "source": "wcvp:2736917",
+  "namePublishedInYear": 1912,
+  "taxonRemarks": "Hispaniola",
+  "nomenclaturalStatus": "Available",
+  "lifeform": "shrub",
+  "climate": "wet tropical",
+  "hybrid": false,
+  "plantae": true,
+  "fungi": false,
+  "accepted": {
+    "fqId": "urn:lsid:ipni.org:names:286721-2",
+    "name": "Varronia lamprophylla",
+    "author": "(Urb.) Borhidi",
+    "rank": "SPECIES",
+    "taxonomicStatus": "Accepted"
+  },
+  "synonym": true,
+  "fqId": "urn:lsid:ipni.org:names:274979-2",
+  "name": "Cordia lamprophylla",
+  "authors": "Urb.",
+  "species": "lamprophylla",
+  "rank": "SPECIES",
+  "reference": "Symb. Antill. 7: 346 (1912)",
+  "classification": [
+    {
+      "fqId": "urn:lsid:ipni.org:names:274979-2",
+      "name": "Cordia lamprophylla",
+      "author": "Urb.",
+      "rank": "SPECIES",
+      "taxonomicStatus": "Homotypic_Synonym"
+    }
+  ],
+  "basionymOf": [
+    {
+      "fqId": "urn:lsid:ipni.org:names:286721-2",
+      "name": "Varronia lamprophylla",
+      "author": "(Urb.) Borhidi",
+      "rank": "SPECIES",
+      "taxonomicStatus": "Accepted"
+    }
+  ]
+}

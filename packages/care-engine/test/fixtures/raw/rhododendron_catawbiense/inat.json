@@ -1,0 +1,2465 @@
+{
+  "id": 49486,
+  "rank": "species",
+  "rank_level": 10,
+  "iconic_taxon_id": 47126,
+  "ancestor_ids": [
+    48460,
+    47126,
+    211194,
+    47125,
+    47124,
+    47181,
+    133387,
+    634911,
+    920521,
+    49487,
+    855418,
+    1459469,
+    1459471
+  ],
+  "is_active": true,
+  "name": "Rhododendron catawbiense",
+  "parent_id": 1459471,
+  "ancestry": "48460/47126/211194/47125/47124/47181/133387/634911/920521/49487/855418/1459469/1459471",
+  "names": [
+    {
+      "name": "Rhododendron catawbiense",
+      "locale": "sci",
+      "lexicon": "scientific-names",
+      "position": 0,
+      "is_valid": true
+    },
+    {
+      "name": "Catawba Rhododendron",
+      "locale": "en",
+      "lexicon": "english",
+      "position": 0,
+      "is_valid": true
+    },
+    {
+      "name": "parkrhododendron",
+      "locale": "nb",
+      "lexicon": "norwegian",
+      "position": 2,
+      "is_valid": true
+    },
+    {
+      "name": "pěnišník americký",
+      "locale": "cs",
+      "lexicon": "czech",
+      "position": 3,
+      "is_valid": true
+    },
+    {
+      "name": "katavba rodo",
+      "locale": "et",
+      "lexicon": "estonian",
+      "position": 4,
+      "is_valid": true
+    },
+    {
+      "name": "katavba rododendron",
+      "locale": "et",
+      "lexicon": "estonian",
+      "position": 5,
+      "is_valid": true
+    },
+    {
+      "name": "virgiinia rodo",
+      "locale": "et",
+      "lexicon": "estonian",
+      "position": 6,
+      "is_valid": true
+    },
+    {
+      "name": "virgiinia rododendron",
+      "locale": "et",
+      "lexicon": "estonian",
+      "position": 7,
+      "is_valid": true
+    },
+    {
+      "name": "parkrhododendron",
+      "locale": "sv",
+      "lexicon": "swedish",
+      "position": 8,
+      "is_valid": true
+    },
+    {
+      "name": "酒红杜鹃",
+      "locale": "zh-CN",
+      "lexicon": "chinese-simplified",
+      "position": 9,
+      "is_valid": true
+    },
+    {
+      "name": "catawbarododendron",
+      "locale": "sv",
+      "lexicon": "swedish",
+      "position": 10,
+      "is_valid": true
+    },
+    {
+      "name": "Różanecznik katawbijski",
+      "locale": "pl",
+      "lexicon": "polish",
+      "position": 11,
+      "is_valid": true
+    },
+    {
+      "name": "Рододендрон кэтевбинский",
+      "locale": "ru",
+      "lexicon": "russian",
+      "position": 12,
+      "is_valid": true
+    },
+    {
+      "name": "catawbarhododendron",
+      "locale": "da",
+      "lexicon": "danish",
+      "position": 13,
+      "is_valid": true
+    },
+    {
+      "name": "Catawba Rosebay",
+      "locale": "en",
+      "lexicon": "english",
+      "position": 14,
+      "is_valid": true
+    },
+    {
+      "name": "Mountain Rosebay",
+      "locale": "en",
+      "lexicon": "english",
+      "position": 15,
+      "is_valid": true
+    },
+    {
+      "name": "Purple Ivy",
+      "locale": "en",
+      "lexicon": "english",
+      "position": 16,
+      "is_valid": true
+    },
+    {
+      "name": "Purple Laurel",
+      "locale": "en",
+      "lexicon": "english",
+      "position": 17,
+      "is_valid": true
+    },
+    {
+      "name": "Purple Rhododendron",
+      "locale": "en",
+      "lexicon": "english",
+      "position": 18,
+      "is_valid": true
+    },
+    {
+      "name": "Red Laurel",
+      "locale": "en",
+      "lexicon": "english",
+      "position": 19,
+      "is_valid": true
+    },
+    {
+      "name": "Rosebay",
+      "locale": "en",
+      "lexicon": "english",
+      "position": 20,
+      "is_valid": true
+    },
+    {
+      "name": "Rosebay Laurel",
+      "locale": "en",
+      "lexicon": "english",
+      "position": 21,
+      "is_valid": true
+    },
+    {
+      "name": "virginianalppiruusu",
+      "locale": "fi",
+      "lexicon": "finnish",
+      "position": 22,
+      "is_valid": true
+    }
+  ],
+  "extinct": false,
+  "default_photo": {
+    "id": 86538698,
+    "license_code": "cc-by-nc",
+    "attribution": "(c) Patrick Coin, some rights reserved (CC BY-NC)",
+    "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/square.jpg",
+    "original_dimensions": {
+      "height": 1365,
+      "width": 2048
+    },
+    "flags": [],
+    "attribution_name": "Patrick Coin",
+    "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/square.jpg",
+    "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/medium.jpg"
+  },
+  "taxon_changes_count": 0,
+  "taxon_schemes_count": 3,
+  "observations_count": 6800,
+  "photos_locked": false,
+  "flag_counts": {
+    "resolved": 0,
+    "unresolved": 0
+  },
+  "current_synonymous_taxon_ids": null,
+  "taxon_photos": [
+    {
+      "taxon_id": 49486,
+      "photo": {
+        "id": 86538698,
+        "license_code": "cc-by-nc",
+        "attribution": "(c) Patrick Coin, some rights reserved (CC BY-NC)",
+        "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/square.jpg",
+        "original_dimensions": {
+          "height": 1365,
+          "width": 2048
+        },
+        "flags": [],
+        "native_page_url": "https://www.flickr.com/photos/pcoin/50154260088/",
+        "native_photo_id": "50154260088",
+        "type": "LocalPhoto",
+        "attribution_name": "Patrick Coin",
+        "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/square.jpg",
+        "small_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/small.jpg",
+        "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/medium.jpg",
+        "large_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/large.jpg",
+        "original_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/original.jpg"
+      },
+      "taxon": {
+        "id": 49486,
+        "rank": "species",
+        "rank_level": 10,
+        "iconic_taxon_id": 47126,
+        "ancestor_ids": [
+          48460,
+          47126,
+          211194,
+          47125,
+          47124,
+          47181,
+          133387,
+          634911,
+          920521,
+          49487,
+          855418,
+          1459469,
+          1459471,
+          49486
+        ],
+        "is_active": true,
+        "name": "Rhododendron catawbiense",
+        "parent_id": 1459471,
+        "ancestry": "48460/47126/211194/47125/47124/47181/133387/634911/920521/49487/855418/1459469/1459471",
+        "names": [
+          {
+            "name": "Rhododendron catawbiense",
+            "locale": "sci",
+            "lexicon": "scientific-names",
+            "position": 0,
+            "is_valid": true
+          },
+          {
+            "name": "Catawba Rhododendron",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 0,
+            "is_valid": true
+          },
+          {
+            "name": "parkrhododendron",
+            "locale": "nb",
+            "lexicon": "norwegian",
+            "position": 2,
+            "is_valid": true
+          },
+          {
+            "name": "pěnišník americký",
+            "locale": "cs",
+            "lexicon": "czech",
+            "position": 3,
+            "is_valid": true
+          },
+          {
+            "name": "katavba rodo",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 4,
+            "is_valid": true
+          },
+          {
+            "name": "katavba rododendron",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 5,
+            "is_valid": true
+          },
+          {
+            "name": "virgiinia rodo",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 6,
+            "is_valid": true
+          },
+          {
+            "name": "virgiinia rododendron",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 7,
+            "is_valid": true
+          },
+          {
+            "name": "parkrhododendron",
+            "locale": "sv",
+            "lexicon": "swedish",
+            "position": 8,
+            "is_valid": true
+          },
+          {
+            "name": "酒红杜鹃",
+            "locale": "zh-CN",
+            "lexicon": "chinese-simplified",
+            "position": 9,
+            "is_valid": true
+          },
+          {
+            "name": "catawbarododendron",
+            "locale": "sv",
+            "lexicon": "swedish",
+            "position": 10,
+            "is_valid": true
+          },
+          {
+            "name": "Różanecznik katawbijski",
+            "locale": "pl",
+            "lexicon": "polish",
+            "position": 11,
+            "is_valid": true
+          },
+          {
+            "name": "Рододендрон кэтевбинский",
+            "locale": "ru",
+            "lexicon": "russian",
+            "position": 12,
+            "is_valid": true
+          },
+          {
+            "name": "catawbarhododendron",
+            "locale": "da",
+            "lexicon": "danish",
+            "position": 13,
+            "is_valid": true
+          },
+          {
+            "name": "Catawba Rosebay",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 14,
+            "is_valid": true
+          },
+          {
+            "name": "Mountain Rosebay",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 15,
+            "is_valid": true
+          },
+          {
+            "name": "Purple Ivy",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 16,
+            "is_valid": true
+          },
+          {
+            "name": "Purple Laurel",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 17,
+            "is_valid": true
+          },
+          {
+            "name": "Purple Rhododendron",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 18,
+            "is_valid": true
+          },
+          {
+            "name": "Red Laurel",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 19,
+            "is_valid": true
+          },
+          {
+            "name": "Rosebay",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 20,
+            "is_valid": true
+          },
+          {
+            "name": "Rosebay Laurel",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 21,
+            "is_valid": true
+          },
+          {
+            "name": "virginianalppiruusu",
+            "locale": "fi",
+            "lexicon": "finnish",
+            "position": 22,
+            "is_valid": true
+          }
+        ],
+        "extinct": false,
+        "default_photo": {
+          "id": 86538698,
+          "license_code": "cc-by-nc",
+          "attribution": "(c) Patrick Coin, some rights reserved (CC BY-NC)",
+          "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/square.jpg",
+          "original_dimensions": {
+            "height": 1365,
+            "width": 2048
+          },
+          "flags": [],
+          "attribution_name": "Patrick Coin",
+          "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/square.jpg",
+          "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/medium.jpg"
+        },
+        "taxon_changes_count": 0,
+        "taxon_schemes_count": 3,
+        "observations_count": 6800,
+        "photos_locked": false,
+        "flag_counts": {
+          "resolved": 0,
+          "unresolved": 0
+        },
+        "current_synonymous_taxon_ids": null,
+        "atlas_id": 25526,
+        "complete_species_count": null,
+        "wikipedia_url": "http://en.wikipedia.org/wiki/Rhododendron_catawbiense",
+        "iconic_taxon_name": "Plantae",
+        "preferred_common_name": "Catawba Rhododendron"
+      }
+    },
+    {
+      "taxon_id": 49486,
+      "photo": {
+        "id": 10989,
+        "license_code": "cc-by-nc",
+        "attribution": "(c) Lindley Ashline, some rights reserved (CC BY-NC)",
+        "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/10989/square.jpg",
+        "original_dimensions": {
+          "height": 538,
+          "width": 444
+        },
+        "flags": [],
+        "native_page_url": "http://www.flickr.com/photos/98083017@N00/108167422",
+        "native_photo_id": "108167422",
+        "type": "LocalPhoto",
+        "attribution_name": "Lindley Ashline",
+        "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/10989/square.jpg",
+        "small_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/10989/small.jpg",
+        "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/10989/medium.jpg",
+        "large_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/10989/large.jpg",
+        "original_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/10989/original.jpg"
+      },
+      "taxon": {
+        "id": 49486,
+        "rank": "species",
+        "rank_level": 10,
+        "iconic_taxon_id": 47126,
+        "ancestor_ids": [
+          48460,
+          47126,
+          211194,
+          47125,
+          47124,
+          47181,
+          133387,
+          634911,
+          920521,
+          49487,
+          855418,
+          1459469,
+          1459471,
+          49486
+        ],
+        "is_active": true,
+        "name": "Rhododendron catawbiense",
+        "parent_id": 1459471,
+        "ancestry": "48460/47126/211194/47125/47124/47181/133387/634911/920521/49487/855418/1459469/1459471",
+        "names": [
+          {
+            "name": "Rhododendron catawbiense",
+            "locale": "sci",
+            "lexicon": "scientific-names",
+            "position": 0,
+            "is_valid": true
+          },
+          {
+            "name": "Catawba Rhododendron",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 0,
+            "is_valid": true
+          },
+          {
+            "name": "parkrhododendron",
+            "locale": "nb",
+            "lexicon": "norwegian",
+            "position": 2,
+            "is_valid": true
+          },
+          {
+            "name": "pěnišník americký",
+            "locale": "cs",
+            "lexicon": "czech",
+            "position": 3,
+            "is_valid": true
+          },
+          {
+            "name": "katavba rodo",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 4,
+            "is_valid": true
+          },
+          {
+            "name": "katavba rododendron",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 5,
+            "is_valid": true
+          },
+          {
+            "name": "virgiinia rodo",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 6,
+            "is_valid": true
+          },
+          {
+            "name": "virgiinia rododendron",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 7,
+            "is_valid": true
+          },
+          {
+            "name": "parkrhododendron",
+            "locale": "sv",
+            "lexicon": "swedish",
+            "position": 8,
+            "is_valid": true
+          },
+          {
+            "name": "酒红杜鹃",
+            "locale": "zh-CN",
+            "lexicon": "chinese-simplified",
+            "position": 9,
+            "is_valid": true
+          },
+          {
+            "name": "catawbarododendron",
+            "locale": "sv",
+            "lexicon": "swedish",
+            "position": 10,
+            "is_valid": true
+          },
+          {
+            "name": "Różanecznik katawbijski",
+            "locale": "pl",
+            "lexicon": "polish",
+            "position": 11,
+            "is_valid": true
+          },
+          {
+            "name": "Рододендрон кэтевбинский",
+            "locale": "ru",
+            "lexicon": "russian",
+            "position": 12,
+            "is_valid": true
+          },
+          {
+            "name": "catawbarhododendron",
+            "locale": "da",
+            "lexicon": "danish",
+            "position": 13,
+            "is_valid": true
+          },
+          {
+            "name": "Catawba Rosebay",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 14,
+            "is_valid": true
+          },
+          {
+            "name": "Mountain Rosebay",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 15,
+            "is_valid": true
+          },
+          {
+            "name": "Purple Ivy",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 16,
+            "is_valid": true
+          },
+          {
+            "name": "Purple Laurel",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 17,
+            "is_valid": true
+          },
+          {
+            "name": "Purple Rhododendron",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 18,
+            "is_valid": true
+          },
+          {
+            "name": "Red Laurel",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 19,
+            "is_valid": true
+          },
+          {
+            "name": "Rosebay",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 20,
+            "is_valid": true
+          },
+          {
+            "name": "Rosebay Laurel",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 21,
+            "is_valid": true
+          },
+          {
+            "name": "virginianalppiruusu",
+            "locale": "fi",
+            "lexicon": "finnish",
+            "position": 22,
+            "is_valid": true
+          }
+        ],
+        "extinct": false,
+        "default_photo": {
+          "id": 86538698,
+          "license_code": "cc-by-nc",
+          "attribution": "(c) Patrick Coin, some rights reserved (CC BY-NC)",
+          "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/square.jpg",
+          "original_dimensions": {
+            "height": 1365,
+            "width": 2048
+          },
+          "flags": [],
+          "attribution_name": "Patrick Coin",
+          "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/square.jpg",
+          "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/medium.jpg"
+        },
+        "taxon_changes_count": 0,
+        "taxon_schemes_count": 3,
+        "observations_count": 6800,
+        "photos_locked": false,
+        "flag_counts": {
+          "resolved": 0,
+          "unresolved": 0
+        },
+        "current_synonymous_taxon_ids": null,
+        "atlas_id": 25526,
+        "complete_species_count": null,
+        "wikipedia_url": "http://en.wikipedia.org/wiki/Rhododendron_catawbiense",
+        "iconic_taxon_name": "Plantae",
+        "preferred_common_name": "Catawba Rhododendron"
+      }
+    },
+    {
+      "taxon_id": 49486,
+      "photo": {
+        "id": 203999473,
+        "license_code": "cc-by-nc",
+        "attribution": "(c) Andy Bridges, some rights reserved (CC BY-NC), uploaded by Andy Bridges",
+        "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/203999473/square.jpeg",
+        "original_dimensions": {
+          "height": 2048,
+          "width": 1414
+        },
+        "flags": [],
+        "native_page_url": null,
+        "native_photo_id": null,
+        "type": "LocalPhoto",
+        "attribution_name": "Andy Bridges",
+        "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/203999473/square.jpeg",
+        "small_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/203999473/small.jpeg",
+        "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/203999473/medium.jpeg",
+        "large_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/203999473/large.jpeg",
+        "original_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/203999473/original.jpeg"
+      },
+      "taxon": {
+        "id": 49486,
+        "rank": "species",
+        "rank_level": 10,
+        "iconic_taxon_id": 47126,
+        "ancestor_ids": [
+          48460,
+          47126,
+          211194,
+          47125,
+          47124,
+          47181,
+          133387,
+          634911,
+          920521,
+          49487,
+          855418,
+          1459469,
+          1459471,
+          49486
+        ],
+        "is_active": true,
+        "name": "Rhododendron catawbiense",
+        "parent_id": 1459471,
+        "ancestry": "48460/47126/211194/47125/47124/47181/133387/634911/920521/49487/855418/1459469/1459471",
+        "names": [
+          {
+            "name": "Rhododendron catawbiense",
+            "locale": "sci",
+            "lexicon": "scientific-names",
+            "position": 0,
+            "is_valid": true
+          },
+          {
+            "name": "Catawba Rhododendron",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 0,
+            "is_valid": true
+          },
+          {
+            "name": "parkrhododendron",
+            "locale": "nb",
+            "lexicon": "norwegian",
+            "position": 2,
+            "is_valid": true
+          },
+          {
+            "name": "pěnišník americký",
+            "locale": "cs",
+            "lexicon": "czech",
+            "position": 3,
+            "is_valid": true
+          },
+          {
+            "name": "katavba rodo",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 4,
+            "is_valid": true
+          },
+          {
+            "name": "katavba rododendron",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 5,
+            "is_valid": true
+          },
+          {
+            "name": "virgiinia rodo",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 6,
+            "is_valid": true
+          },
+          {
+            "name": "virgiinia rododendron",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 7,
+            "is_valid": true
+          },
+          {
+            "name": "parkrhododendron",
+            "locale": "sv",
+            "lexicon": "swedish",
+            "position": 8,
+            "is_valid": true
+          },
+          {
+            "name": "酒红杜鹃",
+            "locale": "zh-CN",
+            "lexicon": "chinese-simplified",
+            "position": 9,
+            "is_valid": true
+          },
+          {
+            "name": "catawbarododendron",
+            "locale": "sv",
+            "lexicon": "swedish",
+            "position": 10,
+            "is_valid": true
+          },
+          {
+            "name": "Różanecznik katawbijski",
+            "locale": "pl",
+            "lexicon": "polish",
+            "position": 11,
+            "is_valid": true
+          },
+          {
+            "name": "Рододендрон кэтевбинский",
+            "locale": "ru",
+            "lexicon": "russian",
+            "position": 12,
+            "is_valid": true
+          },
+          {
+            "name": "catawbarhododendron",
+            "locale": "da",
+            "lexicon": "danish",
+            "position": 13,
+            "is_valid": true
+          },
+          {
+            "name": "Catawba Rosebay",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 14,
+            "is_valid": true
+          },
+          {
+            "name": "Mountain Rosebay",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 15,
+            "is_valid": true
+          },
+          {
+            "name": "Purple Ivy",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 16,
+            "is_valid": true
+          },
+          {
+            "name": "Purple Laurel",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 17,
+            "is_valid": true
+          },
+          {
+            "name": "Purple Rhododendron",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 18,
+            "is_valid": true
+          },
+          {
+            "name": "Red Laurel",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 19,
+            "is_valid": true
+          },
+          {
+            "name": "Rosebay",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 20,
+            "is_valid": true
+          },
+          {
+            "name": "Rosebay Laurel",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 21,
+            "is_valid": true
+          },
+          {
+            "name": "virginianalppiruusu",
+            "locale": "fi",
+            "lexicon": "finnish",
+            "position": 22,
+            "is_valid": true
+          }
+        ],
+        "extinct": false,
+        "default_photo": {
+          "id": 86538698,
+          "license_code": "cc-by-nc",
+          "attribution": "(c) Patrick Coin, some rights reserved (CC BY-NC)",
+          "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/square.jpg",
+          "original_dimensions": {
+            "height": 1365,
+            "width": 2048
+          },
+          "flags": [],
+          "attribution_name": "Patrick Coin",
+          "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/square.jpg",
+          "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/medium.jpg"
+        },
+        "taxon_changes_count": 0,
+        "taxon_schemes_count": 3,
+        "observations_count": 6800,
+        "photos_locked": false,
+        "flag_counts": {
+          "resolved": 0,
+          "unresolved": 0
+        },
+        "current_synonymous_taxon_ids": null,
+        "atlas_id": 25526,
+        "complete_species_count": null,
+        "wikipedia_url": "http://en.wikipedia.org/wiki/Rhododendron_catawbiense",
+        "iconic_taxon_name": "Plantae",
+        "preferred_common_name": "Catawba Rhododendron"
+      }
+    },
+    {
+      "taxon_id": 49486,
+      "photo": {
+        "id": 160875925,
+        "license_code": "cc-by-nc",
+        "attribution": "(c) emmafagerberg, some rights reserved (CC BY-NC)",
+        "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/160875925/square.jpg",
+        "original_dimensions": {
+          "height": 2048,
+          "width": 1536
+        },
+        "flags": [],
+        "native_page_url": null,
+        "native_photo_id": null,
+        "type": "LocalPhoto",
+        "attribution_name": "emmafagerberg",
+        "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/160875925/square.jpg",
+        "small_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/160875925/small.jpg",
+        "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/160875925/medium.jpg",
+        "large_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/160875925/large.jpg",
+        "original_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/160875925/original.jpg"
+      },
+      "taxon": {
+        "id": 49486,
+        "rank": "species",
+        "rank_level": 10,
+        "iconic_taxon_id": 47126,
+        "ancestor_ids": [
+          48460,
+          47126,
+          211194,
+          47125,
+          47124,
+          47181,
+          133387,
+          634911,
+          920521,
+          49487,
+          855418,
+          1459469,
+          1459471,
+          49486
+        ],
+        "is_active": true,
+        "name": "Rhododendron catawbiense",
+        "parent_id": 1459471,
+        "ancestry": "48460/47126/211194/47125/47124/47181/133387/634911/920521/49487/855418/1459469/1459471",
+        "names": [
+          {
+            "name": "Rhododendron catawbiense",
+            "locale": "sci",
+            "lexicon": "scientific-names",
+            "position": 0,
+            "is_valid": true
+          },
+          {
+            "name": "Catawba Rhododendron",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 0,
+            "is_valid": true
+          },
+          {
+            "name": "parkrhododendron",
+            "locale": "nb",
+            "lexicon": "norwegian",
+            "position": 2,
+            "is_valid": true
+          },
+          {
+            "name": "pěnišník americký",
+            "locale": "cs",
+            "lexicon": "czech",
+            "position": 3,
+            "is_valid": true
+          },
+          {
+            "name": "katavba rodo",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 4,
+            "is_valid": true
+          },
+          {
+            "name": "katavba rododendron",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 5,
+            "is_valid": true
+          },
+          {
+            "name": "virgiinia rodo",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 6,
+            "is_valid": true
+          },
+          {
+            "name": "virgiinia rododendron",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 7,
+            "is_valid": true
+          },
+          {
+            "name": "parkrhododendron",
+            "locale": "sv",
+            "lexicon": "swedish",
+            "position": 8,
+            "is_valid": true
+          },
+          {
+            "name": "酒红杜鹃",
+            "locale": "zh-CN",
+            "lexicon": "chinese-simplified",
+            "position": 9,
+            "is_valid": true
+          },
+          {
+            "name": "catawbarododendron",
+            "locale": "sv",
+            "lexicon": "swedish",
+            "position": 10,
+            "is_valid": true
+          },
+          {
+            "name": "Różanecznik katawbijski",
+            "locale": "pl",
+            "lexicon": "polish",
+            "position": 11,
+            "is_valid": true
+          },
+          {
+            "name": "Рододендрон кэтевбинский",
+            "locale": "ru",
+            "lexicon": "russian",
+            "position": 12,
+            "is_valid": true
+          },
+          {
+            "name": "catawbarhododendron",
+            "locale": "da",
+            "lexicon": "danish",
+            "position": 13,
+            "is_valid": true
+          },
+          {
+            "name": "Catawba Rosebay",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 14,
+            "is_valid": true
+          },
+          {
+            "name": "Mountain Rosebay",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 15,
+            "is_valid": true
+          },
+          {
+            "name": "Purple Ivy",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 16,
+            "is_valid": true
+          },
+          {
+            "name": "Purple Laurel",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 17,
+            "is_valid": true
+          },
+          {
+            "name": "Purple Rhododendron",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 18,
+            "is_valid": true
+          },
+          {
+            "name": "Red Laurel",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 19,
+            "is_valid": true
+          },
+          {
+            "name": "Rosebay",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 20,
+            "is_valid": true
+          },
+          {
+            "name": "Rosebay Laurel",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 21,
+            "is_valid": true
+          },
+          {
+            "name": "virginianalppiruusu",
+            "locale": "fi",
+            "lexicon": "finnish",
+            "position": 22,
+            "is_valid": true
+          }
+        ],
+        "extinct": false,
+        "default_photo": {
+          "id": 86538698,
+          "license_code": "cc-by-nc",
+          "attribution": "(c) Patrick Coin, some rights reserved (CC BY-NC)",
+          "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/square.jpg",
+          "original_dimensions": {
+            "height": 1365,
+            "width": 2048
+          },
+          "flags": [],
+          "attribution_name": "Patrick Coin",
+          "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/square.jpg",
+          "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/medium.jpg"
+        },
+        "taxon_changes_count": 0,
+        "taxon_schemes_count": 3,
+        "observations_count": 6800,
+        "photos_locked": false,
+        "flag_counts": {
+          "resolved": 0,
+          "unresolved": 0
+        },
+        "current_synonymous_taxon_ids": null,
+        "atlas_id": 25526,
+        "complete_species_count": null,
+        "wikipedia_url": "http://en.wikipedia.org/wiki/Rhododendron_catawbiense",
+        "iconic_taxon_name": "Plantae",
+        "preferred_common_name": "Catawba Rhododendron"
+      }
+    },
+    {
+      "taxon_id": 49486,
+      "photo": {
+        "id": 1394676,
+        "license_code": "cc-by-nc-nd",
+        "attribution": "(c) jocelyndale, some rights reserved (CC BY-NC-ND)",
+        "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/1394676/square.jpg",
+        "original_dimensions": {
+          "height": 1536,
+          "width": 2048
+        },
+        "flags": [],
+        "native_page_url": "https://www.flickr.com/photos/jocelyndale/4625704348/",
+        "native_photo_id": "4625704348",
+        "type": "LocalPhoto",
+        "attribution_name": "jocelyndale",
+        "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/1394676/square.jpg",
+        "small_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/1394676/small.jpg",
+        "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/1394676/medium.jpg",
+        "large_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/1394676/large.jpg",
+        "original_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/1394676/original.jpg"
+      },
+      "taxon": {
+        "id": 49486,
+        "rank": "species",
+        "rank_level": 10,
+        "iconic_taxon_id": 47126,
+        "ancestor_ids": [
+          48460,
+          47126,
+          211194,
+          47125,
+          47124,
+          47181,
+          133387,
+          634911,
+          920521,
+          49487,
+          855418,
+          1459469,
+          1459471,
+          49486
+        ],
+        "is_active": true,
+        "name": "Rhododendron catawbiense",
+        "parent_id": 1459471,
+        "ancestry": "48460/47126/211194/47125/47124/47181/133387/634911/920521/49487/855418/1459469/1459471",
+        "names": [
+          {
+            "name": "Rhododendron catawbiense",
+            "locale": "sci",
+            "lexicon": "scientific-names",
+            "position": 0,
+            "is_valid": true
+          },
+          {
+            "name": "Catawba Rhododendron",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 0,
+            "is_valid": true
+          },
+          {
+            "name": "parkrhododendron",
+            "locale": "nb",
+            "lexicon": "norwegian",
+            "position": 2,
+            "is_valid": true
+          },
+          {
+            "name": "pěnišník americký",
+            "locale": "cs",
+            "lexicon": "czech",
+            "position": 3,
+            "is_valid": true
+          },
+          {
+            "name": "katavba rodo",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 4,
+            "is_valid": true
+          },
+          {
+            "name": "katavba rododendron",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 5,
+            "is_valid": true
+          },
+          {
+            "name": "virgiinia rodo",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 6,
+            "is_valid": true
+          },
+          {
+            "name": "virgiinia rododendron",
+            "locale": "et",
+            "lexicon": "estonian",
+            "position": 7,
+            "is_valid": true
+          },
+          {
+            "name": "parkrhododendron",
+            "locale": "sv",
+            "lexicon": "swedish",
+            "position": 8,
+            "is_valid": true
+          },
+          {
+            "name": "酒红杜鹃",
+            "locale": "zh-CN",
+            "lexicon": "chinese-simplified",
+            "position": 9,
+            "is_valid": true
+          },
+          {
+            "name": "catawbarododendron",
+            "locale": "sv",
+            "lexicon": "swedish",
+            "position": 10,
+            "is_valid": true
+          },
+          {
+            "name": "Różanecznik katawbijski",
+            "locale": "pl",
+            "lexicon": "polish",
+            "position": 11,
+            "is_valid": true
+          },
+          {
+            "name": "Рододендрон кэтевбинский",
+            "locale": "ru",
+            "lexicon": "russian",
+            "position": 12,
+            "is_valid": true
+          },
+          {
+            "name": "catawbarhododendron",
+            "locale": "da",
+            "lexicon": "danish",
+            "position": 13,
+            "is_valid": true
+          },
+          {
+            "name": "Catawba Rosebay",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 14,
+            "is_valid": true
+          },
+          {
+            "name": "Mountain Rosebay",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 15,
+            "is_valid": true
+          },
+          {
+            "name": "Purple Ivy",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 16,
+            "is_valid": true
+          },
+          {
+            "name": "Purple Laurel",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 17,
+            "is_valid": true
+          },
+          {
+            "name": "Purple Rhododendron",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 18,
+            "is_valid": true
+          },
+          {
+            "name": "Red Laurel",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 19,
+            "is_valid": true
+          },
+          {
+            "name": "Rosebay",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 20,
+            "is_valid": true
+          },
+          {
+            "name": "Rosebay Laurel",
+            "locale": "en",
+            "lexicon": "english",
+            "position": 21,
+            "is_valid": true
+          },
+          {
+            "name": "virginianalppiruusu",
+            "locale": "fi",
+            "lexicon": "finnish",
+            "position": 22,
+            "is_valid": true
+          }
+        ],
+        "extinct": false,
+        "default_photo": {
+          "id": 86538698,
+          "license_code": "cc-by-nc",
+          "attribution": "(c) Patrick Coin, some rights reserved (CC BY-NC)",
+          "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/square.jpg",
+          "original_dimensions": {
+            "height": 1365,
+            "width": 2048
+          },
+          "flags": [],
+          "attribution_name": "Patrick Coin",
+          "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/square.jpg",
+          "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/86538698/medium.jpg"
+        },
+        "taxon_changes_count": 0,
+        "taxon_schemes_count": 3,
+        "observations_count": 6800,
+        "photos_locked": false,
+        "flag_counts": {
+          "resolved": 0,
+          "unresolved": 0
+        },
+        "current_synonymous_taxon_ids": null,
+        "atlas_id": 25526,
+        "complete_species_count": null,
+        "wikipedia_url": "http://en.wikipedia.org/wiki/Rhododendron_catawbiense",
+        "iconic_taxon_name": "Plantae",
+        "preferred_common_name": "Catawba Rhododendron"
+      }
+    }
+  ],
+  "atlas_id": 25526,
+  "complete_species_count": null,
+  "wikipedia_url": "https://en.wikipedia.org/wiki/Rhododendron catawbiense",
+  "iconic_taxon_name": "Plantae",
+  "preferred_common_name": "Catawba Rhododendron",
+  "ancestors": [
+    {
+      "id": 47126,
+      "rank": "kingdom",
+      "rank_level": 70,
+      "iconic_taxon_id": 47126,
+      "ancestor_ids": [
+        48460,
+        47126
+      ],
+      "is_active": true,
+      "name": "Plantae",
+      "parent_id": 48460,
+      "ancestry": "48460",
+      "extinct": false,
+      "default_photo": {
+        "id": 221143410,
+        "license_code": null,
+        "attribution": "(c) Rocío Ramírez Barrios, all rights reserved, uploaded by Rocío Ramírez Barrios",
+        "url": "https://static.inaturalist.org/photos/221143410/square.jpeg",
+        "original_dimensions": {
+          "height": 2048,
+          "width": 1462
+        },
+        "flags": [],
+        "attribution_name": "Rocío Ramírez Barrios",
+        "square_url": "https://static.inaturalist.org/photos/221143410/square.jpeg",
+        "medium_url": "https://static.inaturalist.org/photos/221143410/medium.jpeg"
+      },
+      "taxon_changes_count": 7,
+      "taxon_schemes_count": 2,
+      "observations_count": 129674600,
+      "flag_counts": {
+        "resolved": 26,
+        "unresolved": 3
+      },
+      "current_synonymous_taxon_ids": null,
+      "atlas_id": null,
+      "complete_species_count": null,
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Plant",
+      "complete_rank": "phylum",
+      "iconic_taxon_name": "Plantae",
+      "preferred_common_name": "plants"
+    },
+    {
+      "id": 211194,
+      "rank": "phylum",
+      "rank_level": 60,
+      "iconic_taxon_id": 47126,
+      "ancestor_ids": [
+        48460,
+        47126,
+        211194
+      ],
+      "is_active": true,
+      "name": "Tracheophyta",
+      "parent_id": 47126,
+      "ancestry": "48460/47126",
+      "extinct": false,
+      "default_photo": {
+        "id": 301768574,
+        "license_code": "cc-by-sa",
+        "attribution": "(c) Douglas Goldman, some rights reserved (CC BY-SA), uploaded by Douglas Goldman",
+        "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/301768574/square.jpg",
+        "original_dimensions": {
+          "height": 2048,
+          "width": 1371
+        },
+        "flags": [],
+        "attribution_name": "Douglas Goldman",
+        "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/301768574/square.jpg",
+        "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/301768574/medium.jpg"
+      },
+      "taxon_changes_count": 3,
+      "taxon_schemes_count": 2,
+      "observations_count": 125727797,
+      "flag_counts": {
+        "resolved": 7,
+        "unresolved": 2
+      },
+      "current_synonymous_taxon_ids": null,
+      "atlas_id": null,
+      "complete_species_count": null,
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Vascular_plant",
+      "iconic_taxon_name": "Plantae",
+      "preferred_common_name": "vascular plants"
+    },
+    {
+      "id": 47125,
+      "rank": "subphylum",
+      "rank_level": 57,
+      "iconic_taxon_id": 47126,
+      "ancestor_ids": [
+        48460,
+        47126,
+        211194,
+        47125
+      ],
+      "is_active": true,
+      "name": "Angiospermae",
+      "parent_id": 211194,
+      "ancestry": "48460/47126/211194",
+      "extinct": false,
+      "default_photo": {
+        "id": 272455964,
+        "license_code": "cc-by",
+        "attribution": "(c) Alan Rockefeller, some rights reserved (CC BY), uploaded by Alan Rockefeller",
+        "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/272455964/square.jpg",
+        "original_dimensions": {
+          "height": 1489,
+          "width": 2048
+        },
+        "flags": [],
+        "attribution_name": "Alan Rockefeller",
+        "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/272455964/square.jpg",
+        "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/272455964/medium.jpg"
+      },
+      "taxon_changes_count": 5,
+      "taxon_schemes_count": 2,
+      "observations_count": 118690039,
+      "flag_counts": {
+        "resolved": 13,
+        "unresolved": 1
+      },
+      "current_synonymous_taxon_ids": null,
+      "atlas_id": null,
+      "complete_species_count": null,
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Flowering_plant",
+      "iconic_taxon_name": "Plantae",
+      "preferred_common_name": "flowering plants"
+    },
+    {
+      "id": 47124,
+      "rank": "class",
+      "rank_level": 50,
+      "iconic_taxon_id": 47126,
+      "ancestor_ids": [
+        48460,
+        47126,
+        211194,
+        47125,
+        47124
+      ],
+      "is_active": true,
+      "name": "Magnoliopsida",
+      "parent_id": 47125,
+      "ancestry": "48460/47126/211194/47125",
+      "extinct": false,
+      "default_photo": {
+        "id": 95003339,
+        "license_code": "cc-by-nc",
+        "attribution": "(c) Ricardo Arredondo T., some rights reserved (CC BY-NC), uploaded by Ricardo Arredondo T.",
+        "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/95003339/square.jpeg",
+        "original_dimensions": {
+          "height": 2048,
+          "width": 2048
+        },
+        "flags": [],
+        "attribution_name": "Ricardo Arredondo T.",
+        "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/95003339/square.jpeg",
+        "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/95003339/medium.jpeg"
+      },
+      "taxon_changes_count": 4,
+      "taxon_schemes_count": 2,
+      "observations_count": 99518553,
+      "flag_counts": {
+        "resolved": 10,
+        "unresolved": 0
+      },
+      "current_synonymous_taxon_ids": null,
+      "atlas_id": null,
+      "complete_species_count": null,
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Magnoliopsida",
+      "iconic_taxon_name": "Plantae",
+      "preferred_common_name": "Dicots"
+    },
+    {
+      "id": 47181,
+      "rank": "order",
+      "rank_level": 40,
+      "iconic_taxon_id": 47126,
+      "ancestor_ids": [
+        48460,
+        47126,
+        211194,
+        47125,
+        47124,
+        47181
+      ],
+      "is_active": true,
+      "name": "Ericales",
+      "parent_id": 47124,
+      "ancestry": "48460/47126/211194/47125/47124",
+      "extinct": false,
+      "default_photo": {
+        "id": 121441132,
+        "license_code": "cc-by-nc",
+        "attribution": "(c) Apipa, some rights reserved (CC BY-NC), uploaded by Apipa",
+        "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/121441132/square.jpeg",
+        "original_dimensions": {
+          "height": 1365,
+          "width": 2048
+        },
+        "flags": [],
+        "attribution_name": "Apipa",
+        "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/121441132/square.jpeg",
+        "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/121441132/medium.jpeg"
+      },
+      "taxon_changes_count": 3,
+      "taxon_schemes_count": 2,
+      "observations_count": 4411673,
+      "flag_counts": {
+        "resolved": 1,
+        "unresolved": 0
+      },
+      "current_synonymous_taxon_ids": null,
+      "atlas_id": null,
+      "complete_species_count": null,
+      "wikipedia_url": "http://en.wikipedia.org/wiki/Ericales",
+      "iconic_taxon_name": "Plantae",
+      "preferred_common_name": "heathers, balsams, primroses, and allies"
+    },
+    {
+      "id": 133387,
+      "rank": "family",
+      "rank_level": 30,
+      "iconic_taxon_id": 47126,
+      "ancestor_ids": [
+        48460,
+        47126,
+        211194,
+        47125,
+        47124,
+        47181,
+        133387
+      ],
+      "is_active": true,
+      "name": "Ericaceae",
+      "parent_id": 47181,
+      "ancestry": "48460/47126/211194/47125/47124/47181",
+      "extinct": false,
+      "default_photo": {
+        "id": 27053770,
+        "license_code": null,
+        "attribution": "(c) Chris Whitehouse, all rights reserved, uploaded by Chris Whitehouse",
+        "url": "https://static.inaturalist.org/photos/27053770/square.jpg",
+        "original_dimensions": {
+          "height": 900,
+          "width": 1200
+        },
+        "flags": [],
+        "attribution_name": "Chris Whitehouse",
+        "square_url": "https://static.inaturalist.org/photos/27053770/square.jpg",
+        "medium_url": "https://static.inaturalist.org/photos/27053770/medium.jpg"
+      },
+      "taxon_changes_count": 0,
+      "taxon_schemes_count": 2,
+      "observations_count": 2280435,
+      "flag_counts": {
+        "resolved": 2,
+        "unresolved": 0
+      },
+      "current_synonymous_taxon_ids": null,
+      "atlas_id": null,
+      "complete_species_count": null,
+      "wikipedia_url": "http://en.wikipedia.org/wiki/Ericaceae",
+      "iconic_taxon_name": "Plantae",
+      "preferred_common_name": "heath family"
+    },
+    {
+      "id": 634911,
+      "rank": "subfamily",
+      "rank_level": 27,
+      "iconic_taxon_id": 47126,
+      "ancestor_ids": [
+        48460,
+        47126,
+        211194,
+        47125,
+        47124,
+        47181,
+        133387,
+        634911
+      ],
+      "is_active": true,
+      "name": "Ericoideae",
+      "parent_id": 133387,
+      "ancestry": "48460/47126/211194/47125/47124/47181/133387",
+      "extinct": false,
+      "default_photo": {
+        "id": 146882114,
+        "license_code": "cc-by-nc",
+        "attribution": "(c) kaatiuut, some rights reserved (CC BY-NC)",
+        "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/146882114/square.jpg",
+        "original_dimensions": {
+          "height": 2048,
+          "width": 1536
+        },
+        "flags": [],
+        "attribution_name": "kaatiuut",
+        "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/146882114/square.jpg",
+        "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/146882114/medium.jpg"
+      },
+      "taxon_changes_count": 0,
+      "taxon_schemes_count": 0,
+      "observations_count": 810831,
+      "flag_counts": {
+        "resolved": 0,
+        "unresolved": 0
+      },
+      "current_synonymous_taxon_ids": null,
+      "atlas_id": null,
+      "complete_species_count": null,
+      "wikipedia_url": "http://en.wikipedia.org/wiki/Ericoideae",
+      "iconic_taxon_name": "Plantae",
+      "preferred_common_name": "typical heathers, azaleas, and allies"
+    },
+    {
+      "id": 920521,
+      "rank": "tribe",
+      "rank_level": 25,
+      "iconic_taxon_id": 47126,
+      "ancestor_ids": [
+        48460,
+        47126,
+        211194,
+        47125,
+        47124,
+        47181,
+        133387,
+        634911,
+        920521
+      ],
+      "is_active": true,
+      "name": "Rhodoreae",
+      "parent_id": 634911,
+      "ancestry": "48460/47126/211194/47125/47124/47181/133387/634911",
+      "extinct": false,
+      "default_photo": {
+        "id": 74231358,
+        "license_code": null,
+        "attribution": "(c) Chien Lee, all rights reserved, uploaded by Chien Lee",
+        "url": "https://static.inaturalist.org/photos/74231358/square.jpg",
+        "original_dimensions": {
+          "height": 717,
+          "width": 1080
+        },
+        "flags": [],
+        "attribution_name": "Chien Lee",
+        "square_url": "https://static.inaturalist.org/photos/74231358/square.jpg",
+        "medium_url": "https://static.inaturalist.org/photos/74231358/medium.jpg"
+      },
+      "taxon_changes_count": 0,
+      "taxon_schemes_count": 0,
+      "observations_count": 367342,
+      "flag_counts": {
+        "resolved": 0,
+        "unresolved": 0
+      },
+      "current_synonymous_taxon_ids": null,
+      "atlas_id": null,
+      "complete_species_count": null,
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Rhodoreae",
+      "iconic_taxon_name": "Plantae"
+    },
+    {
+      "id": 49487,
+      "rank": "genus",
+      "rank_level": 20,
+      "iconic_taxon_id": 47126,
+      "ancestor_ids": [
+        48460,
+        47126,
+        211194,
+        47125,
+        47124,
+        47181,
+        133387,
+        634911,
+        920521,
+        49487
+      ],
+      "is_active": true,
+      "name": "Rhododendron",
+      "parent_id": 920521,
+      "ancestry": "48460/47126/211194/47125/47124/47181/133387/634911/920521",
+      "extinct": false,
+      "default_photo": {
+        "id": 132769155,
+        "license_code": null,
+        "attribution": "(c) Thomas Shellenberger, all rights reserved, uploaded by Thomas Shellenberger",
+        "url": "https://static.inaturalist.org/photos/132769155/square.jpg",
+        "original_dimensions": {
+          "height": 1504,
+          "width": 2031
+        },
+        "flags": [],
+        "attribution_name": "Thomas Shellenberger",
+        "square_url": "https://static.inaturalist.org/photos/132769155/square.jpg",
+        "medium_url": "https://static.inaturalist.org/photos/132769155/medium.jpg"
+      },
+      "taxon_changes_count": 5,
+      "taxon_schemes_count": 1,
+      "observations_count": 367281,
+      "flag_counts": {
+        "resolved": 11,
+        "unresolved": 0
+      },
+      "current_synonymous_taxon_ids": null,
+      "atlas_id": null,
+      "complete_species_count": null,
+      "wikipedia_url": "http://en.wikipedia.org/wiki/Rhododendron",
+      "iconic_taxon_name": "Plantae",
+      "preferred_common_name": "rhododendrons and azaleas"
+    },
+    {
+      "id": 855418,
+      "rank": "subgenus",
+      "rank_level": 15,
+      "iconic_taxon_id": 47126,
+      "ancestor_ids": [
+        48460,
+        47126,
+        211194,
+        47125,
+        47124,
+        47181,
+        133387,
+        634911,
+        920521,
+        49487,
+        855418
+      ],
+      "is_active": true,
+      "name": "Hymenanthes",
+      "parent_id": 49487,
+      "ancestry": "48460/47126/211194/47125/47124/47181/133387/634911/920521/49487",
+      "extinct": false,
+      "default_photo": {
+        "id": 128851416,
+        "license_code": "cc-by-nc",
+        "attribution": "(c) janetoro, some rights reserved (CC BY-NC)",
+        "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/128851416/square.jpg",
+        "original_dimensions": {
+          "height": 2048,
+          "width": 1536
+        },
+        "flags": [],
+        "attribution_name": "janetoro",
+        "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/128851416/square.jpg",
+        "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/128851416/medium.jpg"
+      },
+      "taxon_changes_count": 0,
+      "taxon_schemes_count": 1,
+      "observations_count": 124787,
+      "flag_counts": {
+        "resolved": 0,
+        "unresolved": 0
+      },
+      "current_synonymous_taxon_ids": null,
+      "atlas_id": null,
+      "complete_species_count": null,
+      "wikipedia_url": "http://en.wikipedia.org/wiki/Rhododendron_subg._Hymenanthes",
+      "iconic_taxon_name": "Plantae"
+    },
+    {
+      "id": 1459469,
+      "rank": "section",
+      "rank_level": 13,
+      "iconic_taxon_id": 47126,
+      "ancestor_ids": [
+        48460,
+        47126,
+        211194,
+        47125,
+        47124,
+        47181,
+        133387,
+        634911,
+        920521,
+        49487,
+        855418,
+        1459469
+      ],
+      "is_active": true,
+      "name": "Pontica",
+      "parent_id": 855418,
+      "ancestry": "48460/47126/211194/47125/47124/47181/133387/634911/920521/49487/855418",
+      "extinct": false,
+      "default_photo": {
+        "id": 2012349,
+        "license_code": "cc-by-nc",
+        "attribution": "(c) Wendy Feltham, some rights reserved (CC BY-NC), uploaded by Wendy Feltham",
+        "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/2012349/square.jpg",
+        "original_dimensions": {
+          "height": 480,
+          "width": 640
+        },
+        "flags": [],
+        "attribution_name": "Wendy Feltham",
+        "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/2012349/square.jpg",
+        "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/2012349/medium.jpg"
+      },
+      "taxon_changes_count": 0,
+      "taxon_schemes_count": 0,
+      "observations_count": 67303,
+      "flag_counts": {
+        "resolved": 0,
+        "unresolved": 0
+      },
+      "current_synonymous_taxon_ids": null,
+      "atlas_id": null,
+      "complete_species_count": null,
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Pontus_(region)",
+      "iconic_taxon_name": "Plantae",
+      "preferred_common_name": "Section Pontica"
+    },
+    {
+      "id": 1459471,
+      "rank": "subsection",
+      "rank_level": 12,
+      "iconic_taxon_id": 47126,
+      "ancestor_ids": [
+        48460,
+        47126,
+        211194,
+        47125,
+        47124,
+        47181,
+        133387,
+        634911,
+        920521,
+        49487,
+        855418,
+        1459469,
+        1459471
+      ],
+      "is_active": true,
+      "name": "Pontica",
+      "parent_id": 1459469,
+      "ancestry": "48460/47126/211194/47125/47124/47181/133387/634911/920521/49487/855418/1459469",
+      "extinct": false,
+      "default_photo": {
+        "id": 62721230,
+        "license_code": "cc-by-nc",
+        "attribution": "(c) Pyak Andrei, some rights reserved (CC BY-NC), uploaded by Pyak Andrei",
+        "url": "https://inaturalist-open-data.s3.amazonaws.com/photos/62721230/square.jpeg",
+        "original_dimensions": {
+          "height": 1536,
+          "width": 2048
+        },
+        "flags": [],
+        "attribution_name": "Pyak Andrei",
+        "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/62721230/square.jpeg",
+        "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/62721230/medium.jpeg"
+      },
+      "taxon_changes_count": 0,
+      "taxon_schemes_count": 0,
+      "observations_count": 60465,
+      "flag_counts": {
+        "resolved": 0,
+        "unresolved": 0
+      },
+      "current_synonymous_taxon_ids": null,
+      "atlas_id": null,
+      "complete_species_count": null,
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Pontus_(region)",
+      "iconic_taxon_name": "Plantae",
+      "preferred_common_name": "Subsection Pontica"
+    }
+  ],
+  "conservation_statuses": [
+    {
+      "id": 212792,
+      "taxon_id": 49486,
+      "taxon_name": "Rhododendron catawbiense",
+      "taxon_rank": "species",
+      "status": "LC",
+      "authority": "IUCN Red List",
+      "iucn": 10,
+      "url": "https://www.iucnredlist.org/species/156821604/156821606",
+      "description": null,
+      "source_id": null,
+      "geoprivacy": "open",
+      "updater_id": null,
+      "created_at": "2021-09-28T12:24:50+00:00",
+      "updated_at": "2021-09-28T12:24:50+00:00",
+      "place": null
+    },
+    {
+      "id": 266306,
+      "taxon_id": 49486,
+      "taxon_name": "Rhododendron catawbiense",
+      "taxon_rank": "species",
+      "status": "S1",
+      "authority": "NatureServe",
+      "iucn": 50,
+      "url": "https://explorer.natureserve.org/Taxon/ELEMENT_GLOBAL.2.156823/Rhododendron_catawbiense",
+      "description": null,
+      "source_id": null,
+      "geoprivacy": "obscured",
+      "updater_id": 4368216,
+      "created_at": "2022-07-25T00:15:43+00:00",
+      "updated_at": "2022-07-25T00:15:43+00:00",
+      "user": {
+        "id": 4368216,
+        "login": "karounosofsparta",
+        "icon_url": null,
+        "orcid": null
+      },
+      "updater": {
+        "id": 4368216,
+        "login": "karounosofsparta",
+        "icon_url": null,
+        "orcid": null
+      },
+      "place": {
+        "id": 43,
+        "name": "South Carolina",
+        "display_name": "South Carolina, US",
+        "admin_level": 10,
+        "ancestor_place_ids": [
+          97394,
+          1,
+          43
+        ]
+      }
+    },
+    {
+      "id": 266307,
+      "taxon_id": 49486,
+      "taxon_name": "Rhododendron catawbiense",
+      "taxon_rank": "species",
+      "status": "S3",
+      "authority": "NatureServe",
+      "iucn": 30,
+      "url": "https://explorer.natureserve.org/Taxon/ELEMENT_GLOBAL.2.156823/Rhododendron_catawbiense",
+      "description": null,
+      "source_id": null,
+      "geoprivacy": "open",
+      "updater_id": 395895,
+      "created_at": "2022-07-25T00:17:17+00:00",
+      "updated_at": "2024-03-25T03:00:54+00:00",
+      "user": {
+        "id": 4368216,
+        "login": "karounosofsparta",
+        "icon_url": null,
+        "orcid": null
+      },
+      "updater": {
+        "id": 395895,
+        "login": "wildlander",
+        "icon_url": null,
+        "orcid": null
+      },
+      "place": {
+        "id": 26,
+        "name": "Kentucky",
+        "display_name": "Kentucky, US",
+        "admin_level": 10,
+        "ancestor_place_ids": [
+          97394,
+          1,
+          26
+        ]
+      }
+    },
+    {
+      "id": 64663,
+      "taxon_id": 49486,
+      "taxon_name": "Rhododendron catawbiense",
+      "taxon_rank": "species",
+      "status": "W6-Sandhills",
+      "authority": "North Carolina Natural Heritage Program",
+      "iucn": 10,
+      "url": "http://portal.ncdenr.org/web/nhp/nhp-publications#rare-plant-and-animal-list",
+      "description": "Watch List: Regionally rare in the NC Sandhills. Includes species which are rare in one region of North Carolina, while being uncommon to abundant within another region. These regional rarities, generally within-state disjuncts, are significant for protection of genetic variation and long-term viability of species.",
+      "source_id": null,
+      "geoprivacy": "open",
+      "updater_id": 395895,
+      "created_at": "2014-05-20T19:10:31+00:00",
+      "updated_at": "2024-03-25T03:00:59+00:00",
+      "updater": {
+        "id": 395895,
+        "login": "wildlander",
+        "icon_url": null,
+        "orcid": null
+      },
+      "place": {
+        "id": 63889,
+        "name": "NC Sandhills",
+        "display_name": "NC Sandhills, NC, US",
+        "admin_level": null,
+        "ancestor_place_ids": [
+          97394,
+          1,
+          30,
+          63889
+        ]
+      }
+    },
+    {
+      "id": 63962,
+      "taxon_id": 49486,
+      "taxon_name": "Rhododendron catawbiense",
+      "taxon_rank": "species",
+      "status": "W6-Piedmont",
+      "authority": "North Carolina Natural Heritage Program",
+      "iucn": 10,
+      "url": "http://portal.ncdenr.org/web/nhp/nhp-publications#rare-plant-and-animal-list",
+      "description": "Watch List: Regionally rare in the NC Piedmont. Includes species which are rare in one region of North Carolina, while being uncommon to abundant within another region. These regional rarities, generally within-state disjuncts, are significant for protection of genetic variation and long-term viability of species.",
+      "source_id": 8893,
+      "geoprivacy": "open",
+      "updater_id": 395895,
+      "created_at": "2014-05-06T19:32:50+00:00",
+      "updated_at": "2024-03-25T03:01:02+00:00",
+      "updater": {
+        "id": 395895,
+        "login": "wildlander",
+        "icon_url": null,
+        "orcid": null
+      },
+      "place": {
+        "id": 63888,
+        "name": "NC Piedmont",
+        "display_name": "NC Piedmont, NC, US",
+        "admin_level": null,
+        "ancestor_place_ids": [
+          97394,
+          1,
+          30,
+          63888
+        ]
+      }
+    }
+  ],
+  "conservation_status": null,
+  "listed_taxa_count": 15,
+  "listed_taxa": [
+    {
+      "id": 3611032,
+      "taxon_id": 49486,
+      "establishment_means": "endemic",
+      "place": {
+        "id": 1,
+        "name": "United States",
+        "display_name": "United States",
+        "admin_level": 0,
+        "ancestor_place_ids": [
+          97394,
+          1
+        ]
+      },
+      "list": {
+        "id": 299,
+        "title": "United States Check List"
+      }
+    },
+    {
+      "id": 49802543,
+      "taxon_id": 49486,
+      "establishment_means": "introduced",
+      "place": {
+        "id": 8265,
+        "name": "Estonia",
+        "display_name": "Estonia",
+        "admin_level": 0,
+        "ancestor_place_ids": [
+          97391,
+          8265
+        ]
+      },
+      "list": {
+        "id": 8894,
+        "title": "Estonia Check List"
+      }
+    },
+    {
+      "id": 95925577,
+      "taxon_id": 49486,
+      "establishment_means": "introduced",
+      "place": {
+        "id": 6712,
+        "name": "Canada",
+        "display_name": "Canada",
+        "admin_level": 0,
+        "ancestor_place_ids": [
+          97394,
+          6712
+        ]
+      },
+      "list": {
+        "id": 7025,
+        "title": "Canada Check List"
+      }
+    },
+    {
+      "id": 121011458,
+      "taxon_id": 49486,
+      "establishment_means": "introduced",
+      "place": {
+        "id": 8247,
+        "name": "Schleswig-Holstein",
+        "display_name": "Schleswig-Holstein, DE",
+        "admin_level": 10,
+        "ancestor_place_ids": [
+          97391,
+          7207,
+          8247
+        ]
+      },
+      "list": {
+        "id": 8876,
+        "title": "Schleswig-Holstein Check List"
+      }
+    },
+    {
+      "id": 133539579,
+      "taxon_id": 49486,
+      "establishment_means": "introduced",
+      "place": {
+        "id": 6853,
+        "name": "Nova Scotia",
+        "display_name": "Nova Scotia, CA",
+        "admin_level": 10,
+        "ancestor_place_ids": [
+          97394,
+          6712,
+          6853
+        ]
+      },
+      "list": {
+        "id": 7186,
+        "title": "Nova Scotia Check List"
+      }
+    },
+    {
+      "id": 115319036,
+      "taxon_id": 49486,
+      "establishment_means": "introduced",
+      "place": {
+        "id": 10,
+        "name": "Oregon",
+        "display_name": "Oregon, US",
+        "admin_level": 10,
+        "ancestor_place_ids": [
+          97394,
+          1,
+          10
+        ]
+      },
+      "list": {
+        "id": 308,
+        "title": "Oregon Check List"
+      }
+    },
+    {
+      "id": 129607828,
+      "taxon_id": 49486,
+      "establishment_means": "introduced",
+      "place": {
+        "id": 7587,
+        "name": "New Brunswick",
+        "display_name": "New Brunswick, CA",
+        "admin_level": 10,
+        "ancestor_place_ids": [
+          97394,
+          6712,
+          7587
+        ]
+      },
+      "list": {
+        "id": 7955,
+        "title": "New Brunswick Check List"
+      }
+    },
+    {
+      "id": 133539580,
+      "taxon_id": 49486,
+      "establishment_means": "introduced",
+      "place": {
+        "id": 27570,
+        "name": "Colchester",
+        "display_name": "Colchester, CA, NS",
+        "admin_level": 20,
+        "ancestor_place_ids": [
+          97394,
+          6712,
+          6853,
+          27570
+        ]
+      },
+      "list": {
+        "id": 30333,
+        "title": "Colchester Check List"
+      }
+    },
+    {
+      "id": 129607829,
+      "taxon_id": 49486,
+      "establishment_means": "introduced",
+      "place": {
+        "id": 49163,
+        "name": "Charlotte",
+        "display_name": "Charlotte, CA, NB",
+        "admin_level": 20,
+        "ancestor_place_ids": [
+          97394,
+          6712,
+          7587,
+          49163
+        ]
+      },
+      "list": {
+        "id": 51927,
+        "title": "Charlotte Check List"
+      }
+    },
+    {
+      "id": 133539582,
+      "taxon_id": 49486,
+      "establishment_means": "introduced",
+      "place": {
+        "id": 82180,
+        "name": "Maritimes Provinces of Canada",
+        "display_name": "Maritimes Provinces of Canada, CA",
+        "admin_level": null,
+        "ancestor_place_ids": [
+          97394,
+          6712,
+          82180
+        ]
+      },
+      "list": {
+        "id": 221652,
+        "title": "Maritimes Provinces of Canada Check List"
+      }
+    },
+    {
+      "id": 8107498,
+      "taxon_id": 49486,
+      "establishment_means": "native",
+      "place": {
+        "id": 97394,
+        "name": "North America",
+        "display_name": "North America",
+        "admin_level": -10,
+        "ancestor_place_ids": [
+          97394
+        ]
+      },
+      "list": {
+        "id": 313169,
+        "title": "North America Check List"
+      }
+    },
+    {
+      "id": 3652044,
+      "taxon_id": 49486,
+      "establishment_means": "native",
+      "place": {
+        "id": 7,
+        "name": "Virginia",
+        "display_name": "Virginia, US",
+        "admin_level": 10,
+        "ancestor_place_ids": [
+          97394,
+          1,
+          7
+        ]
+      },
+      "list": {
+        "id": 305,
+        "title": "Virginia Check List"
+      }
+    },
+    {
+      "id": 4444647,
+      "taxon_id": 49486,
+      "establishment_means": "native",
+      "place": {
+        "id": 30,
+        "name": "North Carolina",
+        "display_name": "North Carolina, US",
+        "admin_level": 10,
+        "ancestor_place_ids": [
+          97394,
+          1,
+          30
+        ]
+      },
+      "list": {
+        "id": 328,
+        "title": "North Carolina Check List"
+      }
+    },
+    {
+      "id": 5871462,
+      "taxon_id": 49486,
+      "establishment_means": "native",
+      "place": {
+        "id": 879,
+        "name": "Haywood",
+        "display_name": "Haywood County, US, NC",
+        "admin_level": 20,
+        "ancestor_place_ids": [
+          97394,
+          1,
+          30,
+          879
+        ]
+      },
+      "list": {
+        "id": 1177,
+        "title": "Haywood Check List"
+      }
+    },
+    {
+      "id": 9526471,
+      "taxon_id": 49486,
+      "establishment_means": "native",
+      "place": {
+        "id": 9012,
+        "name": "Shenandoah National Park",
+        "display_name": "Shenandoah National Park, US, VA",
+        "admin_level": 100,
+        "ancestor_place_ids": [
+          97394,
+          1,
+          7,
+          9012
+        ]
+      },
+      "list": {
+        "id": 454688,
+        "title": "Species Check List for Shenandoah National Park"
+      }
+    }
+  ],
+  "wikipedia_summary": "<i><b>Rhododendron catawbiense</b></i>, with common names <b>Catawba rosebay</b>, <b>Catawba rhododendron</b>, <b>mountain rosebay</b>, <b>purple ivy</b>, <b>purple laurel</b>, <b>purple rhododendron</b>, <b>red laurel</b>, <b>rosebay</b>, <b>rosebay laurel</b>, is a species of <i>Rhododendron</i> native to the eastern United States, growing mainly in the southern Appalachian Mountains from Virginia south to northern Alabama.",
+  "vision": true
+}

@@ -59,13 +59,20 @@ function formatTimestamp(timestamp?: string | null, timestampMs?: number | null)
   return null;
 }
 
-export function usePumpControl(initial?: { valveOpen?: boolean | null }): UsePumpControlResult {
+export function usePumpControl(
+  initial?: { valveOpen?: boolean | null },
+  activePotId?: string
+): UsePumpControlResult {
   const [state, setState] = useState<PumpState>(() => ({
     ...INITIAL_STATE,
     actual: typeof initial?.valveOpen === "boolean" ? initial.valveOpen : INITIAL_STATE.actual,
   }));
   const [feedback, setFeedback] = useState<PumpFeedback | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const lastPotIdRef = useRef<string | null>(null);
+
+  const normalizedPotId = activePotId ? activePotId.trim().toLowerCase() : "";
+  const initialActual = typeof initial?.valveOpen === "boolean" ? initial.valveOpen : INITIAL_STATE.actual;
 
   const clearFeedback = useCallback(() => setFeedback(null), []);
 
@@ -76,6 +83,23 @@ export function usePumpControl(initial?: { valveOpen?: boolean | null }): UsePum
       }
     };
   }, []);
+
+  useEffect(() => {
+    const nextPotId = normalizedPotId || null;
+    if (lastPotIdRef.current === nextPotId) {
+      return;
+    }
+    lastPotIdRef.current = nextPotId;
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+    setState({
+      ...INITIAL_STATE,
+      actual: initialActual,
+    });
+    setFeedback(null);
+  }, [normalizedPotId, initialActual]);
 
   const syncTelemetry = useCallback((payload: PumpTelemetrySource | null | undefined) => {
     if (!payload || typeof payload.valveOpen !== "boolean") {

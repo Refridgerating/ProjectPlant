@@ -1,3 +1,4 @@
+import asyncio
 import ssl
 import types
 
@@ -40,11 +41,17 @@ class DummyBridge:
         self.stopped = True
 
 
+async def _noop(*args, **kwargs):
+    return None
+
+
 @pytest.mark.anyio("asyncio")
 async def test_startup_and_shutdown_toggle_manager(monkeypatch):
     DummyClient.instances.clear()
     monkeypatch.setattr(mqtt_client, "Client", DummyClient)
     monkeypatch.setattr(mqtt_client, "MqttBridge", DummyBridge)
+    monkeypatch.setattr(mqtt_client, "start_etkc_worker", _noop)
+    monkeypatch.setattr(mqtt_client, "stop_etkc_worker", _noop)
 
     settings = types.SimpleNamespace(
         mqtt_host="broker.example",
@@ -81,6 +88,8 @@ async def test_startup_logs_on_failure(monkeypatch, caplog):
 
     monkeypatch.setattr(mqtt_client, "Client", FailingClient)
     monkeypatch.setattr(mqtt_client, "MqttBridge", DummyBridge)
+    monkeypatch.setattr(mqtt_client, "start_etkc_worker", _noop)
+    monkeypatch.setattr(mqtt_client, "stop_etkc_worker", _noop)
     caplog.set_level("ERROR", logger="projectplant.hub.mqtt")
 
     settings = types.SimpleNamespace(
@@ -93,7 +102,65 @@ async def test_startup_logs_on_failure(monkeypatch, caplog):
     )
 
     await mqtt_client.startup(settings)
+    manager = mqtt_client.get_mqtt_manager()
     assert "MQTT failed to connect" in caplog.text
-    assert mqtt_client.get_mqtt_manager() is None
+    assert manager is not None
+    snapshot = manager.status_snapshot()
+    assert snapshot["connected"] is False
+    assert snapshot["reconnecting"] is True
+
+    await mqtt_client.shutdown()
+
+
+@pytest.mark.anyio("asyncio")
+async def test_startup_recovers_after_initial_failure(monkeypatch):
+    class FlakyClient:
+        attempts = 0
+
+        def __init__(self, *args, **kwargs):
+            self.connected = False
+            self.disconnected = False
+
+        async def connect(self):
+            type(self).attempts += 1
+            if type(self).attempts == 1:
+                raise MqttError("boom")
+            self.connected = True
+
+        async def disconnect(self):
+            self.disconnected = True
+
+    original_sleep = asyncio.sleep
+
+    async def fast_sleep(_delay):
+        await original_sleep(0)
+
+    monkeypatch.setattr(mqtt_client, "Client", FlakyClient)
+    monkeypatch.setattr(mqtt_client, "MqttBridge", DummyBridge)
+    monkeypatch.setattr(mqtt_client, "start_etkc_worker", _noop)
+    monkeypatch.setattr(mqtt_client, "stop_etkc_worker", _noop)
+    monkeypatch.setattr(mqtt_client.asyncio, "sleep", fast_sleep)
+
+    settings = types.SimpleNamespace(
+        mqtt_host="broker.example",
+        mqtt_port=1883,
+        mqtt_username=None,
+        mqtt_password=None,
+        mqtt_client_id="client-id",
+        mqtt_tls=False,
+    )
+
+    await mqtt_client.startup(settings)
+    manager = mqtt_client.get_mqtt_manager()
+    assert manager is not None
+
+    for _ in range(20):
+        if manager.status_snapshot()["connected"]:
+            break
+        await original_sleep(0)
+
+    snapshot = manager.status_snapshot()
+    assert snapshot["connected"] is True
+    assert FlakyClient.attempts >= 2
 
     await mqtt_client.shutdown()

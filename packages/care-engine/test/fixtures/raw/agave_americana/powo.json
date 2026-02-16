@@ -1,0 +1,110 @@
+{
+  "modified": "2022-07-11T23:00:00.000Z",
+  "bibliographicCitation": "IPNI 2025. Published on the Internet http://www.ipni.org; WCVP 2025. WCVP. Facilitated by the Royal Botanic Gardens, Kew. Published on the Internet; https://powo.science.kew.org/ Retrieved 2011 onwards",
+  "genus": "Pilosocereus",
+  "taxonomicStatus": "Accepted",
+  "kingdom": "Plantae",
+  "phylum": "Streptophyta",
+  "clazz": "Equisetopsida",
+  "subclass": "Magnoliidae",
+  "order": "Caryophyllales",
+  "family": "Cactaceae",
+  "nomenclaturalCode": "Botanical",
+  "source": "wcvp:2413417",
+  "namePublishedInYear": 1987,
+  "taxonRemarks": "C. Brazil",
+  "nomenclaturalStatus": "Available",
+  "lifeform": "tree",
+  "climate": "seasonally dry tropical",
+  "hybrid": false,
+  "plantae": true,
+  "fungi": false,
+  "locations": [
+    "BZE_CE",
+    "BZC",
+    "BZC_MS",
+    "BZE",
+    "BZL_TR",
+    "BZC_MT",
+    "BZE_FN",
+    "BZC_GO",
+    "BZL_RJ",
+    "BZE_PB",
+    "BZE_SE",
+    "BZL_SP",
+    "BZL_MG",
+    "BZL",
+    "BZE_MA",
+    "SOUTHERN_AMERICA",
+    "BZL_ES",
+    "BZE_AL",
+    "BZE_BA",
+    "BZE_PE",
+    "BZE_RN",
+    "BZE_PI",
+    "BZC_DF",
+    "BRAZIL"
+  ],
+  "synonym": false,
+  "fqId": "urn:lsid:ipni.org:names:282819-2",
+  "name": "Pilosocereus albisummus",
+  "authors": "P.J.Braun & Esteves",
+  "species": "albisummus",
+  "rank": "SPECIES",
+  "reference": "Kakteen And. Sukk. 38: 130 (1987)",
+  "classification": [
+    {
+      "fqId": "urn:lsid:ipni.org:names:30000028-2",
+      "name": "Cactaceae",
+      "author": "Juss.",
+      "rank": "FAMILY",
+      "taxonomicStatus": "Accepted"
+    },
+    {
+      "fqId": "urn:lsid:ipni.org:names:299077-2",
+      "name": "Pilosocereus",
+      "author": "Byles & G.D.Rowley",
+      "rank": "GENUS",
+      "taxonomicStatus": "Accepted"
+    },
+    {
+      "fqId": "urn:lsid:ipni.org:names:282819-2",
+      "name": "Pilosocereus albisummus",
+      "author": "P.J.Braun & Esteves",
+      "rank": "SPECIES",
+      "taxonomicStatus": "Accepted"
+    }
+  ],
+  "basionymOf": [
+    {
+      "fqId": "urn:lsid:ipni.org:names:77213194-1",
+      "name": "Pilosocereus pachycladus subsp. albisummus",
+      "author": "(P.J.Braun & Esteves) Guiggi",
+      "rank": "SUBSPECIES",
+      "taxonomicStatus": "Homotypic_Synonym"
+    }
+  ],
+  "synonyms": [
+    {
+      "fqId": "urn:lsid:ipni.org:names:77213194-1",
+      "name": "Pilosocereus pachycladus subsp. albisummus",
+      "author": "(P.J.Braun & Esteves) Guiggi",
+      "rank": "SUBSPECIES",
+      "taxonomicStatus": "Homotypic_Synonym"
+    },
+    {
+      "fqId": "urn:lsid:ipni.org:names:20006603-1",
+      "name": "Pilosocereus goianus",
+      "author": "P.J.Braun & Esteves",
+      "rank": "SPECIES",
+      "taxonomicStatus": "Heterotypic_Synonym"
+    },
+    {
+      "fqId": "urn:lsid:ipni.org:names:1007230-1",
+      "name": "Pilosocereus estevesii",
+      "author": "P.J.Braun",
+      "rank": "SPECIES",
+      "taxonomicStatus": "Heterotypic_Synonym"
+    }
+  ]
+}

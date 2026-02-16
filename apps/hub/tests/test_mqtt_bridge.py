@@ -15,6 +15,7 @@ def test_build_sensor_payload_normalizes_fields():
         "temperature_c": 21.345,
         "humidity_pct": 48.123,
         "pump_on": True,
+        "lightOn": True,
         "timestamp_ms": 1_700_000_000_000,
         "requestId": "req-123",
     }
@@ -26,6 +27,7 @@ def test_build_sensor_payload_normalizes_fields():
     assert data["temperature"] == pytest.approx(21.3)
     assert data["humidity"] == pytest.approx(48.1)
     assert data["valveOpen"] is True
+    assert data["lightOn"] is True
     assert data["timestamp"].endswith("Z")
     assert data["requestId"] == "req-123"
 
@@ -60,6 +62,7 @@ def test_build_status_payload_normalizes_fields():
     payload = {
         "status": "pump_on",
         "pump_on": True,
+        "light_on": True,
         "requestId": "req-321",
         "timestampMs": 1_700_000_000_000,
     }
@@ -69,6 +72,7 @@ def test_build_status_payload_normalizes_fields():
     assert data["potId"] == "pot-status"
     assert data["status"] == "pump_on"
     assert data["pumpOn"] is True
+    assert data["lightOn"] is True
     assert data["requestId"] == "req-321"
     assert data["timestampMs"] == 1_700_000_000_000
     assert data["timestamp"].endswith("Z")
@@ -82,6 +86,15 @@ def test_build_status_payload_inferrs_state_from_status_string():
     data = snapshot.to_dict()
     assert data["pumpOn"] is False
     assert data["status"] == "pump_off"
+
+
+def test_build_status_payload_inferrs_light_state_from_status_string():
+    payload = {"status": "light_off"}
+    snapshot = build_status_payload(_encode(payload), "pot-light")
+    assert snapshot is not None
+    data = snapshot.to_dict()
+    assert data["lightOn"] is False
+    assert data["status"] == "light_off"
 
 
 def test_build_status_payload_handles_invalid_payload():

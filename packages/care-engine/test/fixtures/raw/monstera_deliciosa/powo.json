@@ -1,0 +1,55 @@
+{
+  "modified": "2017-05-07T00:23:19.000Z",
+  "bibliographicCitation": "IPNI 2025. Published on the Internet http://www.ipni.org; WCVP 2025. WCVP. Facilitated by the Royal Botanic Gardens, Kew. Published on the Internet; https://powo.science.kew.org/ Retrieved 2011 onwards",
+  "genus": "Agave",
+  "taxonomicStatus": "Heterotypic_Synonym",
+  "kingdom": "Plantae",
+  "phylum": "Streptophyta",
+  "clazz": "Equisetopsida",
+  "subclass": "Magnoliidae",
+  "order": "Asparagales",
+  "family": "Asparagaceae",
+  "nomenclaturalCode": "Botanical",
+  "source": "wcvp:274681",
+  "namePublishedInYear": 1982,
+  "nomenclaturalStatus": "Invalid",
+  "lifeform": "Unknown",
+  "climate": "seasonally dry tropical",
+  "hybrid": false,
+  "nomenclaturalRemarks": ", not validly publ.",
+  "plantae": true,
+  "fungi": false,
+  "accepted": {
+    "fqId": "urn:lsid:ipni.org:names:77172335-1",
+    "name": "Agave angustifolia var. angustifolia",
+    "author": "",
+    "rank": "VARIETY",
+    "taxonomicStatus": "Accepted"
+  },
+  "synonym": true,
+  "fqId": "urn:lsid:ipni.org:names:327761-2",
+  "name": "Agave angustifolia var. marginata",
+  "authors": "Gentry",
+  "species": "angustifolia",
+  "infraspecies": "marginata",
+  "rank": "VARIETY",
+  "reference": "Agaves Cont. N. Amer.: 564 (1982)",
+  "classification": [
+    {
+      "fqId": "urn:lsid:ipni.org:names:327761-2",
+      "name": "Agave angustifolia var. marginata",
+      "author": "Gentry",
+      "rank": "VARIETY",
+      "taxonomicStatus": "Heterotypic_Synonym"
+    }
+  ],
+  "basionymOf": [
+    {
+      "fqId": "urn:lsid:ipni.org:names:1073205-2",
+      "name": "Agave vivipara var. marginata",
+      "author": "P.I.Forst.",
+      "rank": "VARIETY",
+      "taxonomicStatus": "Heterotypic_Synonym"
+    }
+  ]
+}

@@ -23,11 +23,20 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { PenmanMonteithEquation } from "./components/PenmanMonteithEquation";
 import { WaterModelSection } from "./components/WaterModelSection";
 import { CollapsibleTile } from "./components/CollapsibleTile";
+import { DeviceNamingPrompt } from "./components/DeviceNamingPrompt";
 import { useSensorRead } from "./hooks/useSensorRead";
 import { usePumpControl } from "./hooks/usePumpControl";
 import { useFanControl } from "./hooks/useFanControl";
 import { useMisterControl } from "./hooks/useMisterControl";
-import { TelemetrySample, SensorReadPayload, exportPotTelemetry, fetchPotTelemetry } from "./api/hubClient";
+import { useLightControl } from "./hooks/useLightControl";
+import {
+  TelemetrySample,
+  SensorReadPayload,
+  exportPotTelemetry,
+  fetchPotTelemetry,
+  updateDeviceName,
+  updateSensorMode,
+} from "./api/hubClient";
 import { useHealthDiagnostics } from "./hooks/useHealthDiagnostics";
 import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { getSettings, RuntimeMode } from "./settings";
@@ -36,6 +45,9 @@ import {
   selectPotTelemetry,
   selectPumpStatus,
   selectConnectionState,
+  selectPotIdentities,
+  selectLastEventAt,
+  type DeviceIdentity,
 } from "./state/eventStore";
 
 const LOCAL_RANGE_OPTIONS = [
@@ -86,6 +98,9 @@ const TELEMETRY_RANGE_PRESET_MAP: Record<TelemetryRangeKey, TelemetryRangePreset
 const DEFAULT_TELEMETRY_RANGE_KEY: TelemetryRangeKey = "1d";
 const MAX_CHART_POINTS = 10_000;
 const DEFAULT_POT_TELEMETRY_CAP = 4_096;
+const HEALTH_REFRESH_THROTTLE_MS = 15_000;
+const HEALTH_REFRESH_POLL_MS = 30_000;
+const CONTROL_POT_STORAGE_KEY = "projectplant:plant-control:selected-pot:v1";
 
 const CONTROL_DEVICES = [
   { id: "pump", label: "H2O Pump" },
@@ -337,6 +352,52 @@ function formatPotLabel(potId: string): string {
   return formatted;
 }
 
+type PersistedControlPotSelection = {
+  selectedPotId?: string;
+  useCustomPotId?: boolean;
+  customPotId?: string;
+};
+
+function loadPersistedControlPotSelection(): PersistedControlPotSelection {
+  if (typeof window === "undefined") {
+    return {};
+  }
+  try {
+    const raw = window.localStorage.getItem(CONTROL_POT_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return {};
+    }
+    const record = parsed as Record<string, unknown>;
+    return {
+      selectedPotId:
+        typeof record.selectedPotId === "string" ? record.selectedPotId.trim().toLowerCase() : undefined,
+      useCustomPotId: typeof record.useCustomPotId === "boolean" ? record.useCustomPotId : undefined,
+      customPotId: typeof record.customPotId === "string" ? record.customPotId : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function persistControlPotSelection(selection: {
+  selectedPotId: string;
+  useCustomPotId: boolean;
+  customPotId: string;
+}) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(CONTROL_POT_STORAGE_KEY, JSON.stringify(selection));
+  } catch {
+    // Ignore local storage failures; selection will still work for this session.
+  }
+}
+
 export default function App() {
   const { data, loading, error, refresh } = useHubInfo();
   const {
@@ -362,6 +423,7 @@ export default function App() {
   const initialTelemetrySource = initialSettings.mode === "live" ? DEFAULT_TELEMETRY_POTS[0] : "mock";
   useEventSource(runtimeMode === "live");
   const eventConnectionState = useEventStore(selectConnectionState);
+  const lastEventAt = useEventStore(selectLastEventAt);
   const {
     data: telemetryRaw,
     loading: telemetryLoading,
@@ -474,6 +536,120 @@ export default function App() {
   }, [geolocation.status, geolocation.coords, refreshLocal]);
 
   const availablePotIds = useEventStore((state) => Object.keys(state.potTelemetry));
+  const pumpStatusPotIds = useEventStore((state) => Object.keys(state.pumpStatus));
+  const potIdentities = useEventStore(selectPotIdentities);
+  const [dismissedPotIds, setDismissedPotIds] = useState<string[]>([]);
+  const [namingTarget, setNamingTarget] = useState<DeviceIdentity | null>(null);
+  const healthRefreshRef = useRef(0);
+  const requestHealthRefresh = useCallback(
+    (force = false) => {
+      const now = Date.now();
+      if (!force && now - healthRefreshRef.current < HEALTH_REFRESH_THROTTLE_MS) {
+        return;
+      }
+      healthRefreshRef.current = now;
+      refreshHealth();
+    },
+    [refreshHealth]
+  );
+  const heartbeatPotIds = useMemo(() => {
+    const pots = healthMqtt?.heartbeat?.pots ?? [];
+    const ids = pots
+      .map((entry) => (entry.pot_id ?? "").trim().toLowerCase())
+      .filter((id) => id.length > 0);
+    return Array.from(new Set(ids)).sort((a, b) => a.localeCompare(b));
+  }, [healthMqtt]);
+  const controlPotIds = useMemo(() => {
+    const identifiers = new Set<string>();
+    availablePotIds.forEach((id) => identifiers.add(id));
+    pumpStatusPotIds.forEach((id) => identifiers.add(id));
+    heartbeatPotIds.forEach((id) => identifiers.add(id));
+    return Array.from(identifiers)
+      .map((id) => id.trim().toLowerCase())
+      .filter((id) => id.length > 0)
+      .sort((a, b) => a.localeCompare(b));
+  }, [availablePotIds, pumpStatusPotIds, heartbeatPotIds]);
+
+  const resolvePotLabel = useCallback(
+    (potId: string) => {
+      const normalized = potId.trim().toLowerCase();
+      const identity = potIdentities[normalized];
+      const displayName = identity?.deviceName?.trim();
+      if (displayName) {
+        return displayName;
+      }
+      return formatPotLabel(potId);
+    },
+    [potIdentities]
+  );
+
+  const unnamedDevices = useMemo(() => {
+    const dismissed = new Set(dismissedPotIds);
+    return Object.values(potIdentities)
+      .filter((device) => device.isNamed === false && !dismissed.has(device.potId))
+      .sort((a, b) => (b.lastSeen ?? "").localeCompare(a.lastSeen ?? ""));
+  }, [potIdentities, dismissedPotIds]);
+
+  useEffect(() => {
+    if (namingTarget) {
+      const refreshed = potIdentities[namingTarget.potId];
+      if (!refreshed || refreshed.isNamed !== false) {
+        setNamingTarget(null);
+        return;
+      }
+      if (refreshed !== namingTarget) {
+        setNamingTarget(refreshed);
+      }
+      return;
+    }
+    if (unnamedDevices.length) {
+      setNamingTarget(unnamedDevices[0]);
+    }
+  }, [namingTarget, potIdentities, unnamedDevices]);
+
+  useEffect(() => {
+    if (runtimeMode !== "live" || !lastEventAt) {
+      return;
+    }
+    requestHealthRefresh();
+  }, [lastEventAt, requestHealthRefresh, runtimeMode]);
+
+  useEffect(() => {
+    if (runtimeMode !== "live") {
+      return;
+    }
+    const interval = window.setInterval(() => {
+      requestHealthRefresh();
+    }, HEALTH_REFRESH_POLL_MS);
+    return () => window.clearInterval(interval);
+  }, [requestHealthRefresh, runtimeMode]);
+
+  useEffect(() => {
+    setDismissedPotIds((prev) => prev.filter((id) => potIdentities[id]?.isNamed === false));
+  }, [potIdentities]);
+
+  useEffect(() => {
+    const entries = healthMqtt?.heartbeat?.pots ?? [];
+    if (!entries.length) {
+      return;
+    }
+    const store = useEventStore.getState();
+    entries.forEach((entry) => {
+      const potId = (entry.pot_id ?? "").trim().toLowerCase();
+      if (!potId) {
+        return;
+      }
+      if (entry.deviceName || entry.isNamed !== undefined) {
+        store.upsertPotIdentity({
+          potId,
+          deviceName: entry.deviceName ?? null,
+          isNamed: entry.isNamed ?? null,
+          lastSeen: entry.received_at ?? null,
+          source: "heartbeat",
+        });
+      }
+    });
+  }, [healthMqtt]);
 
   const telemetryOptions = useMemo<TelemetrySourceOption[]>(() => {
     const identifiers = new Set<string>();
@@ -487,9 +663,9 @@ export default function App() {
       .sort((a, b) => a.localeCompare(b));
     return [
       { value: "mock", label: "Demo Telemetry" },
-      ...potIds.map((potId) => ({ value: potId, label: formatPotLabel(potId) })),
+      ...potIds.map((potId) => ({ value: potId, label: resolvePotLabel(potId) })),
     ];
-  }, [availablePotIds, telemetrySource]);
+  }, [availablePotIds, telemetrySource, resolvePotLabel]);
 
   const mergeTelemetryWithWeather = useCallback(
     (samples: TelemetrySample[]) => {
@@ -599,7 +775,7 @@ export default function App() {
         ? "Live sensor data captured from the hub sensors."
         : "Demo telemetry generated for preview mode. Switch to Live in settings.";
     }
-    const label = formatPotLabel(telemetrySource);
+    const label = resolvePotLabel(telemetrySource);
     const rangeLabel = potTelemetryRangeLabel;
     if (potTelemetryError) {
       return `Telemetry unavailable for ${label}: ${potTelemetryError}`;
@@ -630,6 +806,7 @@ export default function App() {
     potTelemetryRangeLabel,
     chartDownsampledFrom,
     chartSeries.length,
+    resolvePotLabel,
   ]);
 
   const handleTelemetryExport = useCallback(async () => {
@@ -648,7 +825,7 @@ export default function App() {
       });
       return;
     }
-    const potLabel = formatPotLabel(telemetrySource);
+    const potLabel = resolvePotLabel(telemetrySource);
     const rangeLabel = potTelemetryRangeLabel;
     setTelemetryExporting(true);
     showTelemetryExportStatus({
@@ -680,7 +857,14 @@ export default function App() {
     } finally {
       setTelemetryExporting(false);
     }
-  }, [telemetrySource, telemetryRange, potTelemetryRangeLabel, potTelemetryLimit, showTelemetryExportStatus]);
+  }, [
+    telemetrySource,
+    telemetryRange,
+    potTelemetryRangeLabel,
+    potTelemetryLimit,
+    showTelemetryExportStatus,
+    resolvePotLabel,
+  ]);
 
   const telemetryActions = useMemo(() => {
     const status = telemetryExportStatus ? (
@@ -699,7 +883,7 @@ export default function App() {
     const buttonTitle =
       telemetrySource === "mock"
         ? "Switch to a specific pot to export telemetry data."
-        : `Export telemetry for ${formatPotLabel(telemetrySource)} (${potTelemetryRangeLabel})`;
+        : `Export telemetry for ${resolvePotLabel(telemetrySource)} (${potTelemetryRangeLabel})`;
     return (
       <div className="flex items-center gap-3">
         {status}
@@ -719,7 +903,14 @@ export default function App() {
         </button>
       </div>
     );
-  }, [handleTelemetryExport, telemetryExporting, telemetryExportStatus, telemetrySource, potTelemetryRangeLabel]);
+  }, [
+    handleTelemetryExport,
+    telemetryExporting,
+    telemetryExportStatus,
+    telemetrySource,
+    potTelemetryRangeLabel,
+    resolvePotLabel,
+  ]);
 
   useEffect(() => {
     if (runtimeMode === "live" && telemetrySource === "mock") {
@@ -879,14 +1070,54 @@ export default function App() {
   const handleRefresh = useCallback(() => {
     refresh();
     refreshTelemetry();
-    refreshHealth();
+    requestHealthRefresh(true);
     if (geolocation.coords) {
       refreshLocal();
     }
     if (telemetrySource !== "mock") {
       setPotTelemetryTicker((prev) => prev + 1);
     }
-  }, [refresh, refreshTelemetry, refreshHealth, geolocation.coords, refreshLocal, telemetrySource]);
+  }, [refresh, refreshTelemetry, requestHealthRefresh, geolocation.coords, refreshLocal, telemetrySource]);
+
+  const handleNameSubmit = useCallback(
+    async (deviceName: string) => {
+      if (!namingTarget) {
+        return;
+      }
+      const response = await updateDeviceName(namingTarget.potId, { deviceName, timeout: 10 });
+      useEventStore.getState().upsertPotIdentity({
+        potId: namingTarget.potId,
+        deviceName: response.deviceName ?? deviceName,
+        isNamed: response.isNamed ?? true,
+        lastSeen: response.timestamp ?? new Date().toISOString(),
+        source: "ui",
+      });
+      setDismissedPotIds((prev) => prev.filter((id) => id !== namingTarget.potId));
+      setNamingTarget(null);
+    },
+    [namingTarget]
+  );
+
+  const handleManualRename = useCallback(async (potId: string, deviceName: string) => {
+    const response = await updateDeviceName(potId, { deviceName, timeout: 10 });
+    useEventStore.getState().upsertPotIdentity({
+      potId,
+      deviceName: response.deviceName ?? deviceName,
+      isNamed: response.isNamed ?? true,
+      lastSeen: response.timestamp ?? new Date().toISOString(),
+      source: "ui",
+    });
+    return response;
+  }, []);
+
+  const handleDismissNamePrompt = useCallback(() => {
+    if (namingTarget) {
+      setDismissedPotIds((prev) =>
+        prev.includes(namingTarget.potId) ? prev : [...prev, namingTarget.potId]
+      );
+    }
+    setNamingTarget(null);
+  }, [namingTarget]);
 
   const handleCloseSettings = () => {
     setSettingsOpen(false);
@@ -932,7 +1163,7 @@ export default function App() {
           ? runtimeMode === "live"
             ? "Loading live sensor telemetry..."
             : "Loading demo telemetry..."
-          : `Loading telemetry for ${formatPotLabel(telemetrySource)}...`;
+          : `Loading telemetry for ${resolvePotLabel(telemetrySource)}...`;
         return <LoadingState message={message} />;
       }
 
@@ -957,6 +1188,12 @@ export default function App() {
           onToggle={toggleControl}
           watering={watering}
           onSnapshot={handleSensorSnapshot}
+          resolvePotLabel={resolvePotLabel}
+          availablePotIds={controlPotIds}
+          potIdentities={potIdentities}
+          onRename={handleManualRename}
+          onRefreshDevices={() => requestHealthRefresh(true)}
+          refreshingDevices={healthLoading}
         />
       );
     }
@@ -1047,6 +1284,7 @@ export default function App() {
     refreshLocal,
     displayTelemetry,
     telemetrySource,
+    resolvePotLabel,
     telemetryError,
     telemetryLoading,
     chartLoading,
@@ -1069,11 +1307,22 @@ export default function App() {
     healthLoading,
     healthError,
     refreshHealth,
+    requestHealthRefresh,
+    controlPotIds,
+    potIdentities,
+    handleManualRename,
   ]);
 
   return (
     <>
-    <PageShell
+      {namingTarget ? (
+        <DeviceNamingPrompt
+          device={namingTarget}
+          onSubmit={handleNameSubmit}
+          onDismiss={handleDismissNamePrompt}
+        />
+      ) : null}
+      <PageShell
       title={title}
       subtitle="Monitor broker connectivity and hub health as we iterate on the UI."
       actions={
@@ -1277,15 +1526,36 @@ function PlantControlPanel({
   onToggle,
   watering,
   onSnapshot,
+  resolvePotLabel,
+  availablePotIds,
+  potIdentities,
+  onRename,
+  onRefreshDevices,
+  refreshingDevices,
 }: {
   states: ControlStates;
   onToggle: (id: ControlDeviceId) => void;
   watering: WateringRecommendationState;
   onSnapshot: (payload: SensorReadPayload) => void;
+  resolvePotLabel: (potId: string) => string;
+  availablePotIds: string[];
+  potIdentities: Record<string, DeviceIdentity>;
+  onRename: (potId: string, deviceName: string) => Promise<unknown>;
+  onRefreshDevices: () => void;
+  refreshingDevices: boolean;
 }) {
-  const [sensorPotId, setSensorPotId] = useState("");
+  const persistedControlPotSelection = useMemo(() => loadPersistedControlPotSelection(), []);
+  const [selectedPotId, setSelectedPotId] = useState(() => persistedControlPotSelection.selectedPotId ?? "");
+  const trimmedPotId = selectedPotId.trim().toLowerCase();
   const sensorRead = useSensorRead();
   const pumpStatusMap = useEventStore(selectPumpStatus);
+  const connectedPotIds = useMemo(
+    () =>
+      Array.from(new Set(availablePotIds.map((id) => id.trim().toLowerCase()).filter((id) => id.length > 0))).sort(
+        (a, b) => a.localeCompare(b)
+      ),
+    [availablePotIds]
+  );
   const {
     isOn: pumpIsOn,
     pending: pumpPending,
@@ -1295,7 +1565,7 @@ function PlantControlPanel({
     clearFeedback: clearPumpFeedback,
     toggle: togglePump,
     syncTelemetry: syncPumpTelemetry,
-  } = usePumpControl();
+  } = usePumpControl(undefined, trimmedPotId);
   const {
     isOn: fanIsOn,
     pending: fanPending,
@@ -1305,7 +1575,7 @@ function PlantControlPanel({
     clearFeedback: clearFanFeedback,
     toggle: toggleFan,
     syncTelemetry: syncFanTelemetry,
-  } = useFanControl();
+  } = useFanControl(undefined, trimmedPotId);
   const {
     isOn: misterIsOn,
     pending: misterPending,
@@ -1315,9 +1585,43 @@ function PlantControlPanel({
     clearFeedback: clearMisterFeedback,
     toggle: toggleMister,
     syncTelemetry: syncMisterTelemetry,
-  } = useMisterControl();
+  } = useMisterControl(undefined, trimmedPotId);
+  const {
+    isOn: lightIsOn,
+    pending: lightPending,
+    requestId: lightRequestId,
+    lastConfirmedAt: lightLastConfirmedAt,
+    feedback: lightFeedback,
+    clearFeedback: clearLightFeedback,
+    toggle: toggleLight,
+    syncTelemetry: syncLightTelemetry,
+  } = useLightControl(undefined, trimmedPotId);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const lastRequestIdRef = useRef<string | null>(null);
+  const lastPotIdRef = useRef<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameFeedback, setRenameFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [renameSaving, setRenameSaving] = useState(false);
+  const activeIdentity = potIdentities[trimmedPotId];
+  const [sensorModeValue, setSensorModeValue] = useState<"full" | "control_only">("full");
+  const [sensorModeFeedback, setSensorModeFeedback] = useState<{ type: "success" | "error"; message: string } | null>(
+    null
+  );
+  const [sensorModeSaving, setSensorModeSaving] = useState(false);
+  const [useCustomPotId, setUseCustomPotId] = useState(() => persistedControlPotSelection.useCustomPotId ?? false);
+  const [customPotId, setCustomPotId] = useState(() => persistedControlPotSelection.customPotId ?? "");
+  const connectedPotIdSet = useMemo(() => new Set(connectedPotIds), [connectedPotIds]);
+  const controlPotSelectValue = useMemo(() => {
+    if (!connectedPotIds.length || useCustomPotId) {
+      return "__custom__";
+    }
+    if (connectedPotIdSet.has(trimmedPotId)) {
+      return trimmedPotId;
+    }
+    return connectedPotIds[0] ?? "__custom__";
+  }, [connectedPotIdSet, connectedPotIds, trimmedPotId, useCustomPotId]);
+  const activeStatus = trimmedPotId ? pumpStatusMap[trimmedPotId] : null;
+  const selectedPotLabel = trimmedPotId ? resolvePotLabel(trimmedPotId) : null;
 
   const describeWaterLow = (value: boolean | null | undefined) => {
     if (value === true) return "Reservoir low";
@@ -1356,10 +1660,95 @@ function PlantControlPanel({
   }, [sensorRead.error]);
 
   useEffect(() => {
+    if (lastPotIdRef.current === trimmedPotId) {
+      return;
+    }
+    lastPotIdRef.current = trimmedPotId;
+    sensorRead.reset();
+    setFeedback(null);
+    setRenameFeedback(null);
+    setSensorModeFeedback(null);
+    clearPumpFeedback();
+    clearFanFeedback();
+    clearMisterFeedback();
+    clearLightFeedback();
+  }, [
+    trimmedPotId,
+    sensorRead.reset,
+    clearPumpFeedback,
+    clearFanFeedback,
+    clearMisterFeedback,
+    clearLightFeedback,
+  ]);
+
+  useEffect(() => {
+    if (!trimmedPotId) {
+      setRenameValue("");
+      return;
+    }
+    setRenameValue(activeIdentity?.deviceName ?? "");
+  }, [trimmedPotId, activeIdentity?.deviceName]);
+
+  useEffect(() => {
+    if (!trimmedPotId) {
+      setSensorModeValue("full");
+      return;
+    }
+    const mode = activeStatus?.sensorMode;
+    if (mode === "control_only" || mode === "full") {
+      setSensorModeValue(mode);
+    }
+  }, [activeStatus?.sensorMode, trimmedPotId]);
+
+  useEffect(() => {
+    if (useCustomPotId) {
+      return;
+    }
+    if (!connectedPotIds.length) {
+      return;
+    }
+    const normalized = selectedPotId.trim().toLowerCase();
+    if (!normalized || !connectedPotIdSet.has(normalized)) {
+      setSelectedPotId(connectedPotIds[0]);
+    }
+  }, [connectedPotIdSet, connectedPotIds, selectedPotId, useCustomPotId]);
+
+  useEffect(() => {
+    if (!useCustomPotId) {
+      return;
+    }
+    const normalized = customPotId.trim().toLowerCase();
+    if (normalized !== selectedPotId) {
+      setSelectedPotId(normalized);
+    }
+  }, [customPotId, selectedPotId, useCustomPotId]);
+
+  useEffect(() => {
+    persistControlPotSelection({
+      selectedPotId: selectedPotId.trim().toLowerCase(),
+      useCustomPotId,
+      customPotId,
+    });
+  }, [selectedPotId, useCustomPotId, customPotId]);
+
+  const handleControlPotChange = useCallback(
+    (value: string) => {
+      if (value === "__custom__") {
+        setUseCustomPotId(true);
+        setSelectedPotId(customPotId.trim().toLowerCase());
+        return;
+      }
+      setUseCustomPotId(false);
+      setSelectedPotId(value.trim().toLowerCase());
+    },
+    [customPotId]
+  );
+
+  useEffect(() => {
     if (sensorRead.requestId && sensorRead.data && !sensorRead.loading) {
       if (lastRequestIdRef.current !== sensorRead.requestId) {
         lastRequestIdRef.current = sensorRead.requestId;
-        const fallbackPotId = (sensorRead.data.potId || sensorPotId || "").trim() || "unknown-pot";
+        const fallbackPotId = (sensorRead.data.potId || trimmedPotId || "").trim() || "unknown-pot";
         const payload: SensorReadPayload = {
           ...sensorRead.data,
           potId: fallbackPotId,
@@ -1372,7 +1761,7 @@ function PlantControlPanel({
         });
       }
     }
-  }, [sensorPotId, onSnapshot, sensorRead.data, sensorRead.loading, sensorRead.requestId]);
+  }, [trimmedPotId, onSnapshot, sensorRead.data, sensorRead.loading, sensorRead.requestId]);
 
   useEffect(() => {
     if (!feedback) {
@@ -1403,24 +1792,70 @@ function PlantControlPanel({
     const timer = setTimeout(() => clearMisterFeedback(), 5000);
     return () => clearTimeout(timer);
   }, [misterFeedback, clearMisterFeedback]);
+  useEffect(() => {
+    if (!lightFeedback) {
+      return;
+    }
+    const timer = setTimeout(() => clearLightFeedback(), 5000);
+    return () => clearTimeout(timer);
+  }, [lightFeedback, clearLightFeedback]);
 
   const handleSensorSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const normalized = sensorPotId.trim().toLowerCase();
-    setSensorPotId(normalized);
-    if (!normalized) {
+    if (!trimmedPotId) {
       setFeedback({
         type: "error",
-        message: "Enter a pot id before requesting a sensor read.",
+        message: "Select a control pot before requesting a sensor read.",
       });
       return;
     }
     setFeedback(null);
-    await sensorRead.request({ potId: normalized });
+    await sensorRead.request({ potId: trimmedPotId });
+  };
+
+  const handleRenameSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!trimmedPotId) {
+      setRenameFeedback({ type: "error", message: "Select a control pot before renaming." });
+      return;
+    }
+    const nextName = renameValue.trim();
+    if (!nextName) {
+      setRenameFeedback({ type: "error", message: "Enter a display name before saving." });
+      return;
+    }
+    setRenameSaving(true);
+    setRenameFeedback(null);
+    try {
+      await onRename(trimmedPotId, nextName);
+      setRenameFeedback({ type: "success", message: "Display name updated." });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update display name.";
+      setRenameFeedback({ type: "error", message });
+    } finally {
+      setRenameSaving(false);
+    }
+  };
+
+  const handleSensorModeSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!trimmedPotId) {
+      return;
+    }
+    setSensorModeSaving(true);
+    setSensorModeFeedback(null);
+    try {
+      await updateSensorMode(trimmedPotId, { sensorMode: sensorModeValue, timeout: 10 });
+      setSensorModeFeedback({ type: "success", message: "Sensor mode updated." });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update sensor mode.";
+      setSensorModeFeedback({ type: "error", message });
+    } finally {
+      setSensorModeSaving(false);
+    }
   };
 
   const sensorSnapshot = sensorRead.data;
-  const trimmedPotId = sensorPotId.trim().toLowerCase();
   useEffect(() => {
     if (!sensorSnapshot) {
       return;
@@ -1432,7 +1867,15 @@ function PlantControlPanel({
     syncPumpTelemetry(payload);
     syncFanTelemetry(payload);
     syncMisterTelemetry(payload);
-  }, [sensorSnapshot, sensorRead.requestId, syncPumpTelemetry, syncFanTelemetry, syncMisterTelemetry]);
+    syncLightTelemetry(payload);
+  }, [
+    sensorSnapshot,
+    sensorRead.requestId,
+    syncPumpTelemetry,
+    syncFanTelemetry,
+    syncMisterTelemetry,
+    syncLightTelemetry,
+  ]);
 
   useEffect(() => {
     if (!trimmedPotId) {
@@ -1466,7 +1909,15 @@ function PlantControlPanel({
         requestId: status.requestId ?? null,
       });
     }
-  }, [pumpStatusMap, syncPumpTelemetry, syncFanTelemetry, syncMisterTelemetry, trimmedPotId]);
+    if (typeof status.lightOn === "boolean") {
+      syncLightTelemetry({
+        lightOn: status.lightOn,
+        timestamp: status.timestamp ?? null,
+        timestampMs: status.timestampMs ?? null,
+        requestId: status.requestId ?? null,
+      });
+    }
+  }, [pumpStatusMap, syncPumpTelemetry, syncFanTelemetry, syncMisterTelemetry, syncLightTelemetry, trimmedPotId]);
 
   const isSubmitDisabled = sensorRead.loading || !trimmedPotId;
   const snapshotTimestamp = sensorSnapshot
@@ -1492,6 +1943,11 @@ function PlantControlPanel({
       ? "On"
       : "Off"
     : "Unknown";
+  const lightDisplay = typeof sensorSnapshot?.lightOn === "boolean"
+    ? sensorSnapshot.lightOn
+      ? "On"
+      : "Off"
+    : "Unknown";
   const soilRawDisplay =
     sensorSnapshot && typeof sensorSnapshot.soilRaw === "number" && !Number.isNaN(sensorSnapshot.soilRaw)
       ? sensorSnapshot.soilRaw.toString()
@@ -1508,7 +1964,7 @@ function PlantControlPanel({
         : "Off";
   const pumpHelper = (() => {
     if (!trimmedPotId) {
-      return "Enter a pot id above to enable pump control.";
+      return "Select a control pot above to enable pump control.";
     }
     if (pumpPending) {
       return "Awaiting confirmation from the hub...";
@@ -1534,7 +1990,7 @@ function PlantControlPanel({
         : "Off";
   const fanHelper = (() => {
     if (!trimmedPotId) {
-      return "Enter a pot id above to enable fan control.";
+      return "Select a control pot above to enable fan control.";
     }
     if (fanPending) {
       return "Awaiting confirmation from the hub...";
@@ -1560,7 +2016,7 @@ function PlantControlPanel({
         : "Off";
   const misterHelper = (() => {
     if (!trimmedPotId) {
-      return "Enter a pot id above to enable mister control.";
+      return "Select a control pot above to enable mister control.";
     }
     if (misterPending) {
       return "Awaiting confirmation from the hub...";
@@ -1577,33 +2033,97 @@ function PlantControlPanel({
     void toggleMister({ potId: trimmedPotId });
   }, [toggleMister, trimmedPotId]);
 
+  const lightStatusLabel = lightPending
+    ? "Pending"
+    : lightIsOn === null
+      ? "Unknown"
+      : lightIsOn
+        ? "On"
+        : "Off";
+  const lightHelper = (() => {
+    if (!trimmedPotId) {
+      return "Select a control pot above to enable grow light control.";
+    }
+    if (lightPending) {
+      return "Awaiting confirmation from the hub...";
+    }
+    if (lightLastConfirmedAt) {
+      return lightRequestId
+        ? `Last confirmed ${lightLastConfirmedAt} - Request ${lightRequestId}`
+        : `Last confirmed ${lightLastConfirmedAt}`;
+    }
+    return "Tap to toggle the grow light.";
+  })();
+  const lightButtonDisabled = !trimmedPotId || lightPending;
+  const handleLightToggle = useCallback(() => {
+    void toggleLight({ potId: trimmedPotId });
+  }, [toggleLight, trimmedPotId]);
+
   return (
     <div className="space-y-4">
+      <div className="rounded-2xl border border-emerald-700/40 bg-[rgba(6,27,18,0.75)] p-4 text-sm text-emerald-100/85 shadow-inner shadow-emerald-950/40">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex min-w-[16rem] flex-col gap-1 text-xs text-emerald-200/70">
+              Control Pot
+              <select
+                value={controlPotSelectValue}
+                onChange={(event) => handleControlPotChange(event.target.value)}
+                className="min-w-[14rem] rounded-lg border border-emerald-700/50 bg-[rgba(6,30,20,0.88)] px-3 py-2 text-sm text-emerald-100 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
+              >
+                {connectedPotIds.map((potId) => {
+                  const label = resolvePotLabel(potId);
+                  const optionLabel = label.toLowerCase() === potId ? potId : `${label} (${potId})`;
+                  return (
+                    <option key={potId} value={potId}>
+                      {optionLabel}
+                    </option>
+                  );
+                })}
+                <option value="__custom__">Custom pot id...</option>
+              </select>
+            </label>
+            {!connectedPotIds.length || useCustomPotId ? (
+              <label className="flex min-w-[14rem] flex-col gap-1 text-xs text-emerald-200/70">
+                Custom Pot ID
+                <input
+                  type="text"
+                  value={customPotId}
+                  onChange={(event) => {
+                    setUseCustomPotId(true);
+                    setCustomPotId(event.target.value);
+                    setSelectedPotId(event.target.value.trim().toLowerCase());
+                  }}
+                  placeholder="e.g. pot-1"
+                  className="rounded-lg border border-emerald-700/50 bg-[rgba(6,30,20,0.88)] px-3 py-2 text-sm text-emerald-100 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
+                />
+              </label>
+            ) : null}
+          </div>
+          <p className="max-w-md text-xs text-emerald-200/70">
+            {selectedPotLabel
+              ? `Plant Control actions and schedule apply to ${selectedPotLabel}.`
+              : "Select a pot to enable schedule and manual controls."}
+          </p>
+        </div>
+      </div>
       <WateringRecommendationCard
         recommendation={watering.data}
         loading={watering.loading}
         error={watering.error}
         onRetry={watering.refresh}
+        potId={trimmedPotId || null}
+        potLabel={selectedPotLabel}
       />
       <PenmanMonteithEquation recommendation={watering.data} />
       <CollapsibleTile
         id="plant-control-manual-controls"
         title="Manual Controls"
-        subtitle="Manual overrides are simulated for now. Once the hub identifies your pot, it will only surface the outputs that are available."
+        subtitle="Manual overrides send live commands to the hub. Only outputs supported by your pot will respond."
         className="p-4 text-sm text-emerald-100/85"
         bodyClassName="mt-4 space-y-4"
       >
         <form className="flex flex-col gap-2 sm:flex-row sm:items-center" onSubmit={handleSensorSubmit}>
-          <label className="flex flex-col text-xs text-emerald-200/70 sm:text-right">
-            Pot ID
-            <input
-              type="text"
-              value={sensorPotId}
-              onChange={(event) => setSensorPotId(event.target.value)}
-              placeholder="e.g. pot-1"
-              className="mt-1 min-w-[12rem] rounded-lg border border-emerald-700/50 bg-[rgba(6,30,20,0.88)] px-3 py-2 text-sm text-emerald-100 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
-            />
-          </label>
           <button
             type="submit"
             title="Send an on-demand sensor_read command to the hub"
@@ -1619,11 +2139,79 @@ function PlantControlPanel({
                 <ArrowPathIcon className="h-4 w-4 animate-spin" aria-hidden="true" />
                 Requesting...
               </>
-            ) : (
-              "Sensor Read"
-            )}
+              ) : (
+                "Sensor Read"
+              )}
+          </button>
+          <button
+            type="button"
+            onClick={onRefreshDevices}
+            disabled={refreshingDevices}
+            className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+              refreshingDevices
+                ? "cursor-not-allowed border border-emerald-800/40 bg-[rgba(6,24,16,0.6)] text-emerald-200/40"
+                : "border border-emerald-500/70 bg-emerald-500/15 text-emerald-50 hover:border-emerald-400 hover:bg-emerald-500/25"
+            }`}
+          >
+            <ArrowPathIcon className={`h-4 w-4 ${refreshingDevices ? "animate-spin" : ""}`} aria-hidden="true" />
+            Refresh devices
           </button>
         </form>
+        <form className="flex flex-col gap-2 sm:flex-row sm:items-center" onSubmit={handleRenameSubmit}>
+          <label className="flex flex-col text-xs text-emerald-200/70 sm:text-right">
+            Display name
+            <input
+              type="text"
+              value={renameValue}
+              onChange={(event) => setRenameValue(event.target.value)}
+              placeholder={trimmedPotId ? "e.g. Kitchen Basil" : "Select a control pot first"}
+              disabled={renameSaving || !trimmedPotId}
+              maxLength={32}
+              className="mt-1 min-w-[12rem] rounded-lg border border-emerald-700/50 bg-[rgba(6,30,20,0.88)] px-3 py-2 text-sm text-emerald-100 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 disabled:cursor-not-allowed disabled:opacity-60"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={renameSaving || !trimmedPotId}
+            className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+              renameSaving || !trimmedPotId
+                ? "cursor-not-allowed border border-emerald-800/40 bg-[rgba(6,24,16,0.6)] text-emerald-200/40"
+                : "border border-emerald-500/70 bg-emerald-500/15 text-emerald-50 hover:border-emerald-400 hover:bg-emerald-500/25"
+            }`}
+          >
+            {renameSaving ? "Saving..." : "Save name"}
+          </button>
+        </form>
+        <form className="flex flex-col gap-2 sm:flex-row sm:items-center" onSubmit={handleSensorModeSubmit}>
+          <label className="flex flex-col text-xs text-emerald-200/70 sm:text-right">
+            Sensor mode
+            <select
+              value={sensorModeValue}
+              onChange={(event) => setSensorModeValue(event.target.value as "full" | "control_only")}
+              disabled={sensorModeSaving || !trimmedPotId}
+              className="mt-1 min-w-[12rem] rounded-lg border border-emerald-700/50 bg-[rgba(6,30,20,0.88)] px-3 py-2 text-sm text-emerald-100 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option value="full">Full sensors (cutoff enforced)</option>
+              <option value="control_only">Control-only (no sensors)</option>
+            </select>
+          </label>
+          <button
+            type="submit"
+            disabled={sensorModeSaving || !trimmedPotId}
+            className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+              sensorModeSaving || !trimmedPotId
+                ? "cursor-not-allowed border border-emerald-800/40 bg-[rgba(6,24,16,0.6)] text-emerald-200/40"
+                : "border border-emerald-500/70 bg-emerald-500/15 text-emerald-50 hover:border-emerald-400 hover:bg-emerald-500/25"
+            }`}
+          >
+            {sensorModeSaving ? "Saving..." : "Save mode"}
+          </button>
+        </form>
+        {sensorModeValue === "control_only" ? (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100/90">
+            Control-only disables sensor reads and safety cutoff checks. Use with caution.
+          </div>
+        ) : null}
           {feedback ? (
             <div
               role="status"
@@ -1634,6 +2222,30 @@ function PlantControlPanel({
               }`}
             >
               {feedback.message}
+            </div>
+          ) : null}
+          {renameFeedback ? (
+            <div
+              role="status"
+              className={`rounded-lg border px-3 py-2 text-xs ${
+                renameFeedback.type === "success"
+                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
+                  : "border-rose-500/50 bg-rose-500/10 text-rose-200"
+              }`}
+            >
+              {renameFeedback.message}
+            </div>
+          ) : null}
+          {sensorModeFeedback ? (
+            <div
+              role="status"
+              className={`rounded-lg border px-3 py-2 text-xs ${
+                sensorModeFeedback.type === "success"
+                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
+                  : "border-rose-500/50 bg-rose-500/10 text-rose-200"
+              }`}
+            >
+              {sensorModeFeedback.message}
             </div>
           ) : null}
         {pumpFeedback ? (
@@ -1678,6 +2290,20 @@ function PlantControlPanel({
               {misterFeedback.message}
             </div>
           ) : null}
+          {lightFeedback ? (
+            <div
+              role="status"
+              className={`rounded-lg border px-3 py-2 text-xs ${
+                lightFeedback.type === "success"
+                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
+                  : lightFeedback.type === "error"
+                    ? "border-rose-500/50 bg-rose-500/10 text-rose-200"
+                    : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200/80"
+              }`}
+            >
+              {lightFeedback.message}
+            </div>
+          ) : null}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {CONTROL_DEVICES.map((device) => {
               if (device.id === "pump") {
@@ -1716,6 +2342,19 @@ function PlantControlPanel({
                     helper={misterHelper}
                     disabled={misterButtonDisabled}
                     onClick={handleMisterToggle}
+                  />
+                );
+              }
+              if (device.id === "light") {
+                return (
+                  <ControlToggleButton
+                    key={device.id}
+                    label={device.label}
+                    isOn={lightIsOn ?? false}
+                    status={lightStatusLabel}
+                    helper={lightHelper}
+                    disabled={lightButtonDisabled}
+                    onClick={handleLightToggle}
                   />
                 );
               }
@@ -1762,6 +2401,10 @@ function PlantControlPanel({
                       <dd className="text-sm text-emerald-100">{misterDisplay}</dd>
                     </div>
                     <div>
+                      <dt className="text-[10px] uppercase tracking-wide text-emerald-200/60">Grow Light</dt>
+                      <dd className="text-sm text-emerald-100">{lightDisplay}</dd>
+                    </div>
+                    <div>
                       <dt className="text-[10px] uppercase tracking-wide text-emerald-200/60">Reservoir float</dt>
                       <dd className="text-sm text-emerald-100">{reservoirDisplay}</dd>
                     </div>
@@ -1782,7 +2425,7 @@ function PlantControlPanel({
                 </>
               ) : (
                 <p className="mt-2 text-xs text-emerald-200/60">
-                  No on-demand snapshot yet. Enter a pot id and press Sensor Read to fetch one.
+                  No on-demand snapshot yet. Select a control pot and press Sensor Read to fetch one.
                 </p>
               )}
           </div>

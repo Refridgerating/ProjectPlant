@@ -1,4 +1,5 @@
 {
     "idf.pythonInstallPath": "C:\\Espressif\\tools\\idf-python\\3.11.2\\python.exe",
-    "cmake.sourceDirectory": "C:/ProjectPlant/ProjectPlant/eccodes-2.34.0/eccodes-2.34.0"
+    "cmake.sourceDirectory": "C:/ProjectPlant/ProjectPlant/eccodes-2.34.0/eccodes-2.34.0",
+    "idf.currentSetup": "C:/Espressif/frameworks/esp-idf-v5.5.1/"
 }

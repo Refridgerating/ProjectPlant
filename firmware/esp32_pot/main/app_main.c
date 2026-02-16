@@ -4,6 +4,7 @@
 
 #include "esp_log.h"
 
+#include "device_identity.h"
 #include "hardware_config.h"
 #include "plant_mqtt.h"
 #include "sensors.h"
@@ -19,6 +20,7 @@ static const char *TAG = "app";
 static QueueHandle_t measurement_queue;
 static QueueHandle_t command_queue;
 static esp_mqtt_client_handle_t mqtt_client = NULL;
+static const char *device_id = NULL;
 
 #if defined(INCLUDE_uxTaskGetStackHighWaterMark) && (INCLUDE_uxTaskGetStackHighWaterMark == 1)
 static void log_ping_task_watermark(const char *label)
@@ -58,7 +60,7 @@ static void handle_command_task(void *arg)
                 sensors_set_pump_state(cmd.pump_on);
                 const char *request_id = cmd.request_id[0] ? cmd.request_id : NULL;
                 if (mqtt_client) {
-                    mqtt_publish_status(mqtt_client, DEVICE_ID, FW_VERSION,
+                    mqtt_publish_status(mqtt_client, device_id, FW_VERSION,
                                         cmd.pump_on ? "pump_on" : "pump_off",
                                         request_id);
                 }
@@ -66,7 +68,7 @@ static void handle_command_task(void *arg)
                     vTaskDelay(pdMS_TO_TICKS(cmd.duration_ms));
                     sensors_set_pump_state(false);
                     if (mqtt_client) {
-                        mqtt_publish_status(mqtt_client, DEVICE_ID, FW_VERSION, "pump_timeout_off", request_id);
+                        mqtt_publish_status(mqtt_client, device_id, FW_VERSION, "pump_timeout_off", request_id);
                     }
                 }
                 break;
@@ -75,7 +77,7 @@ static void handle_command_task(void *arg)
                 sensors_set_fan_state(cmd.fan_on);
                 const char *fan_request_id = cmd.request_id[0] ? cmd.request_id : NULL;
                 if (mqtt_client) {
-                    mqtt_publish_status(mqtt_client, DEVICE_ID, FW_VERSION,
+                    mqtt_publish_status(mqtt_client, device_id, FW_VERSION,
                                         cmd.fan_on ? "fan_on" : "fan_off",
                                         fan_request_id);
                 }
@@ -83,7 +85,7 @@ static void handle_command_task(void *arg)
                     vTaskDelay(pdMS_TO_TICKS(cmd.duration_ms));
                     sensors_set_fan_state(false);
                     if (mqtt_client) {
-                        mqtt_publish_status(mqtt_client, DEVICE_ID, FW_VERSION, "fan_timeout_off", fan_request_id);
+                        mqtt_publish_status(mqtt_client, device_id, FW_VERSION, "fan_timeout_off", fan_request_id);
                     }
                 }
                 break;
@@ -93,7 +95,7 @@ static void handle_command_task(void *arg)
                 sensors_set_mister_state(cmd.mister_on);
                 const char *mister_request_id = cmd.request_id[0] ? cmd.request_id : NULL;
                 if (mqtt_client) {
-                    mqtt_publish_status(mqtt_client, DEVICE_ID, FW_VERSION,
+                    mqtt_publish_status(mqtt_client, device_id, FW_VERSION,
                                         cmd.mister_on ? "mister_on" : "mister_off",
                                         mister_request_id);
                 }
@@ -101,7 +103,25 @@ static void handle_command_task(void *arg)
                     vTaskDelay(pdMS_TO_TICKS(cmd.duration_ms));
                     sensors_set_mister_state(false);
                     if (mqtt_client) {
-                        mqtt_publish_status(mqtt_client, DEVICE_ID, FW_VERSION, "mister_timeout_off", mister_request_id);
+                        mqtt_publish_status(mqtt_client, device_id, FW_VERSION, "mister_timeout_off", mister_request_id);
+                    }
+                }
+                break;
+            }
+            case MQTT_CMD_LIGHT_OVERRIDE: {
+                ESP_LOGI(TAG, "Light command: %s duration %u ms", cmd.light_on ? "ON" : "OFF", (unsigned)cmd.duration_ms);
+                sensors_set_light_state(cmd.light_on);
+                const char *light_request_id = cmd.request_id[0] ? cmd.request_id : NULL;
+                if (mqtt_client) {
+                    mqtt_publish_status(mqtt_client, device_id, FW_VERSION,
+                                        cmd.light_on ? "light_on" : "light_off",
+                                        light_request_id);
+                }
+                if (cmd.light_on && cmd.duration_ms > 0) {
+                    vTaskDelay(pdMS_TO_TICKS(cmd.duration_ms));
+                    sensors_set_light_state(false);
+                    if (mqtt_client) {
+                        mqtt_publish_status(mqtt_client, device_id, FW_VERSION, "light_timeout_off", light_request_id);
                     }
                 }
                 break;
@@ -116,7 +136,39 @@ static void handle_command_task(void *arg)
                 }
                 if (mqtt_client) {
                     const char *request_id = cmd.request_id[0] ? cmd.request_id : NULL;
-                    mqtt_publish_reading(mqtt_client, DEVICE_ID, &reading, request_id);
+                    mqtt_publish_reading(mqtt_client, device_id, &reading, request_id);
+                }
+                break;
+            }
+            case MQTT_CMD_CONFIG_UPDATE: {
+                const char *request_id = cmd.request_id[0] ? cmd.request_id : NULL;
+                if (cmd.device_name[0]) {
+                    esp_err_t err = device_identity_set_name(cmd.device_name);
+                    if (err == ESP_OK) {
+                        ESP_LOGI(TAG, "Device name updated to %s", cmd.device_name);
+                        if (mqtt_client) {
+                            mqtt_publish_status(mqtt_client, device_id, FW_VERSION, "name_updated", request_id);
+                        }
+                    } else {
+                        ESP_LOGW(TAG, "Failed to update device name: %s", esp_err_to_name(err));
+                        if (mqtt_client) {
+                            mqtt_publish_status(mqtt_client, device_id, FW_VERSION, "name_update_failed", request_id);
+                        }
+                    }
+                }
+                if (cmd.has_sensor_mode) {
+                    esp_err_t err = device_identity_set_sensor_mode(cmd.sensor_mode);
+                    if (err == ESP_OK) {
+                        ESP_LOGI(TAG, "Sensor mode updated to %s", device_identity_sensor_mode_label());
+                        if (mqtt_client) {
+                            mqtt_publish_status(mqtt_client, device_id, FW_VERSION, "sensor_mode_updated", request_id);
+                        }
+                    } else {
+                        ESP_LOGW(TAG, "Failed to update sensor mode: %s", esp_err_to_name(err));
+                        if (mqtt_client) {
+                            mqtt_publish_status(mqtt_client, device_id, FW_VERSION, "sensor_mode_update_failed", request_id);
+                        }
+                    }
                 }
                 break;
             }
@@ -147,12 +199,12 @@ static void mqtt_task(void *arg)
     sensor_reading_t reading;
     vTaskDelay(pdMS_TO_TICKS(2000));
     if (mqtt_client) {
-        mqtt_publish_status(mqtt_client, DEVICE_ID, FW_VERSION, "online", NULL);
+        mqtt_publish_status(mqtt_client, device_id, FW_VERSION, "online", NULL);
     }
     while (true) {
         if (measurement_queue && xQueueReceive(measurement_queue, &reading, portMAX_DELAY) == pdTRUE) {
             if (mqtt_client) {
-                mqtt_publish_reading(mqtt_client, DEVICE_ID, &reading, NULL);
+                mqtt_publish_reading(mqtt_client, device_id, &reading, NULL);
             }
         }
     }
@@ -169,7 +221,7 @@ static void ping_task(void *arg)
 #if defined(INCLUDE_uxTaskGetStackHighWaterMark) && (INCLUDE_uxTaskGetStackHighWaterMark == 1)
             log_ping_task_watermark("ping_task before mqtt_publish_ping");
 #endif
-            mqtt_publish_ping(mqtt_client, DEVICE_ID);
+            mqtt_publish_ping(mqtt_client, device_id);
 #if defined(INCLUDE_uxTaskGetStackHighWaterMark) && (INCLUDE_uxTaskGetStackHighWaterMark == 1)
             log_ping_task_watermark("ping_task after mqtt_publish_ping");
 #endif
@@ -199,10 +251,13 @@ void app_main(void)
         }
     }
 
+    device_identity_init();
+    device_id = device_identity_id();
+
     measurement_queue = xQueueCreate(1, sizeof(sensor_reading_t));
     command_queue = xQueueCreate(4, sizeof(mqtt_command_t));
 
-    mqtt_client = mqtt_client_start(MQTT_BROKER_URI, DEVICE_ID, MQTT_USERNAME, MQTT_PASSWORD, mqtt_command_dispatch);
+    mqtt_client = mqtt_client_start(MQTT_BROKER_URI, device_id, MQTT_USERNAME, MQTT_PASSWORD, mqtt_command_dispatch);
 
     xTaskCreate(sensor_task, "sensor_task", SENSOR_TASK_STACK, NULL, SENSOR_TASK_PRIORITY, NULL);
     xTaskCreate(mqtt_task, "mqtt_task", MQTT_TASK_STACK, NULL, MQTT_TASK_PRIORITY, NULL);

@@ -12,6 +12,7 @@ from api.search_router import router as search_router
 from api.v1.router import router as v1_router
 from api.etkc_router import router as etkc_router
 from mqtt.client import startup as mqtt_startup, shutdown as mqtt_shutdown
+from services.plant_schedule import plant_schedule_service
 from services.weather import weather_service
 from services.weather_hrrr import hrrr_weather_service
 from services.plant_lookup import plant_lookup_service
@@ -29,6 +30,10 @@ def create_app() -> FastAPI:
         if settings.mqtt_enabled:
             logger.info("MQTT enabled; connecting...")
             await mqtt_startup(settings)
+            try:
+                await plant_schedule_service.start_scheduler()
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.warning("Plant schedule scheduler failed to start: %s", exc)
         else:
             logger.info("MQTT disabled (set MQTT_ENABLED=true to enable).")
         if settings.hrrr_enabled:
@@ -39,6 +44,7 @@ def create_app() -> FastAPI:
         try:
             yield
         finally:
+            await plant_schedule_service.close()
             await mqtt_shutdown()
             await weather_service.close()
             await hrrr_weather_service.close()

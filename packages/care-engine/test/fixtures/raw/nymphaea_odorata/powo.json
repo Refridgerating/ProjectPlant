@@ -1,0 +1,53 @@
+{
+  "modified": "2022-07-11T23:00:00.000Z",
+  "bibliographicCitation": "IPNI 2025. Published on the Internet http://www.ipni.org; WCVP 2025. WCVP. Facilitated by the Royal Botanic Gardens, Kew. Published on the Internet; https://powo.science.kew.org/ Retrieved 2011 onwards",
+  "genus": "Rhus",
+  "taxonomicStatus": "Homotypic_Synonym",
+  "kingdom": "Plantae",
+  "phylum": "Streptophyta",
+  "clazz": "Equisetopsida",
+  "subclass": "Magnoliidae",
+  "order": "Sapindales",
+  "family": "Anacardiaceae",
+  "nomenclaturalCode": "Botanical",
+  "source": "wcvp:2423675",
+  "namePublishedInYear": 1876,
+  "nomenclaturalStatus": "Available",
+  "lifeform": "Unknown",
+  "climate": "Unknown",
+  "hybrid": false,
+  "plantae": true,
+  "fungi": false,
+  "accepted": {
+    "fqId": "urn:lsid:ipni.org:names:71729-1",
+    "name": "Toxicodendron khasianum",
+    "author": "(Hook.f.) Kuntze",
+    "rank": "SPECIES",
+    "taxonomicStatus": "Accepted"
+  },
+  "synonym": true,
+  "fqId": "urn:lsid:ipni.org:names:70630-1",
+  "name": "Rhus khasiana",
+  "authors": "Hook.f.",
+  "species": "khasiana",
+  "rank": "SPECIES",
+  "reference": "Fl. Brit. India 2: 10 (1876)",
+  "classification": [
+    {
+      "fqId": "urn:lsid:ipni.org:names:70630-1",
+      "name": "Rhus khasiana",
+      "author": "Hook.f.",
+      "rank": "SPECIES",
+      "taxonomicStatus": "Homotypic_Synonym"
+    }
+  ],
+  "basionymOf": [
+    {
+      "fqId": "urn:lsid:ipni.org:names:71729-1",
+      "name": "Toxicodendron khasianum",
+      "author": "(Hook.f.) Kuntze",
+      "rank": "SPECIES",
+      "taxonomicStatus": "Accepted"
+    }
+  ]
+}

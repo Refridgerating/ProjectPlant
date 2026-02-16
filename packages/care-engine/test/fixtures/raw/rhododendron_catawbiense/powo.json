@@ -1,0 +1,150 @@
+{
+  "modified": "2022-07-11T23:00:00.000Z",
+  "bibliographicCitation": "IPNI 2025. Published on the Internet http://www.ipni.org; WCVP 2025. WCVP. Facilitated by the Royal Botanic Gardens, Kew. Published on the Internet; https://powo.science.kew.org/ Retrieved 2011 onwards",
+  "genus": "Rhododendron",
+  "taxonomicStatus": "Accepted",
+  "kingdom": "Plantae",
+  "phylum": "Streptophyta",
+  "clazz": "Equisetopsida",
+  "subclass": "Magnoliidae",
+  "order": "Ericales",
+  "family": "Ericaceae",
+  "nomenclaturalCode": "Botanical",
+  "source": "wcvp:2423824",
+  "namePublishedInYear": 1803,
+  "taxonRemarks": "West Virginia to SE. U.S.A.",
+  "nomenclaturalStatus": "Available",
+  "lifeform": "shrub or tree",
+  "climate": "temperate",
+  "hybrid": false,
+  "plantae": true,
+  "fungi": false,
+  "locations": [
+    "EASTERN_EUROPE",
+    "BLT_ES",
+    "KTY",
+    "GEO_OO",
+    "WVA_OO",
+    "NORTHERN_AMERICA",
+    "ALA",
+    "BLT_KA",
+    "WVA",
+    "SCA",
+    "TEN",
+    "NCA",
+    "SOUTHEASTERN_USA",
+    "GEO",
+    "VRG_OO",
+    "NORTHEASTERN_USA",
+    "BLT_LA",
+    "SCA_OO",
+    "VRG",
+    "NCA_OO",
+    "GER",
+    "MIDDLE_EUROPE",
+    "ALA_OO",
+    "KTY_OO",
+    "BLT",
+    "EUROPE",
+    "TEN_OO",
+    "BLT_LI",
+    "GER_OO"
+  ],
+  "synonym": false,
+  "fqId": "urn:lsid:ipni.org:names:332124-1",
+  "name": "Rhododendron catawbiense",
+  "authors": "Michx.",
+  "species": "catawbiense",
+  "rank": "SPECIES",
+  "reference": "Fl. Bor.-Amer. 1: 258 (1803)",
+  "classification": [
+    {
+      "fqId": "urn:lsid:ipni.org:names:30000402-2",
+      "name": "Ericaceae",
+      "author": "Durande",
+      "rank": "FAMILY",
+      "taxonomicStatus": "Accepted"
+    },
+    {
+      "fqId": "urn:lsid:ipni.org:names:327085-2",
+      "name": "Rhododendron",
+      "author": "L.",
+      "rank": "GENUS",
+      "taxonomicStatus": "Accepted"
+    },
+    {
+      "fqId": "urn:lsid:ipni.org:names:332124-1",
+      "name": "Rhododendron catawbiense",
+      "author": "Michx.",
+      "rank": "SPECIES",
+      "taxonomicStatus": "Accepted"
+    }
+  ],
+  "basionymOf": [
+    {
+      "fqId": "urn:lsid:ipni.org:names:125454-2",
+      "name": "Hymenanthes catawbiensis",
+      "author": "(Michx.) H.F.Copel.",
+      "rank": "SPECIES",
+      "taxonomicStatus": "Homotypic_Synonym"
+    },
+    {
+      "fqId": "urn:lsid:ipni.org:names:27639-2",
+      "name": "Azalea catawbiensis",
+      "author": "(Michx.) Kuntze",
+      "rank": "SPECIES",
+      "taxonomicStatus": "Homotypic_Synonym"
+    }
+  ],
+  "synonyms": [
+    {
+      "fqId": "urn:lsid:ipni.org:names:125454-2",
+      "name": "Hymenanthes catawbiensis",
+      "author": "(Michx.) H.F.Copel.",
+      "rank": "SPECIES",
+      "taxonomicStatus": "Homotypic_Synonym"
+    },
+    {
+      "fqId": "urn:lsid:ipni.org:names:2936250-4",
+      "name": "Rhododendron catawbiense f. compactum",
+      "author": "Kelsey ex Nearing",
+      "rank": "Form",
+      "taxonomicStatus": "Heterotypic_Synonym"
+    },
+    {
+      "fqId": "urn:lsid:ipni.org:names:2936248-4",
+      "name": "Rhododendron catawbiense var. album",
+      "author": "P.Glass",
+      "rank": "VARIETY",
+      "taxonomicStatus": "Heterotypic_Synonym"
+    },
+    {
+      "fqId": "urn:lsid:ipni.org:names:219468-2",
+      "name": "Rhododendron catawbiense f. tomopetalum",
+      "author": "Rehder",
+      "rank": "Form",
+      "taxonomicStatus": "Heterotypic_Synonym"
+    },
+    {
+      "fqId": "urn:lsid:ipni.org:names:2430351-4",
+      "name": "Rhododendron catawbiense f. insularis",
+      "author": "Coker",
+      "rank": "Form",
+      "taxonomicStatus": "Heterotypic_Synonym"
+    },
+    {
+      "fqId": "urn:lsid:ipni.org:names:2936249-4",
+      "name": "Rhododendron catawbiense f. album",
+      "author": "(P.Glass) Rehder",
+      "rank": "Form",
+      "taxonomicStatus": "Heterotypic_Synonym"
+    },
+    {
+      "fqId": "urn:lsid:ipni.org:names:27639-2",
+      "name": "Azalea catawbiensis",
+      "author": "(Michx.) Kuntze",
+      "rank": "SPECIES",
+      "taxonomicStatus": "Homotypic_Synonym"
+    }
+  ]
+}

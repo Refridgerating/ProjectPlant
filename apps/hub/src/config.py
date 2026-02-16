@@ -132,6 +132,26 @@ class Settings(BaseSettings):
         default_factory=list,
         description="Recipient email addresses for alert notifications.",
     )
+    device_registry_path: str = Field(
+        default="data/device_registry.json",
+        description="Path to persist manually tracked pot identifiers.",
+    )
+    plant_schedule_path: str = Field(
+        default="data/plant_schedules.json",
+        description="Path to persist per-pot plant control schedules.",
+    )
+    plant_schedule_interval_seconds: float = Field(
+        default=30.0,
+        ge=5.0,
+        le=3600.0,
+        description="Scheduler polling interval for applying plant control timers.",
+    )
+    plant_schedule_command_timeout_seconds: float = Field(
+        default=5.0,
+        ge=0.1,
+        le=30.0,
+        description="Timeout in seconds when waiting for actuator override acknowledgements.",
+    )
 
     @field_validator("cors_origins", mode="before")
     @classmethod

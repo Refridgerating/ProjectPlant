@@ -1,0 +1,49 @@
+{
+  "type": "standard",
+  "title": "Monstera deliciosa",
+  "displaytitle": "<i>Monstera deliciosa</i>",
+  "namespace": {
+    "id": 0,
+    "text": ""
+  },
+  "wikibase_item": "Q161077",
+  "titles": {
+    "canonical": "Monstera_deliciosa",
+    "normalized": "Monstera deliciosa",
+    "display": "<i>Monstera deliciosa</i>"
+  },
+  "pageid": 716481,
+  "thumbnail": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Monstera_deliciosa2.jpg/330px-Monstera_deliciosa2.jpg",
+    "width": 320,
+    "height": 364
+  },
+  "originalimage": {
+    "source": "https://upload.wikimedia.org/wikipedia/commons/2/2e/Monstera_deliciosa2.jpg",
+    "width": 1512,
+    "height": 1719
+  },
+  "lang": "en",
+  "dir": "ltr",
+  "revision": "1318433128",
+  "tid": "8b09cd72-b051-11f0-a5f2-b70ffc934baa",
+  "timestamp": "2025-10-23T20:47:52Z",
+  "description": "Species of plant",
+  "description_source": "local",
+  "content_urls": {
+    "desktop": {
+      "page": "https://en.wikipedia.org/wiki/Monstera_deliciosa",
+      "revisions": "https://en.wikipedia.org/wiki/Monstera_deliciosa?action=history",
+      "edit": "https://en.wikipedia.org/wiki/Monstera_deliciosa?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Monstera_deliciosa"
+    },
+    "mobile": {
+      "page": "https://en.wikipedia.org/wiki/Monstera_deliciosa",
+      "revisions": "https://en.wikipedia.org/wiki/Special:History/Monstera_deliciosa",
+      "edit": "https://en.wikipedia.org/wiki/Monstera_deliciosa?action=edit",
+      "talk": "https://en.wikipedia.org/wiki/Talk:Monstera_deliciosa"
+    }
+  },
+  "extract": "Monstera deliciosa, the Swiss cheese plant or split-leaf philodendron is a species of flowering plant. The common name \"Swiss cheese plant\" is also used for the related species from the same genus, Monstera adansonii. The common name \"split-leaf philodendron\" is also used for the species Philodendron bipinnatifidum.",
+  "extract_html": "<p><i><b>Monstera deliciosa</b></i>, the <b>Swiss cheese plant</b> or <b>split-leaf philodendron</b> is a species of flowering plant. The common name \"Swiss cheese plant\" is also used for the related species from the same genus, <i>Monstera adansonii</i>. The common name \"split-leaf philodendron\" is also used for the species <i>Philodendron bipinnatifidum</i>.</p>"
+}

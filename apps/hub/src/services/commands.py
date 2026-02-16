@@ -12,6 +12,7 @@ from uuid import uuid4
 from asyncio_mqtt import MqttError
 
 from mqtt.client import get_mqtt_manager
+from services.pot_ids import normalize_pot_id
 
 LOGGER_NAME = "projectplant.hub.commands"
 COMMAND_TOPIC_FMT = "pots/{pot_id}/command"
@@ -45,6 +46,13 @@ class CommandService:
     def __init__(self, *, default_timeout: float = 5.0) -> None:
         self._default_timeout = max(default_timeout, 0.1)
         self._logger = logging.getLogger(LOGGER_NAME)
+
+    @staticmethod
+    def _normalize_pot_id(pot_id: str) -> str:
+        normalized = normalize_pot_id(pot_id)
+        if not normalized:
+            raise ValueError("pot_id is required")
+        return normalized
 
     async def request_sensor_read(self, pot_id: str, *, timeout: Optional[float] = None) -> SensorReadResult:
         return await self._execute_command(pot_id, command="sensor_read", timeout=timeout)
@@ -165,6 +173,44 @@ class CommandService:
         payload["requestId"] = mister_result.request_id
         return SensorReadResult(request_id=mister_result.request_id, payload=payload)
 
+    async def control_light(
+        self,
+        pot_id: str,
+        *,
+        on: bool,
+        duration_ms: Optional[float] = None,
+        timeout: Optional[float] = None,
+    ) -> SensorReadResult:
+        if duration_ms is not None and duration_ms < 0:
+            raise ValueError("duration_ms must be non-negative")
+
+        duration_int: Optional[int] = None
+        if duration_ms is not None:
+            duration_int = int(duration_ms)
+
+        overall_start = time.monotonic()
+        light_result = await self.send_light_override(
+            pot_id,
+            light_on=on,
+            duration_ms=duration_int,
+            timeout=timeout,
+        )
+
+        sensor_timeout: Optional[float] = None
+        if timeout is not None:
+            elapsed = time.monotonic() - overall_start
+            remaining = timeout - elapsed
+            if remaining <= 0:
+                raise CommandTimeoutError(
+                    f"Timed out waiting for sensor reading after light command for {pot_id}"
+                )
+            sensor_timeout = remaining
+
+        sensor_result = await self.request_sensor_read(pot_id, timeout=sensor_timeout)
+        payload = dict(sensor_result.payload)
+        payload["requestId"] = light_result.request_id
+        return SensorReadResult(request_id=light_result.request_id, payload=payload)
+
     async def _execute_command(
         self,
         pot_id: str,
@@ -173,8 +219,7 @@ class CommandService:
         command_payload: Optional[dict[str, Any]] = None,
         timeout: Optional[float] = None,
     ) -> SensorReadResult:
-        if not pot_id:
-            raise ValueError("pot_id is required")
+        pot_id = self._normalize_pot_id(pot_id)
 
         manager = get_mqtt_manager()
         if manager is None:
@@ -314,6 +359,7 @@ class CommandService:
         duration_ms: Optional[int] = None,
         timeout: Optional[float] = None,
     ) -> CommandAckResult:
+        pot_id = self._normalize_pot_id(pot_id)
         if not pot_id:
             raise ValueError("pot_id is required")
         if duration_ms is not None:
@@ -409,6 +455,7 @@ class CommandService:
         duration_ms: Optional[int] = None,
         timeout: Optional[float] = None,
     ) -> CommandAckResult:
+        pot_id = self._normalize_pot_id(pot_id)
         if not pot_id:
             raise ValueError("pot_id is required")
         if duration_ms is not None:
@@ -506,6 +553,7 @@ class CommandService:
         duration_ms: Optional[int] = None,
         timeout: Optional[float] = None,
     ) -> CommandAckResult:
+        pot_id = self._normalize_pot_id(pot_id)
         if not pot_id:
             raise ValueError("pot_id is required")
         if duration_ms is not None:
@@ -587,6 +635,290 @@ class CommandService:
 
                     self._logger.debug(
                         "Received mister status for %s in %.2f s", pot_id, time.monotonic() - start_monotonic
+                    )
+                    return CommandAckResult(request_id=request_id, payload=data)
+            finally:
+                try:
+                    await client.unsubscribe(status_topic)
+                except MqttError:
+                    self._logger.debug("Failed to unsubscribe from %s during cleanup", status_topic, exc_info=True)
+
+    async def send_light_override(
+        self,
+        pot_id: str,
+        *,
+        light_on: bool,
+        duration_ms: Optional[int] = None,
+        timeout: Optional[float] = None,
+    ) -> CommandAckResult:
+        pot_id = self._normalize_pot_id(pot_id)
+        if not pot_id:
+            raise ValueError("pot_id is required")
+        if duration_ms is not None:
+            if duration_ms < 0:
+                raise ValueError("duration_ms must be non-negative")
+            duration_ms = int(duration_ms)
+
+        manager = get_mqtt_manager()
+        if manager is None:
+            raise CommandServiceError("MQTT manager is not connected")
+
+        try:
+            client = manager.get_client()
+        except RuntimeError as exc:
+            raise CommandServiceError(str(exc)) from exc
+
+        target_timeout = timeout if timeout is not None else self._default_timeout
+        if target_timeout <= 0:
+            raise ValueError("timeout must be greater than zero")
+
+        command_topic = COMMAND_TOPIC_FMT.format(pot_id=pot_id)
+        status_topic = STATUS_TOPIC_FMT.format(pot_id=pot_id)
+        request_id = str(uuid4())
+
+        payload_dict: dict[str, Any] = {
+            "requestId": request_id,
+            "light": "on" if light_on else "off",
+        }
+        if duration_ms is not None:
+            payload_dict["duration_ms"] = duration_ms
+
+        payload = json.dumps(payload_dict, separators=(",", ":"))
+
+        start_monotonic = time.monotonic()
+
+        async with client.messages() as messages:
+            try:
+                await client.subscribe(status_topic)
+            except MqttError as exc:
+                raise CommandServiceError(f"Failed to subscribe to {status_topic}") from exc
+
+            try:
+                await client.publish(command_topic, payload, qos=1, retain=False)
+            except MqttError as exc:
+                raise CommandServiceError(f"Failed to publish light override command to {command_topic}") from exc
+
+            deadline = start_monotonic + target_timeout
+            try:
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise CommandTimeoutError(f"Timed out waiting for status update on {status_topic}")
+
+                    try:
+                        message = await asyncio.wait_for(messages.__anext__(), timeout=remaining)
+                    except asyncio.TimeoutError as exc:
+                        raise CommandTimeoutError(
+                            f"Timed out waiting for status update on {status_topic}"
+                        ) from exc
+                    except MqttError as exc:
+                        raise CommandServiceError("MQTT error while awaiting status update") from exc
+
+                    topic_value = getattr(message, "topic", status_topic)
+                    if hasattr(topic_value, "matches"):
+                        if not topic_value.matches(status_topic):
+                            continue
+                    elif str(topic_value) != status_topic:
+                        continue
+
+                    data = self._decode_payload(message.payload)
+                    if data is None:
+                        continue
+
+                    if data.get("requestId") != request_id:
+                        self._logger.debug(
+                            "Ignoring status payload for %s with unmatched requestId %r", pot_id, data.get("requestId")
+                        )
+                        continue
+
+                    self._logger.debug(
+                        "Received light status for %s in %.2f s", pot_id, time.monotonic() - start_monotonic
+                    )
+                    return CommandAckResult(request_id=request_id, payload=data)
+            finally:
+                try:
+                    await client.unsubscribe(status_topic)
+                except MqttError:
+                    self._logger.debug("Failed to unsubscribe from %s during cleanup", status_topic, exc_info=True)
+
+    async def set_device_name(
+        self,
+        pot_id: str,
+        *,
+        name: str,
+        timeout: Optional[float] = None,
+    ) -> CommandAckResult:
+        pot_id = self._normalize_pot_id(pot_id)
+        cleaned = name.strip()
+        if not cleaned:
+            raise ValueError("device name is required")
+        if len(cleaned) > 32:
+            raise ValueError("device name must be 32 characters or fewer")
+
+        manager = get_mqtt_manager()
+        if manager is None:
+            raise CommandServiceError("MQTT manager is not connected")
+
+        try:
+            client = manager.get_client()
+        except RuntimeError as exc:
+            raise CommandServiceError(str(exc)) from exc
+
+        target_timeout = timeout if timeout is not None else self._default_timeout
+        if target_timeout <= 0:
+            raise ValueError("timeout must be greater than zero")
+
+        command_topic = COMMAND_TOPIC_FMT.format(pot_id=pot_id)
+        status_topic = STATUS_TOPIC_FMT.format(pot_id=pot_id)
+        request_id = str(uuid4())
+
+        payload_dict: dict[str, Any] = {
+            "requestId": request_id,
+            "deviceName": cleaned,
+        }
+        payload = json.dumps(payload_dict, separators=(",", ":"))
+
+        start_monotonic = time.monotonic()
+
+        async with client.messages() as messages:
+            try:
+                await client.subscribe(status_topic)
+            except MqttError as exc:
+                raise CommandServiceError(f"Failed to subscribe to {status_topic}") from exc
+
+            try:
+                await client.publish(command_topic, payload, qos=1, retain=False)
+            except MqttError as exc:
+                raise CommandServiceError(f"Failed to publish device name update to {command_topic}") from exc
+
+            deadline = start_monotonic + target_timeout
+            try:
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise CommandTimeoutError(f"Timed out waiting for status update on {status_topic}")
+
+                    try:
+                        message = await asyncio.wait_for(messages.__anext__(), timeout=remaining)
+                    except asyncio.TimeoutError as exc:
+                        raise CommandTimeoutError(f"Timed out waiting for status update on {status_topic}") from exc
+                    except MqttError as exc:
+                        raise CommandServiceError("MQTT error while awaiting status update") from exc
+
+                    topic_value = getattr(message, "topic", status_topic)
+                    if hasattr(topic_value, "matches"):
+                        if not topic_value.matches(status_topic):
+                            continue
+                    elif str(topic_value) != status_topic:
+                        continue
+
+                    data = self._decode_payload(message.payload)
+                    if data is None:
+                        continue
+
+                    if data.get("requestId") != request_id:
+                        self._logger.debug(
+                            "Ignoring status payload for %s with unmatched requestId %r", pot_id, data.get("requestId")
+                        )
+                        continue
+
+                    self._logger.debug(
+                        "Received name update status for %s in %.2f s", pot_id, time.monotonic() - start_monotonic
+                    )
+                    return CommandAckResult(request_id=request_id, payload=data)
+            finally:
+                try:
+                    await client.unsubscribe(status_topic)
+                except MqttError:
+                    self._logger.debug("Failed to unsubscribe from %s during cleanup", status_topic, exc_info=True)
+
+    async def set_sensor_mode(
+        self,
+        pot_id: str,
+        *,
+        mode: str,
+        timeout: Optional[float] = None,
+    ) -> CommandAckResult:
+        pot_id = self._normalize_pot_id(pot_id)
+        cleaned = mode.strip().lower()
+        if cleaned in {"control_only", "control-only", "control"}:
+            normalized_mode = "control_only"
+        elif cleaned in {"full", "sensors", "enabled"}:
+            normalized_mode = "full"
+        else:
+            raise ValueError("sensor mode must be 'full' or 'control_only'")
+
+        manager = get_mqtt_manager()
+        if manager is None:
+            raise CommandServiceError("MQTT manager is not connected")
+
+        try:
+            client = manager.get_client()
+        except RuntimeError as exc:
+            raise CommandServiceError(str(exc)) from exc
+
+        target_timeout = timeout if timeout is not None else self._default_timeout
+        if target_timeout <= 0:
+            raise ValueError("timeout must be greater than zero")
+
+        command_topic = COMMAND_TOPIC_FMT.format(pot_id=pot_id)
+        status_topic = STATUS_TOPIC_FMT.format(pot_id=pot_id)
+        request_id = str(uuid4())
+
+        payload_dict: dict[str, Any] = {
+            "requestId": request_id,
+            "sensorMode": normalized_mode,
+        }
+        payload = json.dumps(payload_dict, separators=(",", ":"))
+
+        start_monotonic = time.monotonic()
+
+        async with client.messages() as messages:
+            try:
+                await client.subscribe(status_topic)
+            except MqttError as exc:
+                raise CommandServiceError(f"Failed to subscribe to {status_topic}") from exc
+
+            try:
+                await client.publish(command_topic, payload, qos=1, retain=False)
+            except MqttError as exc:
+                raise CommandServiceError(f"Failed to publish sensor mode update to {command_topic}") from exc
+
+            deadline = start_monotonic + target_timeout
+            try:
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise CommandTimeoutError(f"Timed out waiting for status update on {status_topic}")
+
+                    try:
+                        message = await asyncio.wait_for(messages.__anext__(), timeout=remaining)
+                    except asyncio.TimeoutError as exc:
+                        raise CommandTimeoutError(f"Timed out waiting for status update on {status_topic}") from exc
+                    except MqttError as exc:
+                        raise CommandServiceError("MQTT error while awaiting status update") from exc
+
+                    topic_value = getattr(message, "topic", status_topic)
+                    if hasattr(topic_value, "matches"):
+                        if not topic_value.matches(status_topic):
+                            continue
+                    elif str(topic_value) != status_topic:
+                        continue
+
+                    data = self._decode_payload(message.payload)
+                    if data is None:
+                        continue
+
+                    if data.get("requestId") != request_id:
+                        self._logger.debug(
+                            "Ignoring status payload for %s with unmatched requestId %r", pot_id, data.get("requestId")
+                        )
+                        continue
+
+                    self._logger.debug(
+                        "Received sensor mode update status for %s in %.2f s",
+                        pot_id,
+                        time.monotonic() - start_monotonic,
                     )
                     return CommandAckResult(request_id=request_id, payload=data)
             finally:

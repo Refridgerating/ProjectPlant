@@ -1,0 +1,44 @@
+{
+  "modified": "2022-07-11T23:00:00.000Z",
+  "bibliographicCitation": "IPNI 2025. Published on the Internet http://www.ipni.org; WCVP 2025. WCVP. Facilitated by the Royal Botanic Gardens, Kew. Published on the Internet; https://powo.science.kew.org/ Retrieved 2011 onwards",
+  "genus": "Taraxacum",
+  "taxonomicStatus": "Heterotypic_Synonym",
+  "kingdom": "Plantae",
+  "phylum": "Streptophyta",
+  "clazz": "Equisetopsida",
+  "subclass": "Magnoliidae",
+  "order": "Asterales",
+  "family": "Asteraceae",
+  "nomenclaturalCode": "Botanical",
+  "source": "wcvp:3059749",
+  "nomenclaturalStatus": "Invalid",
+  "lifeform": "Unknown",
+  "climate": "Unknown",
+  "hybrid": false,
+  "nomenclaturalRemarks": ", nom. nud.",
+  "plantae": true,
+  "fungi": false,
+  "accepted": {
+    "fqId": "urn:lsid:ipni.org:names:253856-1",
+    "name": "Taraxacum livonicum",
+    "author": "Markl.",
+    "rank": "SPECIES",
+    "taxonomicStatus": "Accepted"
+  },
+  "synonym": true,
+  "fqId": "urn:lsid:ipni.org:names:253855-1",
+  "name": "Taraxacum livonicum",
+  "authors": "Markl. ex Pettersson",
+  "species": "livonicum",
+  "rank": "SPECIES",
+  "reference": "Memoranda Soc. Fauna Fl. Fenn. 10: 222 (1933-1934 publ. 1934)",
+  "classification": [
+    {
+      "fqId": "urn:lsid:ipni.org:names:253855-1",
+      "name": "Taraxacum livonicum",
+      "author": "Markl. ex Pettersson",
+      "rank": "SPECIES",
+      "taxonomicStatus": "Heterotypic_Synonym"
+    }
+  ]
+}
