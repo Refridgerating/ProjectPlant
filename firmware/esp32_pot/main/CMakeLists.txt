@@ -8,6 +8,7 @@ idf_component_register(
         "time_sync.c"
         "aht10.c"
         "ads1115.c"
+        "preferences.c"
     INCLUDE_DIRS "."
     REQUIRES driver esp_wifi esp_event esp_netif nvs_flash mqtt json
 )

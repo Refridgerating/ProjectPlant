@@ -11,6 +11,10 @@
 #include "time_sync.h"
 #include "wifi.h"
 
+#include "nvs_flash.h"  // for init. flash memory
+#include "nvs.h"
+#include "preferences.h"  // Chris
+
 #define FW_VERSION "0.1.0"
 #define COMMAND_TASK_STACK 3072
 #define PING_TASK_STACK 4096
@@ -231,7 +235,10 @@ static void ping_task(void *arg)
 
 void app_main(void)
 {
+    nvs_flash_init();  // Chris
+
     ESP_LOGI(TAG, "Starting ProjectPlant ESP32 node (%s)", FW_VERSION);
+    ESP_LOGI(TAG, "test_var: '%c'", get_char("test_var", '0'));  // DEBUG
 
     sensors_init();
 

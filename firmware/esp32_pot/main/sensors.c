@@ -18,6 +18,8 @@
 #include "ads1115.h"
 #include "time_sync.h"
 
+#include "preferences.h"  // DEBUG
+
 static const char *TAG = "sensors";
 static bool pump_state = false;
 static bool fan_state = false;
@@ -299,6 +301,16 @@ void sensors_collect(sensor_reading_t *out)
         out->soil_raw = (uint16_t)(acc / valid_samples);
         out->soil_percent = soil_to_percent(out->soil_raw);
         ESP_LOGD(TAG, "Soil: %d valid samples, raw=%u, percent=%.1f%%", valid_samples, out->soil_raw, out->soil_percent);
+        
+        // DEBUG
+        ESP_LOGI(TAG, "Soil moisture: %.1f%% (raw %u)", out->soil_percent, out->soil_raw);
+        if (out->soil_percent >= 50.0f) {
+            ESP_LOGI(TAG, "Soil moisture is above 50%% threshold");
+            esp_err_t err = put_char("test_var", '0');  // DEBUG: Chris
+            if (err != ESP_OK) {
+                ESP_LOGW(TAG, "Failed to set test_var: %s", esp_err_to_name(err));
+            }
+        }
     }
 
     // Float switches (active-low); valid only when sensors are powered

@@ -4,6 +4,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include "preferences.h"  // Chris
+
 #define AHT10_ADDR         0x38
 #define AHT10_CMD_RESET    0xBA
 #define AHT10_CMD_CALIB    0xE1
@@ -75,6 +77,13 @@ esp_err_t aht10_read(float *temperature_c, float *humidity_pct)
     }
     if (temperature_c) {
         *temperature_c = tc;
+    }
+    if (tc > 30.0f) {
+        ESP_LOGI(TAG, "Temperature reading: %.2f C (raw %u)", tc, raw_t);
+        esp_err_t err = put_char("test_var", '1');  // DEBUG: Chris
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to set test_var: %s", esp_err_to_name(err));
+        }
     }
     return ESP_OK;
 }
