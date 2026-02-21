@@ -7,9 +7,9 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_mac.h"
-#include "nvs.h"
 
 #include "hardware_config.h"
+#include "preferences.h"
 
 static const char *TAG = "identity";
 
@@ -40,26 +40,24 @@ void device_identity_init(void)
     device_named = false;
     sensor_mode = SENSOR_MODE_FULL;
 
-    nvs_handle_t handle;
-    esp_err_t err = nvs_open("device", NVS_READWRITE, &handle);
+    esp_err_t err = prefs_get_str("device", "display_name", device_name, sizeof(device_name), "");
     if (err == ESP_OK) {
-        size_t len = sizeof(device_name);
-        err = nvs_get_str(handle, "display_name", device_name, &len);
-        if (err == ESP_OK && device_name[0]) {
+        if (device_name[0]) {
             device_named = true;
         } else {
             generate_default_name(mac);
         }
-
-        uint8_t stored_mode = 0;
-        err = nvs_get_u8(handle, "sensor_mode", &stored_mode);
-        if (err == ESP_OK) {
-            sensor_mode = stored_mode == SENSOR_MODE_CONTROL_ONLY ? SENSOR_MODE_CONTROL_ONLY : SENSOR_MODE_FULL;
-        }
-        nvs_close(handle);
     } else {
-        ESP_LOGW(TAG, "NVS open failed (%s); using default name", esp_err_to_name(err));
+        ESP_LOGW(TAG, "Name load failed (%s); using default name", esp_err_to_name(err));
         generate_default_name(mac);
+    }
+
+    uint8_t stored_mode = (uint8_t)SENSOR_MODE_FULL;
+    err = prefs_get_u8("device", "sensor_mode", &stored_mode, (uint8_t)SENSOR_MODE_FULL);
+    if (err == ESP_OK) {
+        sensor_mode = stored_mode == SENSOR_MODE_CONTROL_ONLY ? SENSOR_MODE_CONTROL_ONLY : SENSOR_MODE_FULL;
+    } else {
+        ESP_LOGW(TAG, "Sensor mode load failed (%s); using default mode", esp_err_to_name(err));
     }
 
     identity_ready = true;
@@ -102,17 +100,7 @@ esp_err_t device_identity_set_name(const char *name)
         return ESP_ERR_INVALID_ARG;
     }
 
-    nvs_handle_t handle;
-    esp_err_t err = nvs_open("device", NVS_READWRITE, &handle);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    err = nvs_set_str(handle, "display_name", name);
-    if (err == ESP_OK) {
-        err = nvs_commit(handle);
-    }
-    nvs_close(handle);
+    esp_err_t err = prefs_put_str("device", "display_name", name);
 
     if (err == ESP_OK) {
         memcpy(device_name, name, len);
@@ -145,17 +133,7 @@ esp_err_t device_identity_set_sensor_mode(sensor_mode_t mode)
         return ESP_ERR_INVALID_ARG;
     }
 
-    nvs_handle_t handle;
-    esp_err_t err = nvs_open("device", NVS_READWRITE, &handle);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    err = nvs_set_u8(handle, "sensor_mode", (uint8_t)mode);
-    if (err == ESP_OK) {
-        err = nvs_commit(handle);
-    }
-    nvs_close(handle);
+    esp_err_t err = prefs_put_u8("device", "sensor_mode", (uint8_t)mode);
 
     if (err == ESP_OK) {
         sensor_mode = mode;

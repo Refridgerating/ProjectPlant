@@ -29,3 +29,7 @@ data/hrrr/
 
 # Local ops/observability output
 ops/observability/
+# Local environment overrides
+*.env.local
+# Local ESP32 firmware overrides (never commit)
+firmware/esp32_pot/main/hardware_config.local.c

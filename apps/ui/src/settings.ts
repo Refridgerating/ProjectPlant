@@ -5,19 +5,25 @@ export type UiSettings = {
   serverBaseUrl: string; // e.g. http://projectplant.local:80
   mqttUsername: string;
   mqttPassword: string;
+  authToken: string;
+  authTokenExpiresAt: number | null;
   activeUserId: string;
   activeUserName: string;
 };
 
 const STORAGE_KEY = "projectplant:ui:settings";
+const DEBUG_MASTER_USER_ID = ((import.meta.env.VITE_DEBUG_MASTER_USER_ID ?? "") as string).trim();
+const DEBUG_MASTER_USER_NAME = ((import.meta.env.VITE_DEBUG_MASTER_USER_NAME ?? "") as string).trim();
 
 const DEFAULT_SETTINGS: UiSettings = {
   mode: "demo",
   serverBaseUrl: "",
   mqttUsername: "",
   mqttPassword: "",
-  activeUserId: "",
-  activeUserName: "",
+  authToken: "",
+  authTokenExpiresAt: null,
+  activeUserId: DEBUG_MASTER_USER_ID,
+  activeUserName: DEBUG_MASTER_USER_NAME || (DEBUG_MASTER_USER_ID ? "Debug Master" : ""),
 };
 
 export function getSettings(): UiSettings {
@@ -34,6 +40,11 @@ export function getSettings(): UiSettings {
 export function setSettings(next: UiSettings): void {
   const normalized = normalize(next);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+  try {
+    window.dispatchEvent(new Event("projectplant:settings-changed"));
+  } catch {
+    // ignore event dispatch failures
+  }
 }
 
 function normalize(value: Partial<UiSettings>): UiSettings {
@@ -41,9 +52,23 @@ function normalize(value: Partial<UiSettings>): UiSettings {
   const serverBaseUrl = typeof value.serverBaseUrl === "string" ? value.serverBaseUrl.trim() : "";
   const mqttUsername = typeof value.mqttUsername === "string" ? value.mqttUsername : "";
   const mqttPassword = typeof value.mqttPassword === "string" ? value.mqttPassword : "";
+  const authToken = typeof value.authToken === "string" ? value.authToken.trim() : "";
+  const authTokenExpiresAt =
+    typeof value.authTokenExpiresAt === "number" && Number.isFinite(value.authTokenExpiresAt)
+      ? value.authTokenExpiresAt
+      : null;
   const activeUserId = typeof value.activeUserId === "string" ? value.activeUserId.trim() : "";
   const activeUserName = typeof value.activeUserName === "string" ? value.activeUserName.trim() : "";
-  return { mode, serverBaseUrl, mqttUsername, mqttPassword, activeUserId, activeUserName };
+  return {
+    mode,
+    serverBaseUrl,
+    mqttUsername,
+    mqttPassword,
+    authToken,
+    authTokenExpiresAt,
+    activeUserId,
+    activeUserName,
+  };
 }
 
 export function getApiBaseUrlSync(): string {
@@ -70,12 +95,12 @@ export function getActiveUserIdSync(): string {
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<UiSettings>;
       const userId = typeof parsed.activeUserId === "string" ? parsed.activeUserId.trim() : "";
-      return userId;
+      return userId || DEBUG_MASTER_USER_ID;
     }
   } catch {
     // ignore
   }
-  return "";
+  return DEBUG_MASTER_USER_ID;
 }
 
 export function getActiveUserNameSync(): string {
@@ -90,6 +115,30 @@ export function getActiveUserNameSync(): string {
     // ignore
   }
   return "";
+}
+
+export function getAuthTokenSync(): string {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      return "";
+    }
+    const parsed = JSON.parse(raw) as Partial<UiSettings>;
+    const token = typeof parsed.authToken === "string" ? parsed.authToken.trim() : "";
+    if (!token) {
+      return "";
+    }
+    const expiresAt =
+      typeof parsed.authTokenExpiresAt === "number" && Number.isFinite(parsed.authTokenExpiresAt)
+        ? parsed.authTokenExpiresAt
+        : null;
+    if (expiresAt !== null && Date.now() >= expiresAt) {
+      return "";
+    }
+    return token;
+  } catch {
+    return "";
+  }
 }
 
 export type TestResult = { ok: boolean; message: string };

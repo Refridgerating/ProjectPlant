@@ -157,6 +157,30 @@ class SilentPumpStatusClient(PumpStatusClient):
         # Do not emit matching statuses to trigger timeout.
 
 
+class ScheduleStatusClient(_BaseFakeClient):
+    def __init__(self, pot_id: str) -> None:
+        super().__init__(pot_id)
+
+    async def publish(self, topic: str, payload: str, qos: int = 0, retain: bool = False) -> None:
+        self.published.append((topic, payload, qos, retain))
+        data = json.loads(payload)
+        request_id = data["requestId"]
+        self.request_ids.append(request_id)
+
+        status_topic = topic.replace("/command", "/status")
+        queue = self._queues.setdefault(status_topic, asyncio.Queue())
+        status_payload = json.dumps(
+            {
+                "status": "schedule_updated",
+                "requestId": request_id,
+                "potId": self.pot_id,
+                "timestampMs": 1234567890,
+            },
+            separators=(",", ":"),
+        )
+        await queue.put(StubMessage(topic=status_topic, payload=status_payload.encode("utf-8")))
+
+
 class PumpAndSensorClient(_BaseFakeClient):
     def __init__(self, pot_id: str) -> None:
         super().__init__(pot_id)
@@ -355,6 +379,44 @@ async def test_send_pump_override_times_out(monkeypatch):
     service = CommandService(default_timeout=0.2)
     with pytest.raises(CommandTimeoutError):
         await service.send_pump_override(pot_id, pump_on=False, timeout=0.1)
+
+
+@pytest.mark.anyio
+async def test_set_device_schedule_publishes_schedule_and_waits_for_status(monkeypatch):
+    pot_id = "pot-schedule"
+    fake_client = ScheduleStatusClient(pot_id)
+    manager = SimpleNamespace(get_client=lambda: fake_client)
+    monkeypatch.setattr(commands_module, "get_mqtt_manager", lambda: manager)
+
+    service = CommandService(default_timeout=1.0)
+    schedule_payload = {
+        "light": {"enabled": True, "startTime": "06:00", "endTime": "20:00"},
+        "pump": {"enabled": False, "startTime": "07:00", "endTime": "07:15"},
+        "mister": {"enabled": False, "startTime": "08:00", "endTime": "08:15"},
+        "fan": {"enabled": True, "startTime": "09:00", "endTime": "18:00"},
+    }
+
+    result = await service.set_device_schedule(
+        pot_id,
+        schedule=schedule_payload,
+        tz_offset_minutes=-300,
+        timeout=0.5,
+    )
+
+    status_topic = f"pots/{pot_id}/status"
+    command_topic = f"pots/{pot_id}/command"
+
+    assert fake_client.subscription_history == [status_topic]
+    assert fake_client.unsubscription_history == [status_topic]
+    topic, payload, qos, retain = fake_client.published[0]
+    assert topic == command_topic
+    assert qos == 1
+    assert retain is False
+    published_data = json.loads(payload)
+    assert published_data["schedule"] == schedule_payload
+    assert published_data["tzOffsetMinutes"] == -300
+    assert result.request_id == published_data["requestId"]
+    assert result.payload["status"] == "schedule_updated"
 
 
 @pytest.mark.anyio

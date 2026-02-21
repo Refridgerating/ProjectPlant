@@ -17,6 +17,9 @@ ProjectPlant Hub is the backend API for ProjectPlant. It aggregates sensor telem
 | --- | --- |
 | `GET /` / `GET /health` | Service metadata and readiness probe. |
 | `GET /api/v1/health` / `GET /api/v1/info` | Versioned status plus runtime configuration snapshot. |
+| `POST /api/v1/auth/local` | Sign in with ProjectPlant email/password account and mint hub access token. |
+| `POST /api/v1/auth/google` | Verify Google ID token, upsert account, and mint hub access token. |
+| `POST /api/v1/auth/apple` | Verify Apple ID token, upsert account, and mint hub access token. |
 | `GET /api/v1/mock/telemetry?samples=` | Synthetic climate telemetry for charts and testing. |
 | `GET /api/v1/weather/local?lat=&lon=&hours=` | Recent NOAA observations (0.5-48 h windows) with coverage hints. |
 | `POST /api/v1/irrigation/estimate` | Penman-Monteith evapotranspiration and watering recommendation engine. |
@@ -40,6 +43,14 @@ Settings are loaded via Pydantic from `apps/hub/.env` (case-insensitive keys) an
 | `DEBUG` | Enables verbose logging + exception traces. | `true` |
 | `CORS_ORIGINS` | Origins allowed to call the API. Accepts JSON array or comma list. | `[*]` |
 | `PORT` | Uvicorn bind port when launched via helper scripts. | `8000` |
+| `AUTH_JWT_SECRET` | Secret used to sign hub bearer tokens (set a strong value in production). | `change-me-in-production` |
+| `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE` | JWT claim values used when issuing and validating bearer tokens. | `projectplant-hub`, `projectplant-clients` |
+| `AUTH_ACCESS_TOKEN_TTL_SECONDS` | Bearer token lifetime in seconds. | `3600` |
+| `GOOGLE_OAUTH_ENABLED` | Enables `POST /api/v1/auth/google`. | `false` |
+| `GOOGLE_OAUTH_CLIENT_IDS` | Allowed Google OAuth client IDs (JSON array or comma list). | `[]` |
+| `GOOGLE_OAUTH_HOSTED_DOMAIN` | Optional Google Workspace domain restriction. | unset |
+| `APPLE_OAUTH_ENABLED` | Enables `POST /api/v1/auth/apple`. | `false` |
+| `APPLE_OAUTH_CLIENT_IDS` | Allowed Apple Services IDs (JSON array or comma list). | `[]` |
 | `MQTT_ENABLED` | Toggle MQTT startup handshake. | `false` |
 | `MQTT_*` | Broker connection details (host, port, credentials, TLS). | See `.env` |
 | `PROVISION_EVENT_LOG` | JSONL log path for provisioning wait/state metrics (`""` disables). | `data/provisioning/events.jsonl` |

@@ -1,4 +1,4 @@
-import { BleClient } from "@capacitor-community/bluetooth-le";
+import { BleClient, type BleService } from "@capacitor-community/bluetooth-le";
 import { Capacitor } from "@capacitor/core";
 
 export interface BleDevice {
@@ -52,6 +52,10 @@ function toBytes(input: DataView | Uint8Array): Uint8Array {
     out[i] = input.getUint8(i);
   }
   return out;
+}
+
+function toDataView(value: Uint8Array): DataView {
+  return new DataView(value.buffer, value.byteOffset, value.byteLength);
 }
 
 export const BleBridge = {
@@ -117,6 +121,22 @@ export const BleBridge = {
     return { deviceId: activeDeviceId, serviceUuid: activeServiceUuid };
   },
 
+  async discoverServices(): Promise<void> {
+    await ensureReadyState();
+    if (!activeDeviceId) {
+      throw new Error("BLE context not ready: connect device first");
+    }
+    await BleClient.discoverServices(activeDeviceId);
+  },
+
+  async getServices(): Promise<BleService[]> {
+    await ensureReadyState();
+    if (!activeDeviceId) {
+      throw new Error("BLE context not ready: connect device first");
+    }
+    return BleClient.getServices(activeDeviceId);
+  },
+
   async read(characteristicUuid: string): Promise<Uint8Array> {
     const { deviceId, serviceUuid } = BleBridge.getActiveContext();
     const value = await BleClient.read(deviceId, serviceUuid, characteristicUuid);
@@ -125,7 +145,13 @@ export const BleBridge = {
 
   async write(characteristicUuid: string, value: Uint8Array): Promise<void> {
     const { deviceId, serviceUuid } = BleBridge.getActiveContext();
-    await BleClient.write(deviceId, serviceUuid, characteristicUuid, new DataView(value.buffer));
+    await BleClient.write(deviceId, serviceUuid, characteristicUuid, toDataView(value));
+  },
+
+  async readDescriptor(characteristicUuid: string, descriptorUuid: string): Promise<Uint8Array> {
+    const { deviceId, serviceUuid } = BleBridge.getActiveContext();
+    const value = await BleClient.readDescriptor(deviceId, serviceUuid, characteristicUuid, descriptorUuid);
+    return toBytes(value);
   },
 
   async subscribe(characteristicUuid: string, handler: (value: Uint8Array) => void): Promise<Unsubscribe> {

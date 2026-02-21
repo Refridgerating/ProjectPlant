@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "pnpm --dir ../ui run build && cap build android",
-    "sync": "pnpm --dir ../ui run build && cap sync android",
+    "build": "pnpm --dir ../web run build && cap build android",
+    "sync": "pnpm --dir ../web run build && cap sync android",
     "open": "cap open android"
   },
   "dependencies": {

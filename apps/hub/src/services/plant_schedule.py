@@ -302,6 +302,36 @@ class PlantScheduleService:
             self._last_applied.pop((normalized, actuator), None)
         return stored
 
+    async def sync_schedule_to_device(self, schedule: PotSchedule) -> bool:
+        tz_offset = datetime.now().astimezone().utcoffset()
+        tz_offset_minutes = 0
+        if tz_offset is not None:
+            tz_offset_minutes = int(tz_offset.total_seconds() // 60)
+
+        schedule_payload = {
+            "light": schedule.light.to_payload(),
+            "pump": schedule.pump.to_payload(),
+            "mister": schedule.mister.to_payload(),
+            "fan": schedule.fan.to_payload(),
+        }
+
+        try:
+            await command_service.set_device_schedule(
+                schedule.pot_id,
+                schedule=schedule_payload,
+                tz_offset_minutes=tz_offset_minutes,
+                timeout=self._command_timeout_seconds,
+            )
+            logger.info(
+                "Synced schedule config to %s (tzOffsetMinutes=%d)",
+                schedule.pot_id,
+                tz_offset_minutes,
+            )
+            return True
+        except (CommandServiceError, CommandTimeoutError, ValueError) as exc:
+            logger.warning("Failed to sync schedule config to %s: %s", schedule.pot_id, exc)
+            return False
+
     async def apply_schedule_now(self, pot_id: str | None = None, *, now: datetime | None = None) -> None:
         effective_now = now.astimezone() if now is not None else datetime.now().astimezone()
         minute_of_day = effective_now.hour * 60 + effective_now.minute

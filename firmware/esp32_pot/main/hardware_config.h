@@ -4,14 +4,15 @@
 #define DEVICE_ID_PREFIX        "pot"
 #define DEVICE_NAME_PREFIX      "Pot"
 
-// Wi-Fi credentials (placeholder - replace before flashing)
-#define WIFI_SSID               "ARRIS-D982"
-#define WIFI_PASS               "2SY9AD602202"
+// Fallback Wi-Fi credentials (used if no provisioned credentials are available)
+// Values are defined in hardware_config.c or hardware_config.local.c (git-ignored).
+extern const char *WIFI_SSID;
+extern const char *WIFI_PASS;
 
 // MQTT broker configuration
-#define MQTT_BROKER_URI         "mqtt://192.168.0.15:1883"
-#define MQTT_USERNAME           NULL
-#define MQTT_PASSWORD           NULL
+extern const char *MQTT_BROKER_URI;
+extern const char *MQTT_USERNAME;
+extern const char *MQTT_PASSWORD;
 #define MQTT_PING_TOPIC         "lab/ping"
 #define MQTT_PING_INTERVAL_MS   30000      // send heartbeat ping every 30 s
 

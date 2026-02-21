@@ -51,6 +51,77 @@ static bool topic_equals(const char *topic, int topic_len, const char *expected)
     return topic_len == (int)expected_len && strncmp(topic, expected, expected_len) == 0;
 }
 
+static bool parse_schedule_timer(const cJSON *schedule_obj, const char *name, node_schedule_timer_t *out_timer)
+{
+    if (!schedule_obj || !name || !out_timer) {
+        return false;
+    }
+
+    cJSON *timer_obj = cJSON_GetObjectItemCaseSensitive((cJSON *)schedule_obj, name);
+    if (!cJSON_IsObject(timer_obj)) {
+        return false;
+    }
+
+    cJSON *enabled = cJSON_GetObjectItemCaseSensitive(timer_obj, "enabled");
+    cJSON *start_time = cJSON_GetObjectItemCaseSensitive(timer_obj, "startTime");
+    cJSON *end_time = cJSON_GetObjectItemCaseSensitive(timer_obj, "endTime");
+    if (!cJSON_IsBool(enabled) || !cJSON_IsString(start_time) || !start_time->valuestring ||
+        !cJSON_IsString(end_time) || !end_time->valuestring) {
+        return false;
+    }
+
+    uint16_t start_minute = 0;
+    uint16_t end_minute = 0;
+    if (!node_schedule_parse_hhmm(start_time->valuestring, &start_minute) ||
+        !node_schedule_parse_hhmm(end_time->valuestring, &end_minute)) {
+        return false;
+    }
+
+    out_timer->enabled = cJSON_IsTrue(enabled);
+    out_timer->start_minute = start_minute;
+    out_timer->end_minute = end_minute;
+    return true;
+}
+
+static bool parse_schedule_config(cJSON *root, node_schedule_t *out_schedule)
+{
+    if (!root || !out_schedule) {
+        return false;
+    }
+
+    cJSON *schedule_obj = cJSON_GetObjectItemCaseSensitive(root, "schedule");
+    if (!cJSON_IsObject(schedule_obj)) {
+        return false;
+    }
+
+    node_schedule_t parsed;
+    node_schedule_defaults(&parsed);
+
+    if (!parse_schedule_timer(schedule_obj, "light", &parsed.light) ||
+        !parse_schedule_timer(schedule_obj, "pump", &parsed.pump) ||
+        !parse_schedule_timer(schedule_obj, "mister", &parsed.mister) ||
+        !parse_schedule_timer(schedule_obj, "fan", &parsed.fan)) {
+        ESP_LOGW(TAG, "Invalid schedule payload; expected full timer config for light/pump/mister/fan");
+        return false;
+    }
+
+    cJSON *tz_offset = cJSON_GetObjectItemCaseSensitive(root, "tzOffsetMinutes");
+    if (!tz_offset) {
+        tz_offset = cJSON_GetObjectItemCaseSensitive(schedule_obj, "tzOffsetMinutes");
+    }
+    if (cJSON_IsNumber(tz_offset)) {
+        int tz_value = tz_offset->valueint;
+        if (tz_value >= -720 && tz_value <= 840) {
+            parsed.timezone_offset_minutes = (int16_t)tz_value;
+        } else {
+            ESP_LOGW(TAG, "tzOffsetMinutes out of range (%d); keeping default", tz_value);
+        }
+    }
+
+    *out_schedule = parsed;
+    return true;
+}
+
 void mqtt_publish_ping(esp_mqtt_client_handle_t client, const char *device_id)
 {
     if (!client || !device_id || !device_id[0]) {
@@ -339,6 +410,7 @@ mqtt_command_t mqtt_parse_command(const char *payload, int payload_len)
         .request_id = "",
         .device_name = "",
         .has_sensor_mode = false,
+        .has_schedule = false,
         .sensor_mode = SENSOR_MODE_FULL,
         .pump_on = false,
         .fan_on = false,
@@ -346,6 +418,7 @@ mqtt_command_t mqtt_parse_command(const char *payload, int payload_len)
         .light_on = false,
         .duration_ms = 0,
     };
+    node_schedule_defaults(&cmd.schedule);
 
     if (!payload || payload_len <= 0) {
         return cmd;
@@ -415,6 +488,11 @@ mqtt_command_t mqtt_parse_command(const char *payload, int payload_len)
     if (cJSON_IsBool(sensors_enabled)) {
         cmd.sensor_mode = cJSON_IsTrue(sensors_enabled) ? SENSOR_MODE_FULL : SENSOR_MODE_CONTROL_ONLY;
         cmd.has_sensor_mode = true;
+        cmd.type = MQTT_CMD_CONFIG_UPDATE;
+    }
+
+    if (parse_schedule_config(root, &cmd.schedule)) {
+        cmd.has_schedule = true;
         cmd.type = MQTT_CMD_CONFIG_UPDATE;
     }
 

@@ -26,6 +26,8 @@ class UserModel(BaseModel):
     display_name: str
     email_verified: bool
     verification_pending: bool
+    auth_provider: Literal["local", "google", "apple"]
+    avatar_url: str | None = None
     created_at: float
     updated_at: float
 
@@ -72,6 +74,15 @@ class ShareUpdateRequest(BaseModel):
     status: ShareStatus | None = None
 
 
+class UserPreferencesModel(BaseModel):
+    values: dict[str, object] = Field(default_factory=dict)
+
+
+class UserPreferencesUpdateRequest(BaseModel):
+    values: dict[str, object] = Field(default_factory=dict)
+    replace: bool = False
+
+
 @router.get("", response_model=list[UserModel])
 async def list_users() -> list[UserModel]:
     return [_to_user_model(user) for user in plant_catalog.list_users()]
@@ -96,6 +107,21 @@ async def create_user(payload: UserCreateRequest) -> UserModel:
 @router.get("/me", response_model=UserModel)
 async def get_me(current_user: UserAccount = Depends(get_current_user)) -> UserModel:
     return _to_user_model(current_user)
+
+
+@router.get("/me/preferences", response_model=UserPreferencesModel)
+async def get_my_preferences(current_user: UserAccount = Depends(get_current_user)) -> UserPreferencesModel:
+    values = plant_catalog.get_user_preferences(current_user.id)
+    return UserPreferencesModel(values=values)
+
+
+@router.put("/me/preferences", response_model=UserPreferencesModel)
+async def update_my_preferences(
+    payload: UserPreferencesUpdateRequest,
+    current_user: UserAccount = Depends(get_current_user),
+) -> UserPreferencesModel:
+    values = plant_catalog.update_user_preferences(current_user.id, payload.values, replace=payload.replace)
+    return UserPreferencesModel(values=values)
 
 
 @router.get("/{user_id}", response_model=UserModel)
@@ -223,6 +249,8 @@ def _to_user_model(user: UserAccount) -> UserModel:
         display_name=user.display_name,
         email_verified=user.email_verified,
         verification_pending=not user.email_verified,
+        auth_provider=user.auth_provider,
+        avatar_url=user.avatar_url,
         created_at=user.created_at,
         updated_at=user.updated_at,
     )

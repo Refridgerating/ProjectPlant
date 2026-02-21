@@ -1,120 +1,280 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BleBridge, type BleDevice } from "@native/ble";
-import { discoverPi } from "@projectplant/sdk";
-import { connect as connectSdk } from "@projectplant/sdk";
 import { useNavigate } from "react-router-dom";
+import { BleBridge, type BleDevice } from "@native/ble";
+import { connect as connectSdk, discoverPi, type PiDiscoveryResult } from "@projectplant/sdk";
+import { EspBleProvisioner, type ProtocolInfo, type HubConfigResponse } from "./provisioning/espBleProvisioning";
+import type { WiFiScanEntry, WiFiStatus } from "./provisioning/protobuf";
 
-type TargetKind = "esp32" | "pi";
+type WizardStage = "discover" | "secure" | "network" | "provisioning" | "done";
 
-interface ProvisionProfile {
-  serviceUuid: string;
-  chars: {
-    STATE: string;
-    REQUEST_SSIDS?: string; // optional: write to request scan
-    SSIDS: string; // notify or read list
-    SSID: string; // write selected ssid
-    PASS: string; // write passphrase
-    APPLY: string; // write to trigger apply
-    RESULT: string; // notify success/error
-  };
+function normalizeHubUrl(input: string): string | undefined {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed.replace(/\/$/, "");
+  }
+  if (/^\d+\.\d+\.\d+\.\d+(?::\d+)?$/.test(trimmed)) {
+    return trimmed.includes(":") ? `http://${trimmed}` : `http://${trimmed}:80`;
+  }
+  return `http://${trimmed}`;
 }
 
-// TODO: Replace UUIDs with the actual values used by your firmware/services
-const PROFILES: Record<TargetKind, ProvisionProfile> = {
-  esp32: {
-    // ESP-IDF provisioning service UUID (placeholder)
-    serviceUuid: "0000ffff-0000-1000-8000-00805f9b34fb",
-    chars: {
-      STATE: "0000ff01-0000-1000-8000-00805f9b34fb",
-      REQUEST_SSIDS: "0000ff02-0000-1000-8000-00805f9b34fb",
-      SSIDS: "0000ff03-0000-1000-8000-00805f9b34fb",
-      SSID: "0000ff04-0000-1000-8000-00805f9b34fb",
-      PASS: "0000ff05-0000-1000-8000-00805f9b34fb",
-      APPLY: "0000ff06-0000-1000-8000-00805f9b34fb",
-      RESULT: "0000ff07-0000-1000-8000-00805f9b34fb"
-    }
-  },
-  pi: {
-    // ProjectPlant Setup service UUID (placeholder)
-    serviceUuid: "12345678-1234-5678-1234-56789abcdef0",
-    chars: {
-      STATE: "12345678-1234-5678-1234-56789abcdef1",
-      REQUEST_SSIDS: "12345678-1234-5678-1234-56789abcdef2",
-      SSIDS: "12345678-1234-5678-1234-56789abcdef3",
-      SSID: "12345678-1234-5678-1234-56789abcdef4",
-      PASS: "12345678-1234-5678-1234-56789abcdef5",
-      APPLY: "12345678-1234-5678-1234-56789abcdef6",
-      RESULT: "12345678-1234-5678-1234-56789abcdef7"
-    }
+function derivePopCandidate(device: BleDevice): string {
+  const name = (device.name ?? "").trim();
+  const suffixMatch = name.match(/([0-9a-fA-F]{4})$/);
+  if (suffixMatch) {
+    return `pp-${suffixMatch[1].toLowerCase()}`;
   }
-};
-
-function encodeText(text: string): Uint8Array {
-  return new TextEncoder().encode(text);
+  return "pp-";
 }
 
-function decodeText(data: Uint8Array): string {
-  try {
-    return new TextDecoder().decode(data);
-  } catch {
-    // hex as fallback
-    return Array.from(data)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
+function isWifiStatusFailure(status: WiFiStatus | null): boolean {
+  return status?.staState === 3;
+}
+
+function formatWifiState(status: WiFiStatus | null): string {
+  if (!status) {
+    return "Waiting for status...";
   }
+  if (status.staState === 0) {
+    return "Connected";
+  }
+  if (status.staState === 1) {
+    return typeof status.attemptsRemaining === "number" && status.attemptsRemaining >= 0
+      ? `Connecting (${status.attemptsRemaining} retries left)`
+      : "Connecting";
+  }
+  if (status.staState === 2) {
+    return "Disconnected";
+  }
+  if (status.staState === 3) {
+    if (status.failReason === 0) {
+      return "Connection failed: incorrect password";
+    }
+    if (status.failReason === 1) {
+      return "Connection failed: network not found";
+    }
+    return "Connection failed";
+  }
+  return "Unknown";
 }
 
 export default function SetupWizard() {
   const navigate = useNavigate();
-  const [kind, setKind] = useState<TargetKind>("esp32");
-  const profile = useMemo(() => PROFILES[kind], [kind]);
-  const [scanning, setScanning] = useState(false);
+  const provisionerRef = useRef<EspBleProvisioner | null>(null);
+
+  const [stage, setStage] = useState<WizardStage>("discover");
   const [devices, setDevices] = useState<BleDevice[]>([]);
-  const [selected, setSelected] = useState<BleDevice | null>(null);
-  const [stateText, setStateText] = useState<string>("");
-  const [ssidList, setSsidList] = useState<string[]>([]);
-  const [ssid, setSsid] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
-  const [step, setStep] = useState<"scan" | "connect" | "config" | "apply" | "done">("scan");
-  const unsubscribeRef = useRef<null | (() => void | Promise<void>)>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [selectedDevice, setSelectedDevice] = useState<BleDevice | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [securing, setSecuring] = useState(false);
+  const [applying, setApplying] = useState(false);
+
+  const [protocolInfo, setProtocolInfo] = useState<ProtocolInfo | null>(null);
   const [permissionHint, setPermissionHint] = useState<"location" | "bluetooth" | null>(null);
+  const [pop, setPop] = useState("");
+  const [networks, setNetworks] = useState<WiFiScanEntry[]>([]);
+  const [loadingNetworks, setLoadingNetworks] = useState(false);
+  const [ssid, setSsid] = useState("");
+  const [password, setPassword] = useState("");
+  const [hubUrlInput, setHubUrlInput] = useState("");
+  const [mqttUriInput, setMqttUriInput] = useState("");
+  const [hubResponse, setHubResponse] = useState<HubConfigResponse | null>(null);
+  const [wifiStatus, setWifiStatus] = useState<WiFiStatus | null>(null);
+  const [connectedHubUrl, setConnectedHubUrl] = useState<string | null>(null);
+  const [hubDiscovery, setHubDiscovery] = useState<PiDiscoveryResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
-      const unsub = unsubscribeRef.current;
-      if (unsub) {
-        Promise.resolve(unsub()).catch(() => void 0);
+      const current = provisionerRef.current;
+      if (current) {
+        void current.disconnect();
       }
     };
+  }, []);
+
+  const reconnectClean = useCallback(async () => {
+    const current = provisionerRef.current;
+    if (current) {
+      try {
+        await current.disconnect();
+      } catch {
+        // Ignore disconnect errors while switching device.
+      }
+    }
+    provisionerRef.current = null;
   }, []);
 
   const handleScan = useCallback(async () => {
     setError(null);
     setPermissionHint(null);
     setScanning(true);
+    setStage("discover");
     setDevices([]);
     try {
-      const found = await BleBridge.scan(profile.serviceUuid, 5000);
-      const filtered = found.filter((d) => {
-        const name = (d.name ?? "").toLowerCase();
-        return kind === "esp32"
-          ? name.includes("esp-pro") || name.includes("esp-prov") || name.includes("esp32")
-          : name.includes("projectplant setup") || name.includes("projectplant");
-      });
-      setDevices(filtered.length > 0 ? filtered : found);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e ?? "Scan failed");
+      const found = await EspBleProvisioner.scanProvisioningDevices(5000);
+      const sorted = [...found].sort((left, right) => (right.rssi ?? -200) - (left.rssi ?? -200));
+      setDevices(sorted);
+    } catch (scanError) {
+      const message = scanError instanceof Error ? scanError.message : String(scanError);
       setError(message);
-      if (message.includes("Location services")) {
+      if (message.toLowerCase().includes("location")) {
         setPermissionHint("location");
-      } else if (message.includes("Bluetooth is disabled")) {
+      } else if (message.toLowerCase().includes("bluetooth")) {
         setPermissionHint("bluetooth");
       }
     } finally {
       setScanning(false);
     }
-  }, [profile.serviceUuid, kind]);
+  }, []);
+
+  useEffect(() => {
+    void handleScan();
+  }, [handleScan]);
+
+  const refreshNetworks = useCallback(async () => {
+    const provisioner = provisionerRef.current;
+    if (!provisioner) {
+      throw new Error("Device is not connected");
+    }
+    setLoadingNetworks(true);
+    try {
+      const scanned = await provisioner.scanWifiNetworks();
+      setNetworks(scanned);
+      setSsid((current) => {
+        if (current) {
+          return current;
+        }
+        return scanned[0]?.ssid ?? "";
+      });
+    } finally {
+      setLoadingNetworks(false);
+    }
+  }, []);
+
+  const handleSelectDevice = useCallback(
+    async (device: BleDevice) => {
+      setError(null);
+      setPermissionHint(null);
+      setConnecting(true);
+      try {
+        await reconnectClean();
+        const provisioner = new EspBleProvisioner();
+        await provisioner.connect(device.id);
+        provisionerRef.current = provisioner;
+        setSelectedDevice(device);
+        setPop((current) => current || derivePopCandidate(device));
+        setProtocolInfo(await provisioner.getProtocolInfo());
+        setHubResponse(null);
+        setWifiStatus(null);
+        setConnectedHubUrl(null);
+        setHubDiscovery(null);
+        setStage("secure");
+      } catch (connectError) {
+        setError(connectError instanceof Error ? connectError.message : String(connectError));
+      } finally {
+        setConnecting(false);
+      }
+    },
+    [reconnectClean]
+  );
+
+  const handleStartSession = useCallback(async () => {
+    if (!pop.trim()) {
+      setError("Proof-of-possession is required");
+      return;
+    }
+    const provisioner = provisionerRef.current;
+    if (!provisioner) {
+      setError("No provisioning device connected");
+      return;
+    }
+    setError(null);
+    setSecuring(true);
+    try {
+      await provisioner.establishSecurity1Session(pop.trim());
+      await refreshNetworks();
+      setStage("network");
+    } catch (sessionError) {
+      setError(sessionError instanceof Error ? sessionError.message : String(sessionError));
+    } finally {
+      setSecuring(false);
+    }
+  }, [pop, refreshNetworks]);
+
+  const handleApplyConfig = useCallback(async () => {
+    const provisioner = provisionerRef.current;
+    if (!provisioner) {
+      setError("No provisioning device connected");
+      return;
+    }
+    const selectedSsid = ssid.trim();
+    if (!selectedSsid) {
+      setError("Select or enter a Wi-Fi SSID");
+      return;
+    }
+
+    setError(null);
+    setApplying(true);
+    setStage("provisioning");
+    setHubResponse(null);
+    setWifiStatus(null);
+    setConnectedHubUrl(null);
+    setHubDiscovery(null);
+
+    try {
+      const hubResponsePayload = await provisioner.sendHubConfig({
+        hubUrl: normalizeHubUrl(hubUrlInput),
+        mqttUri: mqttUriInput.trim() || undefined,
+      });
+      setHubResponse(hubResponsePayload);
+
+      await provisioner.sendWiFiConfig(selectedSsid, password);
+      setPassword("");
+      await provisioner.applyWiFiConfig();
+
+      const waitResult = await provisioner.waitForWifiConnection({
+        timeoutMs: 120_000,
+        intervalMs: 2_500,
+        onStatus: setWifiStatus,
+      });
+
+      if (!waitResult.connected) {
+        const suffix = isWifiStatusFailure(waitResult.status) ? ` (${formatWifiState(waitResult.status)})` : "";
+        throw new Error(`Provisioning did not complete${suffix}`);
+      }
+
+      let baseUrl = normalizeHubUrl(hubUrlInput) ?? null;
+      let discovery: PiDiscoveryResult | null = null;
+      if (!baseUrl) {
+        discovery = await discoverPi().catch(() => null);
+        if (discovery) {
+          baseUrl = `http://${discovery.host}:${discovery.port}`;
+        }
+      }
+
+      if (baseUrl) {
+        await connectSdk({
+          mode: "live",
+          baseUrl,
+          mqttUrl: mqttUriInput.trim() || undefined,
+        });
+      }
+
+      setConnectedHubUrl(baseUrl);
+      setHubDiscovery(discovery);
+      setStage("done");
+    } catch (applyError) {
+      setError(applyError instanceof Error ? applyError.message : String(applyError));
+      setStage("network");
+    } finally {
+      setApplying(false);
+    }
+  }, [hubUrlInput, mqttUriInput, password, ssid]);
 
   const handleOpenLocationSettings = useCallback(() => {
     void BleBridge.openLocationSettings();
@@ -124,222 +284,300 @@ export default function SetupWizard() {
     void BleBridge.openBluetoothSettings();
   }, []);
 
-
-
-  const handleConnect = useCallback(
-    async (device: BleDevice) => {
-      setError(null);
-      try {
-        await BleBridge.connect(device.id);
-        BleBridge.setActiveService(profile.serviceUuid);
-        setSelected(device);
-        setStep("connect");
-        // Read initial state
-        const buf = await BleBridge.read(profile.chars.STATE);
-        const text = decodeText(buf);
-        setStateText(text);
-      } catch (e) {
-        setError((e as Error).message);
-      }
-    },
-    [profile.serviceUuid, profile.chars.STATE]
-  );
-
-  const requestSsids = useCallback(async () => {
-    setError(null);
-    try {
-      if (profile.chars.REQUEST_SSIDS) {
-        await BleBridge.write(profile.chars.REQUEST_SSIDS, encodeText("1"));
-      }
-      // Subscribe for SSID list updates
-      const unsub = await BleBridge.subscribe(profile.chars.SSIDS, (data) => {
-        const text = decodeText(data);
-        // Expect lines or CSV; split by newline/semicolon/comma
-        const items = text
-          .split(/\r?\n|;|,/)
-          .map((s) => s.trim())
-          .filter(Boolean);
-        setSsidList(items);
-        if (!ssid && items.length > 0) {
-          setSsid(items[0]);
-        }
-      });
-      unsubscribeRef.current = unsub;
-      setStep("config");
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }, [profile.chars.REQUEST_SSIDS, profile.chars.SSIDS, ssid]);
-
-  const applyCredentials = useCallback(async () => {
-    setError(null);
-    try {
-      if (!ssid) {
-        setError("Select a Wi‑Fi network");
-        return;
-      }
-      await BleBridge.write(profile.chars.SSID, encodeText(ssid));
-      await BleBridge.write(profile.chars.PASS, encodeText(password));
-      // Immediately clear password from memory after sending
-      setPassword("");
-      await BleBridge.write(profile.chars.APPLY, encodeText("1"));
-
-      const unsub = await BleBridge.subscribe(profile.chars.RESULT, async (data) => {
-        const text = decodeText(data).toLowerCase();
-        if (text.includes("ok") || text.includes("success")) {
-          setStep("done");
-          try {
-            const result = await discoverPi();
-            if (result) {
-              const baseUrl = `http://${result.host}:${result.port}`;
-              await connectSdk({ mode: "live", baseUrl });
-            }
-          } catch (err) {
-            console.warn("Pi discovery failed", err);
-          }
-          navigate("/");
-        } else if (text.includes("error") || text.includes("fail")) {
-          setError(`Provisioning failed: ${text}`);
-        }
-      });
-      unsubscribeRef.current = unsub;
-      setStep("apply");
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }, [ssid, password, profile.chars, navigate]);
+  const progress = useMemo(() => {
+    if (stage === "discover") return 1;
+    if (stage === "secure") return 2;
+    if (stage === "network") return 3;
+    if (stage === "provisioning") return 4;
+    return 5;
+  }, [stage]);
 
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", padding: "1.5rem", maxWidth: 720, margin: "0 auto" }}>
-      <h1 style={{ marginTop: 0 }}>Setup Wizard</h1>
-      <p style={{ color: "#4b5563" }}>
-        Provision your ProjectPlant devices via Bluetooth Low Energy.
-      </p>
-
-      <section style={{ margin: "1rem 0", padding: "1rem", border: "1px solid #e5e7eb", borderRadius: 12 }}>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
-          <label>
-            Target:
-            <select
-              value={kind}
-              onChange={(e) => setKind(e.target.value as TargetKind)}
-              style={{ marginLeft: 8, padding: "0.25rem 0.5rem" }}
-            >
-              <option value="pi">ProjectPlant Setup (Pi)</option>
-              <option value="esp32">ESP-Prov (ESP32)</option>
-            </select>
-          </label>
-          <button onClick={handleScan} disabled={scanning} style={{ padding: "0.5rem 0.75rem" }}>
-            {scanning ? "Scanning…" : "Scan Devices"}
-          </button>
-        </div>
-        {devices.length === 0 && !scanning && (
-          <p style={{ color: "#6b7280" }}>No devices found yet. Try scanning.</p>
-        )}
-        {devices.length > 0 && (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 8 }}>
-            {devices.map((d) => (
-              <li
-                key={d.id}
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid #e5e7eb", borderRadius: 8, padding: 8 }}
-              >
-                <div>
-                  <div style={{ fontWeight: 600 }}>{d.name ?? "(Unnamed)"}</div>
-                  <div style={{ color: "#6b7280", fontSize: 12 }}>{d.id}</div>
+    <main
+      style={{
+        minHeight: "100vh",
+        margin: 0,
+        fontFamily: "\"Space Grotesk\", \"Trebuchet MS\", \"Segoe UI\", sans-serif",
+        background:
+          "radial-gradient(1200px 600px at 12% -10%, #d4f7cb 0%, rgba(212,247,203,0) 65%), linear-gradient(180deg, #f5fff2 0%, #fefcf6 100%)",
+        color: "#1f2c1f",
+      }}
+    >
+      <div style={{ maxWidth: 860, margin: "0 auto", padding: "2rem 1.25rem 3rem", display: "grid", gap: 16 }}>
+        <section style={{ padding: "1.1rem 1.25rem", borderRadius: 16, background: "#153222", color: "#ecffe9" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div>
+              <h1 style={{ margin: 0, fontSize: "1.6rem" }}>ProjectPlant Onboarding</h1>
+              <p style={{ margin: "0.4rem 0 0", opacity: 0.9 }}>
+                Pair your factory-default pot, send Wi-Fi credentials, and attach to your self-hosted hub.
+              </p>
+              <p style={{ margin: "0.4rem 0 0", opacity: 0.85, fontSize: 12 }}>
+                Use this setup screen for provisioning. Pairing from phone Bluetooth settings alone does not submit Wi-Fi credentials.
+              </p>
+            </div>
+            <div style={{ fontSize: "0.85rem", opacity: 0.82, alignSelf: "flex-start" }}>
+              Language: English (streamlined setup)
+            </div>
+          </div>
+          <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
+            {["Find", "Secure", "Network", "Apply", "Done"].map((label, index) => {
+              const active = progress >= index + 1;
+              return (
+                <div
+                  key={label}
+                  style={{
+                    borderRadius: 999,
+                    padding: "0.35rem 0.5rem",
+                    textAlign: "center",
+                    fontSize: 12,
+                    background: active ? "#a7ef97" : "rgba(255,255,255,0.18)",
+                    color: active ? "#173022" : "#e6f4e2",
+                    fontWeight: 600,
+                  }}
+                >
+                  {label}
                 </div>
-                <button onClick={() => void handleConnect(d)} style={{ padding: "0.4rem 0.75rem" }}>
-                  Connect
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {selected && (
-        <section style={{ margin: "1rem 0", padding: "1rem", border: "1px solid #e5e7eb", borderRadius: 12 }}>
-          <h2 style={{ marginTop: 0 }}>Device</h2>
-          <p>
-            <strong>{selected.name ?? "(Unnamed)"}</strong>
-            <br />
-            <span style={{ color: "#6b7280", fontSize: 12 }}>{selected.id}</span>
-          </p>
-          <p style={{ color: "#374151" }}>State: {stateText || "(unknown)"}</p>
-          {step === "connect" && (
-            <button onClick={() => void requestSsids()} style={{ padding: "0.5rem 0.75rem" }}>
-              Request Wi‑Fi Networks
-            </button>
-          )}
+              );
+            })}
+          </div>
         </section>
-      )}
 
-      {step === "config" && (
-        <section style={{ margin: "1rem 0", padding: "1rem", border: "1px solid #e5e7eb", borderRadius: 12 }}>
-          <h2 style={{ marginTop: 0 }}>Wi‑Fi</h2>
-          {ssidList.length > 0 ? (
+        <section style={{ background: "rgba(255,255,255,0.88)", border: "1px solid #daead5", borderRadius: 16, padding: "1rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <h2 style={{ margin: 0, fontSize: "1.1rem" }}>1. Discover provisioning device</h2>
+            <button onClick={() => void handleScan()} disabled={scanning || connecting} style={{ padding: "0.45rem 0.8rem" }}>
+              {scanning ? "Scanning..." : "Scan Again"}
+            </button>
+          </div>
+
+          {devices.length === 0 && !scanning ? (
+            <p style={{ color: "#4d6352" }}>No nearby provisioning devices found. Power on the pot and look for name `PROV_xxxxxx`.</p>
+          ) : null}
+
+          <div style={{ display: "grid", gap: 10 }}>
+            {devices.map((device) => (
+              <button
+                key={device.id}
+                onClick={() => void handleSelectDevice(device)}
+                disabled={connecting || applying || securing}
+                style={{
+                  textAlign: "left",
+                  background: selectedDevice?.id === device.id ? "#ecffe5" : "white",
+                  border: selectedDevice?.id === device.id ? "1px solid #8fcd7d" : "1px solid #d7e7d0",
+                  borderRadius: 12,
+                  padding: "0.7rem 0.8rem",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>{device.name ?? "(Unnamed)"}</div>
+                    <div style={{ fontFamily: "monospace", fontSize: 12, color: "#4a6150" }}>{device.id}</div>
+                  </div>
+                  <span style={{ fontSize: 12, color: "#567159" }}>
+                    RSSI {typeof device.rssi === "number" ? device.rssi : "--"}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {stage !== "discover" && selectedDevice ? (
+          <section style={{ background: "rgba(255,255,255,0.9)", border: "1px solid #dae8d2", borderRadius: 16, padding: "1rem", display: "grid", gap: 12 }}>
+            <h2 style={{ margin: 0, fontSize: "1.1rem" }}>2. Secure session (ESP Security1)</h2>
             <div style={{ display: "grid", gap: 8 }}>
               <label>
-                SSID:
-                <select value={ssid} onChange={(e) => setSsid(e.target.value)} style={{ marginLeft: 8 }}>
-                  {ssidList.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+                Proof of possession
+                <input
+                  value={pop}
+                  onChange={(event) => setPop(event.target.value)}
+                  placeholder="pp-xxxx"
+                  style={{ marginTop: 6, width: "100%", maxWidth: 260, padding: "0.45rem 0.55rem" }}
+                />
               </label>
-              <label>
-                Password:
+              <p style={{ margin: 0, fontSize: 12, color: "#4f6554" }}>
+                Use the PoP shown on your packaging or provisioning label.
+              </p>
+              {protocolInfo ? (
+                <p style={{ margin: 0, fontSize: 12, color: "#4f6554" }}>
+                  Protocol: <strong>{protocolInfo.version}</strong>
+                  {protocolInfo.capabilities.length ? ` | Capabilities: ${protocolInfo.capabilities.join(", ")}` : ""}
+                </p>
+              ) : null}
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button onClick={() => void handleStartSession()} disabled={securing || applying}>
+                {securing ? "Establishing..." : "Establish Session"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStage("discover");
+                  setSelectedDevice(null);
+                  setNetworks([]);
+                  setSsid("");
+                  setProtocolInfo(null);
+                  void reconnectClean();
+                }}
+              >
+                Disconnect
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        {stage === "network" || stage === "provisioning" || stage === "done" ? (
+          <section style={{ background: "rgba(255,255,255,0.92)", border: "1px solid #d9e8d4", borderRadius: 16, padding: "1rem", display: "grid", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              <h2 style={{ margin: 0, fontSize: "1.1rem" }}>3. Network and hub</h2>
+              <button onClick={() => void refreshNetworks()} disabled={loadingNetworks || applying || stage === "done"}>
+                {loadingNetworks ? "Refreshing..." : "Refresh Networks"}
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
+              <label style={{ display: "grid", gap: 6 }}>
+                Wi-Fi SSID
+                <input
+                  list="wifi-list"
+                  value={ssid}
+                  onChange={(event) => setSsid(event.target.value)}
+                  placeholder="Enter SSID"
+                  disabled={stage === "done"}
+                  style={{ padding: "0.45rem 0.55rem" }}
+                />
+                <datalist id="wifi-list">
+                  {networks.map((entry) => (
+                    <option key={`${entry.ssid}-${entry.bssidHex}`} value={entry.ssid} />
+                  ))}
+                </datalist>
+              </label>
+
+              <label style={{ display: "grid", gap: 6 }}>
+                Wi-Fi password
                 <input
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  style={{ marginLeft: 8 }}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Required for secured networks"
+                  disabled={applying || stage === "done"}
+                  style={{ padding: "0.45rem 0.55rem" }}
                 />
               </label>
-              <div>
-                <button onClick={() => void applyCredentials()} style={{ padding: "0.5rem 0.75rem" }}>
-                  Apply
-                </button>
-              </div>
             </div>
-          ) : (
-            <p style={{ color: "#6b7280" }}>Waiting for SSID list…</p>
-          )}
-        </section>
-      )}
 
-      {step === "apply" && (
-        <section style={{ margin: "1rem 0", padding: "1rem", border: "1px solid #e5e7eb", borderRadius: 12 }}>
-          <h2 style={{ marginTop: 0 }}>Provisioning</h2>
-          <p style={{ color: "#6b7280" }}>Applying credentials and waiting for result…</p>
-        </section>
-      )}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
+              <label style={{ display: "grid", gap: 6 }}>
+                Hub URL (optional)
+                <input
+                  value={hubUrlInput}
+                  onChange={(event) => setHubUrlInput(event.target.value)}
+                  placeholder="e.g. projectplant.local:80"
+                  disabled={applying || stage === "done"}
+                  style={{ padding: "0.45rem 0.55rem" }}
+                />
+              </label>
+              <label style={{ display: "grid", gap: 6 }}>
+                MQTT URI (optional)
+                <input
+                  value={mqttUriInput}
+                  onChange={(event) => setMqttUriInput(event.target.value)}
+                  placeholder="mqtt://192.168.1.10:1883"
+                  disabled={applying || stage === "done"}
+                  style={{ padding: "0.45rem 0.55rem" }}
+                />
+              </label>
+            </div>
 
-      {error && (
-        <div style={{ color: "#b91c1c", marginTop: 12 }}>
-          <p style={{ margin: 0 }}>Error: {error}</p>
-          {permissionHint === "location" ? (
-            <button
-              type="button"
-              onClick={handleOpenLocationSettings}
-              style={{ marginTop: 8, padding: "0.4rem 0.75rem" }}
-            >
-              Open Location Settings
-            </button>
-          ) : null}
-          {permissionHint === "bluetooth" ? (
-            <button
-              type="button"
-              onClick={handleOpenBluetoothSettings}
-              style={{ marginTop: 8, padding: "0.4rem 0.75rem" }}
-            >
-              Open Bluetooth Settings
-            </button>
-          ) : null}
-        </div>
-      )}
+            {stage !== "done" ? (
+              <button onClick={() => void handleApplyConfig()} disabled={applying || !ssid.trim()}>
+                {applying ? "Provisioning..." : "Apply Wi-Fi and Join Hub"}
+              </button>
+            ) : null}
+
+            {stage === "provisioning" || stage === "done" ? (
+              <div style={{ borderRadius: 12, background: "#f1fff0", border: "1px solid #cce5c6", padding: "0.7rem 0.8rem" }}>
+                <strong>Device status:</strong> {formatWifiState(wifiStatus)}
+              </div>
+            ) : null}
+
+            {hubResponse ? (
+              <div style={{ borderRadius: 12, background: "#f8fff5", border: "1px solid #d8edd2", padding: "0.7rem 0.8rem", fontSize: 13 }}>
+                Hub endpoint response: <strong>{hubResponse.status}</strong>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
+        {stage === "done" ? (
+          <section style={{ background: "#173423", color: "#efffe8", borderRadius: 16, padding: "1rem" }}>
+            <h2 style={{ margin: "0 0 0.6rem" }}>4. Setup complete</h2>
+            <p style={{ margin: 0 }}>
+              The pot joined Wi-Fi successfully.
+              {connectedHubUrl ? ` Connected hub: ${connectedHubUrl}.` : " Hub connection can be configured in dashboard settings."}
+              {hubDiscovery ? ` (discovered via ${hubDiscovery.via})` : ""}
+            </p>
+            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                onClick={() => navigate("/dashboard")}
+                style={{ background: "#b4f6a4", color: "#193221", border: "none", padding: "0.5rem 0.9rem", borderRadius: 8, fontWeight: 700 }}
+              >
+                Open Dashboard
+              </button>
+              {connectedHubUrl ? (
+                <button
+                  onClick={() => {
+                    const opened = window.open(connectedHubUrl, "_blank", "noopener,noreferrer");
+                    if (!opened) {
+                      window.location.href = connectedHubUrl;
+                    }
+                  }}
+                  style={{ padding: "0.5rem 0.9rem", borderRadius: 8 }}
+                >
+                  Open Hub Landing Page
+                </button>
+              ) : null}
+              <button
+                onClick={() => {
+                  setStage("discover");
+                  setDevices([]);
+                  setSelectedDevice(null);
+                  setNetworks([]);
+                  setSsid("");
+                  setProtocolInfo(null);
+                  setHubResponse(null);
+                  setWifiStatus(null);
+                  setConnectedHubUrl(null);
+                  setHubDiscovery(null);
+                  setError(null);
+                  setPop("");
+                  void reconnectClean();
+                  void handleScan();
+                }}
+                style={{ padding: "0.5rem 0.9rem", borderRadius: 8 }}
+              >
+                Provision Another Device
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        {error ? (
+          <section style={{ borderRadius: 12, border: "1px solid #f0b7b7", background: "#fff5f5", color: "#862626", padding: "0.8rem 0.9rem" }}>
+            <strong>Error:</strong> {error}
+            {permissionHint === "location" ? (
+              <div style={{ marginTop: 8 }}>
+                <button onClick={handleOpenLocationSettings}>Open Location Settings</button>
+              </div>
+            ) : null}
+            {permissionHint === "bluetooth" ? (
+              <div style={{ marginTop: 8 }}>
+                <button onClick={handleOpenBluetoothSettings}>Open Bluetooth Settings</button>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+      </div>
     </main>
   );
 }
-

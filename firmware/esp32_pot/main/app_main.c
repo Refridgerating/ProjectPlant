@@ -6,18 +6,19 @@
 
 #include "device_identity.h"
 #include "hardware_config.h"
+#include "node_schedule.h"
 #include "plant_mqtt.h"
 #include "sensors.h"
+#include "startup_onboarding.h"
 #include "time_sync.h"
-#include "wifi.h"
 
 #include "nvs_flash.h"  // for init. flash memory
-#include "nvs.h"
 #include "preferences.h"  // Chris
 
 #define FW_VERSION "0.1.0"
 #define COMMAND_TASK_STACK 3072
 #define PING_TASK_STACK 4096
+#define SCHEDULE_TASK_STACK 4096
 
 static const char *TAG = "app";
 
@@ -174,6 +175,20 @@ static void handle_command_task(void *arg)
                         }
                     }
                 }
+                if (cmd.has_schedule) {
+                    esp_err_t err = node_schedule_set(&cmd.schedule);
+                    if (err == ESP_OK) {
+                        ESP_LOGI(TAG, "Device schedule updated");
+                        if (mqtt_client) {
+                            mqtt_publish_status(mqtt_client, device_id, FW_VERSION, "schedule_updated", request_id);
+                        }
+                    } else {
+                        ESP_LOGW(TAG, "Failed to update device schedule: %s", esp_err_to_name(err));
+                        if (mqtt_client) {
+                            mqtt_publish_status(mqtt_client, device_id, FW_VERSION, "schedule_update_failed", request_id);
+                        }
+                    }
+                }
                 break;
             }
             default:
@@ -235,18 +250,43 @@ static void ping_task(void *arg)
 
 void app_main(void)
 {
-    nvs_flash_init();  // Chris
+    esp_err_t nvs_err = nvs_flash_init();
+    if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES || nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        nvs_err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(nvs_err);
 
     ESP_LOGI(TAG, "Starting ProjectPlant ESP32 node (%s)", FW_VERSION);
     ESP_LOGI(TAG, "test_var: '%c'", get_char("test_var", '0'));  // DEBUG
 
-    sensors_init();
+    device_identity_init();
+    device_id = device_identity_id();
 
-    esp_err_t wifi_result = wifi_init_sta(WIFI_SSID, WIFI_PASS);
+    sensors_init();
+    esp_err_t schedule_init_err = node_schedule_init();
+    if (schedule_init_err != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to initialize node schedule: %s", esp_err_to_name(schedule_init_err));
+    }
+
+    startup_onboarding_state_t onboarding = {0};
+    esp_err_t wifi_result = startup_onboarding_run(
+        device_id,
+        MQTT_BROKER_URI,
+        WIFI_SSID,
+        WIFI_PASS,
+        &onboarding);
     if (wifi_result != ESP_OK) {
-        ESP_LOGE(TAG, "Wi-Fi connection failed; retry after delay");
+        ESP_LOGE(TAG, "Network startup failed: %s", esp_err_to_name(wifi_result));
         vTaskDelay(pdMS_TO_TICKS(5000));
     } else {
+        if (onboarding.factory_default) {
+            ESP_LOGI(
+                TAG,
+                "Factory-default onboarding complete (%s transport)",
+                onboarding.ble_transport ? "BLE" : "SoftAP");
+        }
+
         if (time_sync_init() == ESP_OK) {
             if (!time_sync_wait_for_valid(pdMS_TO_TICKS(15000))) {
                 ESP_LOGW(TAG, "Time sync timed out; timestamps may be inaccurate");
@@ -258,16 +298,16 @@ void app_main(void)
         }
     }
 
-    device_identity_init();
-    device_id = device_identity_id();
-
     measurement_queue = xQueueCreate(1, sizeof(sensor_reading_t));
     command_queue = xQueueCreate(4, sizeof(mqtt_command_t));
 
-    mqtt_client = mqtt_client_start(MQTT_BROKER_URI, device_id, MQTT_USERNAME, MQTT_PASSWORD, mqtt_command_dispatch);
+    const char *mqtt_uri = onboarding.mqtt_uri[0] ? onboarding.mqtt_uri : MQTT_BROKER_URI;
+    ESP_LOGI(TAG, "Using MQTT broker URI: %s", mqtt_uri);
+    mqtt_client = mqtt_client_start(mqtt_uri, device_id, MQTT_USERNAME, MQTT_PASSWORD, mqtt_command_dispatch);
 
     xTaskCreate(sensor_task, "sensor_task", SENSOR_TASK_STACK, NULL, SENSOR_TASK_PRIORITY, NULL);
     xTaskCreate(mqtt_task, "mqtt_task", MQTT_TASK_STACK, NULL, MQTT_TASK_PRIORITY, NULL);
     xTaskCreate(handle_command_task, "command_task", COMMAND_TASK_STACK, NULL, MQTT_TASK_PRIORITY, NULL);
     xTaskCreate(ping_task, "ping_task", PING_TASK_STACK, NULL, MQTT_TASK_PRIORITY, NULL);
+    xTaskCreate(node_schedule_task, "schedule_task", SCHEDULE_TASK_STACK, NULL, MQTT_TASK_PRIORITY, NULL);
 }

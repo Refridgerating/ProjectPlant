@@ -4,14 +4,21 @@ This ESP-IDF application connects an ESP32-based planter node to the ProjectPlan
 
 ## Features
 - Periodic telemetry publishing (soil moisture, temperature, humidity, water level, pump status)
-- Wi-Fi station provisioning via `hardware_config.h`
+- First-boot onboarding with factory-default provisioning
+  - BLE provisioning when Bluetooth is enabled in firmware config
+  - SoftAP provisioning fallback when Bluetooth is disabled
+- Optional onboarding endpoint for hub metadata (for example, custom MQTT URI / hub URL)
 - MQTT client with JSON command parsing for pump overrides
 - Basic SHT41 driver using I2C master mode
 - FreeRTOS tasks for sensors, MQTT publishing, and command handling
 
 ## Getting Started
 1. Install ESP-IDF (v5.1 or newer recommended) and export the environment.
-2. Update Wi-Fi/MQTT settings in `main/hardware_config.h`.
+2. Update fallback Wi-Fi/MQTT settings:
+   - For local/dev secrets, create `main/hardware_config.local.c` (git-ignored) with your credentials.
+   - For safe defaults committed to the repo, edit `main/hardware_config.c`.
+   - Wi-Fi fallback is only used if no provisioned credentials are available.
+   - MQTT URI is used as the default and can be overridden during onboarding.
 3. Configure optional SDK settings: `idf.py menuconfig`.
 4. Build and flash:
    ```bash

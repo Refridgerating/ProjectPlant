@@ -88,6 +88,11 @@ class UserAccount:
     password_hash: str
     email_verified: bool
     verification_token: str | None
+    auth_provider: Literal["local", "google", "apple"] = "local"
+    google_sub: str | None = None
+    apple_sub: str | None = None
+    avatar_url: str | None = None
+    preferences: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -142,6 +147,12 @@ class PlantCatalog:
     def _initialize_state(self) -> None:
         self._references: list[PlantReference] = _default_references()
         self._users: dict[str, UserAccount] = {user.id: user for user in _default_users()}
+        self._users_by_google_sub: dict[str, str] = {
+            user.google_sub: user.id for user in self._users.values() if user.google_sub
+        }
+        self._users_by_apple_sub: dict[str, str] = {
+            user.apple_sub: user.id for user in self._users.values() if user.apple_sub
+        }
         self._shares: dict[str, ShareRecord] = {share.id: share for share in _default_shares()}
         self._share_cache: dict[str, set[str]] = {}
         self._verification_outbox: list[tuple[str, str]] = []
@@ -158,6 +169,162 @@ class PlantCatalog:
 
     def get_user(self, user_id: str) -> UserAccount | None:
         return self._users.get(user_id)
+
+    def get_user_by_google_sub(self, google_sub: str) -> UserAccount | None:
+        key = google_sub.strip()
+        if not key:
+            return None
+        user_id = self._users_by_google_sub.get(key)
+        if not user_id:
+            return None
+        return self._users.get(user_id)
+
+    def get_user_by_apple_sub(self, apple_sub: str) -> UserAccount | None:
+        key = apple_sub.strip()
+        if not key:
+            return None
+        user_id = self._users_by_apple_sub.get(key)
+        if not user_id:
+            return None
+        return self._users.get(user_id)
+
+    def authenticate_local_user(self, *, email: str, password: str) -> UserAccount:
+        cleaned_email = email.strip().lower()
+        cleaned_password = password.strip()
+        if not cleaned_email or not cleaned_password:
+            raise CatalogError("Email and password are required")
+
+        user = next((candidate for candidate in self._users.values() if candidate.email.lower() == cleaned_email), None)
+        if user is None:
+            raise CatalogError("Invalid email or password")
+        if user.auth_provider != "local":
+            raise CatalogError("This account uses social sign-in")
+        if not user.password_hash or not _verify_password(user.password_hash, cleaned_password):
+            raise CatalogError("Invalid email or password")
+        return user
+
+    def upsert_google_user(
+        self,
+        *,
+        google_sub: str,
+        email: str,
+        display_name: str,
+        picture: str | None = None,
+    ) -> UserAccount:
+        cleaned_sub = google_sub.strip()
+        cleaned_email = email.strip().lower()
+        cleaned_name = display_name.strip() or cleaned_email
+        if not cleaned_sub:
+            raise CatalogError("Google subject is required")
+        if not cleaned_email:
+            raise CatalogError("Email is required")
+
+        existing_by_sub = self.get_user_by_google_sub(cleaned_sub)
+        if existing_by_sub is not None:
+            updated = self._refresh_google_user_profile(
+                existing_by_sub,
+                email=cleaned_email,
+                display_name=cleaned_name,
+                picture=picture,
+            )
+            self._invalidate_share_cache(updated.id)
+            return updated
+
+        existing_by_email = next((user for user in self._users.values() if user.email.lower() == cleaned_email), None)
+        if existing_by_email is not None:
+            if existing_by_email.google_sub and existing_by_email.google_sub != cleaned_sub:
+                raise CatalogError("Email already linked to another Google account")
+            existing_by_email.google_sub = cleaned_sub
+            self._users_by_google_sub[cleaned_sub] = existing_by_email.id
+            updated = self._refresh_google_user_profile(
+                existing_by_email,
+                email=cleaned_email,
+                display_name=cleaned_name,
+                picture=picture,
+            )
+            self._invalidate_share_cache(updated.id)
+            return updated
+
+        user_id = f"user-{uuid4().hex[:8]}"
+        now = _now()
+        user = UserAccount(
+            id=user_id,
+            email=cleaned_email,
+            display_name=cleaned_name,
+            created_at=now,
+            updated_at=now,
+            password_hash="",
+            email_verified=True,
+            verification_token=None,
+            auth_provider="google",
+            google_sub=cleaned_sub,
+            avatar_url=picture,
+        )
+        self._users[user_id] = user
+        self._users_by_google_sub[cleaned_sub] = user_id
+        self._invalidate_share_cache(user_id)
+        return user
+
+    def upsert_apple_user(
+        self,
+        *,
+        apple_sub: str,
+        email: str | None,
+        display_name: str,
+    ) -> UserAccount:
+        cleaned_sub = apple_sub.strip()
+        cleaned_email = email.strip().lower() if email is not None else None
+        cleaned_name = display_name.strip()
+        if not cleaned_sub:
+            raise CatalogError("Apple subject is required")
+
+        existing_by_sub = self.get_user_by_apple_sub(cleaned_sub)
+        if existing_by_sub is not None:
+            updated = self._refresh_apple_user_profile(
+                existing_by_sub,
+                email=cleaned_email,
+                display_name=cleaned_name,
+            )
+            self._invalidate_share_cache(updated.id)
+            return updated
+
+        if cleaned_email is None:
+            raise CatalogError("Apple account email not available for first-time sign in")
+
+        existing_by_email = next((user for user in self._users.values() if user.email.lower() == cleaned_email), None)
+        if existing_by_email is not None:
+            if existing_by_email.apple_sub and existing_by_email.apple_sub != cleaned_sub:
+                raise CatalogError("Email already linked to another Apple account")
+            existing_by_email.apple_sub = cleaned_sub
+            self._users_by_apple_sub[cleaned_sub] = existing_by_email.id
+            updated = self._refresh_apple_user_profile(
+                existing_by_email,
+                email=cleaned_email,
+                display_name=cleaned_name,
+            )
+            self._invalidate_share_cache(updated.id)
+            return updated
+
+        user_id = f"user-{uuid4().hex[:8]}"
+        now = _now()
+        user = UserAccount(
+            id=user_id,
+            email=cleaned_email,
+            display_name=cleaned_name or cleaned_email,
+            created_at=now,
+            updated_at=now,
+            password_hash="",
+            email_verified=True,
+            verification_token=None,
+            auth_provider="apple",
+            google_sub=None,
+            apple_sub=cleaned_sub,
+            avatar_url=None,
+        )
+        self._users[user_id] = user
+        self._users_by_apple_sub[cleaned_sub] = user_id
+        self._invalidate_share_cache(user_id)
+        return user
 
     def add_user(
         self,
@@ -189,6 +356,10 @@ class PlantCatalog:
             password_hash=password_hash,
             email_verified=not require_verification,
             verification_token=token,
+            auth_provider="local",
+            google_sub=None,
+            apple_sub=None,
+            avatar_url=None,
         )
         self._users[user_id] = user
         self._invalidate_share_cache(user_id)
@@ -231,7 +402,10 @@ class PlantCatalog:
         if email is not None:
             cleaned_email = email.strip().lower()
             if cleaned_email and cleaned_email != user.email:
-                if any(existing.email == cleaned_email and existing.id != user_id for existing in self._users.values()):
+                if any(
+                    existing.email.lower() == cleaned_email and existing.id != user_id
+                    for existing in self._users.values()
+                ):
                     raise CatalogError("Email already registered")
                 # remove previous pending emails
                 self._verification_outbox = [entry for entry in self._verification_outbox if entry[0] != user.email]
@@ -256,6 +430,26 @@ class PlantCatalog:
             user.updated_at = _now()
         return user
 
+    def get_user_preferences(self, user_id: str) -> dict[str, object]:
+        user = self._ensure_user(user_id)
+        return dict(user.preferences)
+
+    def update_user_preferences(
+        self,
+        user_id: str,
+        values: dict[str, object],
+        *,
+        replace: bool = False,
+    ) -> dict[str, object]:
+        user = self._ensure_user(user_id)
+        sanitized = dict(values)
+        if replace:
+            user.preferences = sanitized
+        else:
+            user.preferences.update(sanitized)
+        user.updated_at = _now()
+        return dict(user.preferences)
+
     def remove_user(self, user_id: str) -> None:
         if user_id not in self._users:
             raise CatalogNotFoundError(f"User {user_id!r} not found")
@@ -266,6 +460,10 @@ class PlantCatalog:
         if any(record.owner_user_id == user_id for record in self._records):
             raise CatalogError("User still owns plant records")
         user = self._users.pop(user_id)
+        if user.google_sub:
+            self._users_by_google_sub.pop(user.google_sub, None)
+        if user.apple_sub:
+            self._users_by_apple_sub.pop(user.apple_sub, None)
         self._verification_outbox = [entry for entry in self._verification_outbox if entry[0] != user.email]
         impacted: set[str] = {user_id}
         to_remove = [
@@ -531,6 +729,68 @@ class PlantCatalog:
             raise CatalogNotFoundError(f"User {user_id!r} not found")
         return user
 
+    def _refresh_google_user_profile(
+        self,
+        user: UserAccount,
+        *,
+        email: str,
+        display_name: str,
+        picture: str | None,
+    ) -> UserAccount:
+        updated = False
+        if email != user.email:
+            if any(existing.email.lower() == email and existing.id != user.id for existing in self._users.values()):
+                raise CatalogError("Email already registered")
+            self._verification_outbox = [entry for entry in self._verification_outbox if entry[0] != user.email]
+            user.email = email
+            updated = True
+        if display_name and display_name != user.display_name:
+            user.display_name = display_name
+            updated = True
+        if picture != user.avatar_url:
+            user.avatar_url = picture
+            updated = True
+        if user.auth_provider != "google":
+            user.auth_provider = "google"
+            updated = True
+        if not user.email_verified or user.verification_token is not None:
+            self._verification_outbox = [entry for entry in self._verification_outbox if entry[0] != user.email]
+            user.email_verified = True
+            user.verification_token = None
+            updated = True
+        if updated:
+            user.updated_at = _now()
+        return user
+
+    def _refresh_apple_user_profile(
+        self,
+        user: UserAccount,
+        *,
+        email: str | None,
+        display_name: str,
+    ) -> UserAccount:
+        updated = False
+        if email is not None and email != user.email:
+            if any(existing.email.lower() == email and existing.id != user.id for existing in self._users.values()):
+                raise CatalogError("Email already registered")
+            self._verification_outbox = [entry for entry in self._verification_outbox if entry[0] != user.email]
+            user.email = email
+            updated = True
+        if display_name and display_name != user.display_name:
+            user.display_name = display_name
+            updated = True
+        if user.auth_provider != "apple":
+            user.auth_provider = "apple"
+            updated = True
+        if not user.email_verified or user.verification_token is not None:
+            self._verification_outbox = [entry for entry in self._verification_outbox if entry[0] != user.email]
+            user.email_verified = True
+            user.verification_token = None
+            updated = True
+        if updated:
+            user.updated_at = _now()
+        return user
+
     def _invalidate_share_cache(self, *user_ids: str) -> None:
         if not user_ids:
             self._share_cache.clear()
@@ -652,6 +912,10 @@ def _default_users() -> list[UserAccount]:
             password_hash=owner_hash,
             email_verified=True,
             verification_token=None,
+            auth_provider="local",
+            google_sub=None,
+            apple_sub=None,
+            avatar_url=None,
         ),
         UserAccount(
             id=_DEFAULT_CONTRACTOR_ID,
@@ -662,6 +926,10 @@ def _default_users() -> list[UserAccount]:
             password_hash=contractor_hash,
             email_verified=True,
             verification_token=None,
+            auth_provider="local",
+            google_sub=None,
+            apple_sub=None,
+            avatar_url=None,
         ),
     ]
 

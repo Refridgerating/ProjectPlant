@@ -8,7 +8,7 @@ const isDebugBuild =
 const config: CapacitorConfig = {
   appId: "com.projectplant.app",
   appName: "Project Plant",
-  webDir: "../ui/dist",
+  webDir: "../web/dist",
   bundledWebRuntime: false,
   androidScheme: "https"
 };

@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import AsyncIterator, Iterable
+from typing import AsyncIterator
 
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 
+from auth import AuthTokenError, verify_access_token
 from services.alerts import alerts_service
 from services.event_bus import EventMessage, event_bus
 from services.jobs import job_registry
@@ -59,16 +60,14 @@ async def stream_events(token: str | None = Query(default=None, description="Tok
 def _validate_token(token: str | None) -> UserAccount:
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
-    parts = token.split(".")
-    if len(parts) < 3 or parts[0] != "dummy":
+    try:
+        user_id = verify_access_token(token)
+    except AuthTokenError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+    user = plant_catalog.get_user(user_id)
+    if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    user_slug = parts[1].strip()
-    candidates: Iterable[str] = (user_slug, user_slug.replace("_", " "))
-    for candidate in candidates:
-        user = plant_catalog.get_user(candidate)
-        if user is not None:
-            return user
-    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    return user
 
 
 async def _build_initial_snapshot() -> dict[str, object]:

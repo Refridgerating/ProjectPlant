@@ -7,6 +7,7 @@
 #include <mqtt_client.h>
 
 #include "device_identity.h"
+#include "node_schedule.h"
 #include "sensors.h"
 
 typedef enum {
@@ -26,7 +27,9 @@ typedef struct {
     char request_id[MQTT_REQUEST_ID_MAX_LEN];
     char device_name[DEVICE_NAME_MAX_LEN];
     bool has_sensor_mode;
+    bool has_schedule;
     sensor_mode_t sensor_mode;
+    node_schedule_t schedule;
     bool pump_on;
     bool fan_on;
     bool mister_on;

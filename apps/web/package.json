@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "build:mobile": "pnpm --dir ../ui run build && pnpm --filter @projectplant/android run sync",
+    "build:mobile": "pnpm run build && pnpm --filter @projectplant/android run sync",
     "mobile:android:open": "pnpm --filter @projectplant/android run open"
   },
   "dependencies": {

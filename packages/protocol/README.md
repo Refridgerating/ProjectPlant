@@ -18,6 +18,8 @@ Optional fields:
 - `requestId` (string, echoed back in status/sensor read)
 - `action` or `command` values: `sensor_read` or `sensorRead`
 - `deviceName` (string, update stored display name; `displayName` accepted)
+- `schedule` (object with `light`/`pump`/`mister`/`fan`, each containing `enabled`, `startTime`, `endTime`)
+- `tzOffsetMinutes` (integer, optional fixed offset for schedule evaluation on device)
 
 ### Common payload fields (status + sensors)
 - `potId` (string)

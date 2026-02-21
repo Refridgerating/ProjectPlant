@@ -6,7 +6,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 from uuid import uuid4
 
 from asyncio_mqtt import MqttError
@@ -917,6 +917,107 @@ class CommandService:
 
                     self._logger.debug(
                         "Received sensor mode update status for %s in %.2f s",
+                        pot_id,
+                        time.monotonic() - start_monotonic,
+                    )
+                    return CommandAckResult(request_id=request_id, payload=data)
+            finally:
+                try:
+                    await client.unsubscribe(status_topic)
+                except MqttError:
+                    self._logger.debug("Failed to unsubscribe from %s during cleanup", status_topic, exc_info=True)
+
+    async def set_device_schedule(
+        self,
+        pot_id: str,
+        *,
+        schedule: Mapping[str, Any],
+        tz_offset_minutes: Optional[int] = None,
+        timeout: Optional[float] = None,
+    ) -> CommandAckResult:
+        pot_id = self._normalize_pot_id(pot_id)
+        if not isinstance(schedule, Mapping):
+            raise ValueError("schedule must be an object")
+
+        manager = get_mqtt_manager()
+        if manager is None:
+            raise CommandServiceError("MQTT manager is not connected")
+
+        try:
+            client = manager.get_client()
+        except RuntimeError as exc:
+            raise CommandServiceError(str(exc)) from exc
+
+        target_timeout = timeout if timeout is not None else self._default_timeout
+        if target_timeout <= 0:
+            raise ValueError("timeout must be greater than zero")
+
+        command_topic = COMMAND_TOPIC_FMT.format(pot_id=pot_id)
+        status_topic = STATUS_TOPIC_FMT.format(pot_id=pot_id)
+        request_id = str(uuid4())
+
+        schedule_payload = {
+            "light": dict(schedule.get("light", {})) if isinstance(schedule.get("light"), Mapping) else {},
+            "pump": dict(schedule.get("pump", {})) if isinstance(schedule.get("pump"), Mapping) else {},
+            "mister": dict(schedule.get("mister", {})) if isinstance(schedule.get("mister"), Mapping) else {},
+            "fan": dict(schedule.get("fan", {})) if isinstance(schedule.get("fan"), Mapping) else {},
+        }
+        payload_dict: dict[str, Any] = {
+            "requestId": request_id,
+            "schedule": schedule_payload,
+        }
+        if tz_offset_minutes is not None:
+            payload_dict["tzOffsetMinutes"] = int(tz_offset_minutes)
+
+        payload = json.dumps(payload_dict, separators=(",", ":"))
+        start_monotonic = time.monotonic()
+
+        async with client.messages() as messages:
+            try:
+                await client.subscribe(status_topic)
+            except MqttError as exc:
+                raise CommandServiceError(f"Failed to subscribe to {status_topic}") from exc
+
+            try:
+                await client.publish(command_topic, payload, qos=1, retain=False)
+            except MqttError as exc:
+                raise CommandServiceError(f"Failed to publish schedule update to {command_topic}") from exc
+
+            deadline = start_monotonic + target_timeout
+            try:
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise CommandTimeoutError(f"Timed out waiting for status update on {status_topic}")
+
+                    try:
+                        message = await asyncio.wait_for(messages.__anext__(), timeout=remaining)
+                    except asyncio.TimeoutError as exc:
+                        raise CommandTimeoutError(f"Timed out waiting for status update on {status_topic}") from exc
+                    except MqttError as exc:
+                        raise CommandServiceError("MQTT error while awaiting status update") from exc
+
+                    topic_value = getattr(message, "topic", status_topic)
+                    if hasattr(topic_value, "matches"):
+                        if not topic_value.matches(status_topic):
+                            continue
+                    elif str(topic_value) != status_topic:
+                        continue
+
+                    data = self._decode_payload(message.payload)
+                    if data is None:
+                        continue
+
+                    if data.get("requestId") != request_id:
+                        self._logger.debug(
+                            "Ignoring status payload for %s with unmatched requestId %r",
+                            pot_id,
+                            data.get("requestId"),
+                        )
+                        continue
+
+                    self._logger.debug(
+                        "Received schedule update status for %s in %.2f s",
                         pot_id,
                         time.monotonic() - start_monotonic,
                     )

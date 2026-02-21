@@ -614,6 +614,7 @@ async def update_plant_schedule(pot_id: str, payload: PlantScheduleUpdateRequest
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if settings.mqtt_enabled:
+        await plant_schedule_service.sync_schedule_to_device(schedule)
         await plant_schedule_service.apply_schedule_now(schedule.pot_id)
     return PlantSchedulePayload.from_schedule(schedule)
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createShare,
   createUserAccount,
@@ -9,6 +9,7 @@ import {
   ShareRecordSummary,
   ShareRole,
   ShareStatus,
+  signInWithGoogleIdToken,
   updateShare,
   type UserAccountSummary,
 } from "../api/hubClient";
@@ -17,6 +18,42 @@ import { CollapsibleTile } from "./CollapsibleTile";
 
 const SHARE_ROLE_OPTIONS: ShareRole[] = ["contractor", "viewer"];
 const SHARE_STATUS_OPTIONS: ShareStatus[] = ["pending", "active", "revoked"];
+const GOOGLE_SCRIPT_ID = "projectplant-google-gsi-script";
+
+type GoogleCredentialResponse = {
+  credential: string;
+};
+
+type GoogleAccountsId = {
+  initialize: (options: {
+    client_id: string;
+    callback: (response: GoogleCredentialResponse) => void;
+    auto_select?: boolean;
+    cancel_on_tap_outside?: boolean;
+  }) => void;
+  renderButton: (
+    parent: HTMLElement,
+    options: {
+      type?: string;
+      theme?: string;
+      size?: string;
+      text?: string;
+      shape?: string;
+      width?: number;
+      logo_alignment?: string;
+    }
+  ) => void;
+};
+
+type GoogleGlobal = {
+  accounts: {
+    id: GoogleAccountsId;
+  };
+};
+
+type WindowWithGoogle = Window & {
+  google?: GoogleGlobal;
+};
 
 export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [settings, setLocal] = useState<UiSettings>(() => getSettings());
@@ -43,6 +80,16 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
   const [shareContractorId, setShareContractorId] = useState("");
   const [shareRole, setShareRole] = useState<ShareRole>("contractor");
   const [shareStatusChoice, setShareStatusChoice] = useState<ShareStatus>("pending");
+  const [googleSignInBusy, setGoogleSignInBusy] = useState(false);
+  const [googleSignInError, setGoogleSignInError] = useState<string | null>(null);
+  const [googleSignInMessage, setGoogleSignInMessage] = useState<string | null>(null);
+  const [manualGoogleToken, setManualGoogleToken] = useState("");
+  const [googleScriptReady, setGoogleScriptReady] = useState(false);
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const googleClientId = useMemo(() => {
+    const raw = (import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "") as string;
+    return raw.trim();
+  }, []);
 
   const refreshUserData = useCallback(
     async (signal?: AbortSignal) => {
@@ -100,6 +147,9 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
     setUserActionError(null);
     setShareActionMessage(null);
     setShareActionError(null);
+    setGoogleSignInError(null);
+    setGoogleSignInMessage(null);
+    setManualGoogleToken("");
     setNewUserEmail("");
     setNewUserName("");
     setNewUserPassword("");
@@ -111,7 +161,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
   }, [open, refreshUserData]);
 
   const userNameLookup = useMemo(() => {
-    const entries = users.map((user) => [
+    const entries: Array<[string, string]> = users.map((user) => [
       user.id,
       user.display_name?.trim() || user.email || user.id,
     ]);
@@ -123,6 +173,137 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
     [userNameLookup]
   );
 
+  const applyAuthenticatedSession = useCallback(
+    (session: {
+      access_token: string;
+      expires_in: number;
+      user: {
+        id: string;
+        display_name: string;
+        email: string;
+      };
+    }) => {
+      setLocal((prev) => {
+        const next: UiSettings = {
+          ...prev,
+          activeUserId: session.user.id,
+          activeUserName: session.user.display_name?.trim() || session.user.email,
+          authToken: session.access_token,
+          authTokenExpiresAt: Date.now() + session.expires_in * 1000,
+        };
+        setSettings(next);
+        return next;
+      });
+    },
+    []
+  );
+
+  const handleGoogleCredential = useCallback(
+    async (idToken: string) => {
+      const token = idToken.trim();
+      if (!token) {
+        setGoogleSignInError("Google ID token is required.");
+        return;
+      }
+      setGoogleSignInBusy(true);
+      setGoogleSignInError(null);
+      setGoogleSignInMessage(null);
+      try {
+        const session = await signInWithGoogleIdToken(token);
+        applyAuthenticatedSession(session);
+        setGoogleSignInMessage(`Signed in as ${session.user.display_name || session.user.email}.`);
+        setManualGoogleToken("");
+        await refreshUserData();
+      } catch (err) {
+        setGoogleSignInError(err instanceof Error ? err.message : "Google sign-in failed.");
+      } finally {
+        setGoogleSignInBusy(false);
+      }
+    },
+    [applyAuthenticatedSession, refreshUserData]
+  );
+
+  useEffect(() => {
+    if (!open || !googleClientId) {
+      return;
+    }
+    if ((window as WindowWithGoogle).google?.accounts?.id) {
+      setGoogleScriptReady(true);
+      return;
+    }
+
+    setGoogleScriptReady(false);
+    const handleScriptLoad = () => setGoogleScriptReady(true);
+    const handleScriptError = () => {
+      setGoogleSignInError("Unable to load Google Sign-In script.");
+      setGoogleScriptReady(false);
+    };
+
+    const existing = document.getElementById(GOOGLE_SCRIPT_ID) as HTMLScriptElement | null;
+    if (existing) {
+      existing.addEventListener("load", handleScriptLoad);
+      existing.addEventListener("error", handleScriptError);
+      return () => {
+        existing.removeEventListener("load", handleScriptLoad);
+        existing.removeEventListener("error", handleScriptError);
+      };
+    }
+
+    const script = document.createElement("script");
+    script.id = GOOGLE_SCRIPT_ID;
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.addEventListener("load", handleScriptLoad);
+    script.addEventListener("error", handleScriptError);
+    document.head.appendChild(script);
+    return () => {
+      script.removeEventListener("load", handleScriptLoad);
+      script.removeEventListener("error", handleScriptError);
+    };
+  }, [open, googleClientId]);
+
+  useEffect(() => {
+    if (!open || !googleClientId || !googleScriptReady || !googleButtonRef.current) {
+      return;
+    }
+    const google = (window as WindowWithGoogle).google;
+    if (!google?.accounts?.id) {
+      return;
+    }
+    const host = googleButtonRef.current;
+    host.innerHTML = "";
+    google.accounts.id.initialize({
+      client_id: googleClientId,
+      callback: (response: GoogleCredentialResponse) => {
+        void handleGoogleCredential(response.credential);
+      },
+      cancel_on_tap_outside: true,
+    });
+    google.accounts.id.renderButton(host, {
+      type: "standard",
+      theme: "outline",
+      size: "large",
+      text: "signin_with",
+      width: 260,
+      logo_alignment: "left",
+    });
+  }, [open, googleClientId, googleScriptReady, handleGoogleCredential]);
+
+  const handleSignOut = useCallback(() => {
+    setLocal((prev) => {
+      const next: UiSettings = {
+        ...prev,
+        authToken: "",
+        authTokenExpiresAt: null,
+      };
+      setSettings(next);
+      return next;
+    });
+    setGoogleSignInError(null);
+    setGoogleSignInMessage("Signed out of hub session.");
+  }, []);
+
   const save = useCallback(() => {
     setSettings(settings);
     onClose();
@@ -132,10 +313,19 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
     (userId: string) => {
       setLocal((prev) => {
         if (!userId) {
-          return { ...prev, activeUserId: "", activeUserName: "" };
+          return { ...prev, activeUserId: "", activeUserName: "", authToken: "", authTokenExpiresAt: null };
         }
         const selected = users.find((user) => user.id === userId);
         const fallbackName = selected?.display_name?.trim() || selected?.email || prev.activeUserName;
+        if (prev.authToken && prev.activeUserId && prev.activeUserId !== userId) {
+          return {
+            ...prev,
+            activeUserId: userId,
+            activeUserName: fallbackName,
+            authToken: "",
+            authTokenExpiresAt: null,
+          };
+        }
         return { ...prev, activeUserId: userId, activeUserName: fallbackName };
       });
     },
@@ -278,7 +468,10 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
     }
   }, [settings.serverBaseUrl]);
 
-  const maskedPassword = useMemo(() => (settings.mqttPassword ? "•".repeat(Math.min(settings.mqttPassword.length, 8)) : ""), [settings.mqttPassword]);
+  const maskedPassword = useMemo(
+    () => (settings.mqttPassword ? "*".repeat(Math.min(settings.mqttPassword.length, 8)) : ""),
+    [settings.mqttPassword]
+  );
 
   if (!open) return null;
 
@@ -389,9 +582,10 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
                 {users.map((user) => {
                   const baseLabel = user.display_name?.trim() || user.email || user.id;
                   const statusLabel = user.email_verified ? "verified" : "pending";
+                  const providerLabel = user.auth_provider === "google" ? "google" : "local";
                   return (
                     <option key={user.id} value={user.id}>
-                      {baseLabel} ({statusLabel})
+                      {baseLabel} ({statusLabel}, {providerLabel})
                     </option>
                   );
                 })}
@@ -406,8 +600,67 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
               </button>
             </div>
             <p className="text-[11px] text-slate-500">
-              Header <code className="rounded bg-slate-800 px-1 py-0.5 text-[10px]">X-User-Id</code> is forwarded with hub requests.
+              Requests use <code className="rounded bg-slate-800 px-1 py-0.5 text-[10px]">Authorization: Bearer</code>{" "}
+              when signed in, otherwise they fall back to{" "}
+              <code className="rounded bg-slate-800 px-1 py-0.5 text-[10px]">X-User-Id</code>.
             </p>
+            <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-300">
+              <p className="font-semibold text-slate-100">Google Sign-In</p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Sign in with your Google account to bind this hub session to a verified identity.
+              </p>
+              {googleClientId ? (
+                <div className="mt-2">
+                  <div ref={googleButtonRef} />
+                  {!googleScriptReady ? (
+                    <p className="mt-2 text-[11px] text-slate-500">Loading Google sign-in...</p>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="mt-2 text-[11px] text-amber-300">
+                  Missing <code>VITE_GOOGLE_CLIENT_ID</code>; use manual ID token sign-in below.
+                </p>
+              )}
+              <div className="mt-3 flex flex-col gap-2">
+                <label className="text-[11px] text-slate-400" htmlFor="settings-google-id-token">
+                  Manual Google ID token (fallback)
+                </label>
+                <input
+                  id="settings-google-id-token"
+                  type="password"
+                  value={manualGoogleToken}
+                  onChange={(e) => setManualGoogleToken(e.target.value)}
+                  placeholder="Paste Google ID token"
+                  className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleGoogleCredential(manualGoogleToken)}
+                    disabled={googleSignInBusy}
+                    className="rounded-lg border border-slate-700 px-3 py-1 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    {googleSignInBusy ? "Signing in..." : "Sign in with Google token"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    className="rounded-lg border border-slate-700 px-3 py-1 text-sm text-slate-200 hover:bg-slate-800"
+                  >
+                    Sign out
+                  </button>
+                </div>
+                {settings.authToken ? (
+                  <p className="text-[11px] text-emerald-300">
+                    Hub session token is active{settings.authTokenExpiresAt ? ` until ${new Date(settings.authTokenExpiresAt).toLocaleString()}` : ""}.
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-slate-500">No hub session token stored.</p>
+                )}
+                {googleSignInMessage ? <p className="text-xs text-emerald-400">{googleSignInMessage}</p> : null}
+                {googleSignInError ? <p className="text-xs text-red-400">{googleSignInError}</p> : null}
+              </div>
+            </div>
             {userError ? <p className="text-xs text-red-400">{userError}</p> : null}
             {currentUser ? (
               <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-xs text-slate-300">
@@ -416,6 +669,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
                 </p>
                 <p>{currentUser.email}</p>
                 <p className="text-[11px] text-slate-400">{currentUser.email_verified ? "Verified" : "Pending verification"}</p>
+                <p className="text-[11px] text-slate-400 capitalize">Provider: {currentUser.auth_provider}</p>
                 <p className="text-[11px] text-slate-500">User id: {currentUser.id}</p>
               </div>
             ) : (

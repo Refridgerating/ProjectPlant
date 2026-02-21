@@ -545,8 +545,14 @@ export type UserAccountSummary = {
   display_name: string;
   email_verified: boolean;
   verification_pending: boolean;
+  auth_provider: "local" | "google" | "apple";
+  avatar_url?: string | null;
   created_at: number;
   updated_at: number;
+};
+
+export type UserPreferencesResponse = {
+  values: Record<string, unknown>;
 };
 
 export type ShareParticipantRole = "owner" | "contractor";
@@ -636,10 +642,15 @@ export type CreatePlantPayload = {
   care_profile?: PlantCareProfile | null;
 };
 
-import { getApiBaseUrlSync, getActiveUserIdSync } from "../settings";
+import { getApiBaseUrlSync, getActiveUserIdSync, getAuthTokenSync } from "../settings";
 
 function withUser(init?: RequestInit): RequestInit {
   const headers = new Headers(init?.headers ?? {});
+  const authToken = getAuthTokenSync();
+  if (authToken) {
+    headers.set("Authorization", `Bearer ${authToken}`);
+    return { ...init, headers };
+  }
   const userId = getActiveUserIdSync();
   if (userId) {
     headers.set("X-User-Id", userId);
@@ -656,6 +667,18 @@ export type AuthTokenResponse = {
   access_token: string;
   token_type: string;
   expires_in: number;
+};
+
+export type LocalSignInResponse = AuthTokenResponse & {
+  user: UserAccountSummary;
+};
+
+export type GoogleSignInResponse = AuthTokenResponse & {
+  user: UserAccountSummary;
+};
+
+export type AppleSignInResponse = AuthTokenResponse & {
+  user: UserAccountSummary;
 };
 
 export async function fetchHubInfo(signal?: AbortSignal): Promise<HubInfo> {
@@ -678,6 +701,107 @@ export async function fetchEventToken(signal?: AbortSignal): Promise<AuthTokenRe
     throw new Error(`Failed to obtain event token (${response.status})`);
   }
   return (await response.json()) as AuthTokenResponse;
+}
+
+export async function signInWithLocalCredentials(
+  email: string,
+  password: string,
+  signal?: AbortSignal
+): Promise<LocalSignInResponse> {
+  const cleanedEmail = email.trim();
+  const cleanedPassword = password.trim();
+  if (!cleanedEmail) {
+    throw new Error("Email is required");
+  }
+  if (!cleanedPassword) {
+    throw new Error("Password is required");
+  }
+  const response = await fetch(
+    `${apiBase()}/auth/local`,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: cleanedEmail, password: cleanedPassword }),
+      signal,
+    })
+  );
+  if (!response.ok) {
+    let detail = `Email sign-in failed (${response.status})`;
+    try {
+      const payload = (await response.json()) as { detail?: string };
+      if (typeof payload.detail === "string" && payload.detail.trim()) {
+        detail = payload.detail;
+      }
+    } catch {
+      // ignore parse errors and return status-based message
+    }
+    throw new Error(detail);
+  }
+  return (await response.json()) as LocalSignInResponse;
+}
+
+export async function signInWithGoogleIdToken(
+  idToken: string,
+  signal?: AbortSignal
+): Promise<GoogleSignInResponse> {
+  const trimmed = idToken.trim();
+  if (!trimmed) {
+    throw new Error("Google ID token is required");
+  }
+  const response = await fetch(
+    `${apiBase()}/auth/google`,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id_token: trimmed }),
+      signal,
+    })
+  );
+  if (!response.ok) {
+    let detail = `Google sign-in failed (${response.status})`;
+    try {
+      const payload = (await response.json()) as { detail?: string };
+      if (typeof payload.detail === "string" && payload.detail.trim()) {
+        detail = payload.detail;
+      }
+    } catch {
+      // ignore parse errors and return status-based message
+    }
+    throw new Error(detail);
+  }
+  return (await response.json()) as GoogleSignInResponse;
+}
+
+export async function signInWithAppleIdToken(
+  idToken: string,
+  signal?: AbortSignal
+): Promise<AppleSignInResponse> {
+  const trimmed = idToken.trim();
+  if (!trimmed) {
+    throw new Error("Apple ID token is required");
+  }
+  const response = await fetch(
+    `${apiBase()}/auth/apple`,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id_token: trimmed }),
+      signal,
+    })
+  );
+  if (!response.ok) {
+    let detail = `Apple sign-in failed (${response.status})`;
+    try {
+      const payload = (await response.json()) as { detail?: string };
+      if (typeof payload.detail === "string" && payload.detail.trim()) {
+        detail = payload.detail;
+      }
+    } catch {
+      // ignore parse errors and return status-based message
+    }
+    throw new Error(detail);
+  }
+  return (await response.json()) as AppleSignInResponse;
 }
 
 export async function fetchHealthSummary(signal?: AbortSignal): Promise<HealthSummary> {
@@ -2115,6 +2239,36 @@ export async function fetchCurrentUser(signal?: AbortSignal): Promise<UserAccoun
     throw new Error(`Failed to load current user (${response.status})`);
   }
   return (await response.json()) as UserAccountSummary;
+}
+
+export async function fetchMyPreferences(signal?: AbortSignal): Promise<UserPreferencesResponse> {
+  const response = await fetch(`${apiBase()}/users/me/preferences`, withUser({ signal }));
+  if (!response.ok) {
+    throw new Error(`Failed to load user preferences (${response.status})`);
+  }
+  return (await response.json()) as UserPreferencesResponse;
+}
+
+export async function updateMyPreferences(
+  values: Record<string, unknown>,
+  options?: { replace?: boolean; signal?: AbortSignal }
+): Promise<UserPreferencesResponse> {
+  const response = await fetch(
+    `${apiBase()}/users/me/preferences`,
+    withUser({
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        values,
+        replace: options?.replace ?? false,
+      }),
+      signal: options?.signal,
+    })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to update user preferences (${response.status})`);
+  }
+  return (await response.json()) as UserPreferencesResponse;
 }
 
 export async function updateUserAccount(

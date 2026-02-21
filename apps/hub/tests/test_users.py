@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from auth.jwt import create_access_token
 from services.plants import plant_catalog
 
 
@@ -14,6 +15,7 @@ def test_list_users_and_me(client: TestClient) -> None:
     owner_details = next(user for user in payload if user["id"] == "user-demo-owner")
     assert owner_details["email_verified"] is True
     assert owner_details["verification_pending"] is False
+    assert owner_details["auth_provider"] == "local"
 
     me = client.get("/api/v1/users/me")
     assert me.status_code == 200
@@ -21,6 +23,55 @@ def test_list_users_and_me(client: TestClient) -> None:
     assert me_payload["id"] == "user-demo-owner"
     assert me_payload["email"] == "grower@example.com"
     assert me_payload["email_verified"] is True
+    assert me_payload["auth_provider"] == "local"
+
+
+def test_get_me_with_bearer_token(client: TestClient) -> None:
+    token = create_access_token("user-demo-owner")
+    response = client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    assert response.json()["id"] == "user-demo-owner"
+
+
+def test_preferences_lifecycle(client: TestClient) -> None:
+    initial = client.get("/api/v1/users/me/preferences")
+    assert initial.status_code == 200
+    assert initial.json()["values"] == {}
+
+    updated = client.put(
+        "/api/v1/users/me/preferences",
+        json={
+            "values": {
+                "theme": "forest",
+                "telemetry_range": "24h",
+            }
+        },
+    )
+    assert updated.status_code == 200
+    assert updated.json()["values"]["theme"] == "forest"
+    assert updated.json()["values"]["telemetry_range"] == "24h"
+
+    merged = client.put(
+        "/api/v1/users/me/preferences",
+        json={
+            "values": {
+                "alerts_enabled": True,
+            }
+        },
+    )
+    assert merged.status_code == 200
+    assert merged.json()["values"]["theme"] == "forest"
+    assert merged.json()["values"]["alerts_enabled"] is True
+
+    replaced = client.put(
+        "/api/v1/users/me/preferences",
+        json={
+            "replace": True,
+            "values": {"units": "imperial"},
+        },
+    )
+    assert replaced.status_code == 200
+    assert replaced.json()["values"] == {"units": "imperial"}
 
 
 def test_create_update_delete_user(client: TestClient) -> None:
@@ -40,6 +91,7 @@ def test_create_update_delete_user(client: TestClient) -> None:
     assert user["display_name"] == "New User"
     assert user["email_verified"] is False
     assert user["verification_pending"] is True
+    assert user["auth_provider"] == "local"
 
     outbox = plant_catalog.list_verification_outbox()
     assert len(outbox) == initial_outbox + 1

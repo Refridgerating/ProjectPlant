@@ -16,6 +16,40 @@ class Settings(BaseSettings):
     cors_origins: List[str] = Field(default_factory=lambda: ["*"])
     port: int = 8000
 
+    # Access token auth
+    auth_jwt_secret: str = Field(
+        default="change-me-in-production",
+        description="HMAC secret used to sign API access tokens.",
+    )
+    auth_jwt_algorithm: str = Field(default="HS256")
+    auth_jwt_issuer: str = Field(default="projectplant-hub")
+    auth_jwt_audience: str = Field(default="projectplant-clients")
+    auth_access_token_ttl_seconds: int = Field(default=3600, ge=60, le=86400)
+
+    # Google sign-in
+    google_oauth_enabled: bool = Field(
+        default=False,
+        description="Enable Google ID token sign-in endpoint.",
+    )
+    google_oauth_client_ids: List[str] = Field(
+        default_factory=list,
+        description="Accepted Google OAuth Web Client IDs for ID token verification.",
+    )
+    google_oauth_hosted_domain: str | None = Field(
+        default=None,
+        description="Optional Google Workspace hosted domain restriction (e.g. example.com).",
+    )
+
+    # Apple sign-in
+    apple_oauth_enabled: bool = Field(
+        default=False,
+        description="Enable Apple ID token sign-in endpoint.",
+    )
+    apple_oauth_client_ids: List[str] = Field(
+        default_factory=list,
+        description="Accepted Apple Services IDs (audience values) for ID token verification.",
+    )
+
     # MQTT
     mqtt_enabled: bool = False
     mqtt_host: str = "localhost"
@@ -165,5 +199,55 @@ class Settings(BaseSettings):
                 return ["*"]
             return [p.strip() for p in s.split(",")]
         return v
+
+    @field_validator("google_oauth_client_ids", mode="before")
+    @classmethod
+    def normalize_google_client_ids(cls, value):
+        if value is None:
+            return []
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                return []
+            if cleaned.startswith("["):
+                import json
+
+                parsed = json.loads(cleaned)
+                if isinstance(parsed, list):
+                    return [str(item).strip() for item in parsed if str(item).strip()]
+                return []
+            return [item.strip() for item in cleaned.split(",") if item.strip()]
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        return value
+
+    @field_validator("google_oauth_hosted_domain", mode="before")
+    @classmethod
+    def normalize_google_hosted_domain(cls, value):
+        if value is None:
+            return None
+        cleaned = str(value).strip().lower()
+        return cleaned or None
+
+    @field_validator("apple_oauth_client_ids", mode="before")
+    @classmethod
+    def normalize_apple_client_ids(cls, value):
+        if value is None:
+            return []
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                return []
+            if cleaned.startswith("["):
+                import json
+
+                parsed = json.loads(cleaned)
+                if isinstance(parsed, list):
+                    return [str(item).strip() for item in parsed if str(item).strip()]
+                return []
+            return [item.strip() for item in cleaned.split(",") if item.strip()]
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        return value
 
 settings = Settings()
