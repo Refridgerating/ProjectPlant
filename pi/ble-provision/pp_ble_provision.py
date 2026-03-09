@@ -385,9 +385,11 @@ class PPApplyCharacteristic(GattCharacteristic):
                 self._set_state("connected")
                 # Attempt to start downstream services and stop BLE advertising
                 try:
-                    # Start services
+                    # Start legacy and standardized ProjectPlant services.
                     subprocess.run(["systemctl", "start", "api.service"], check=False)
                     subprocess.run(["systemctl", "start", "mqtt.service"], check=False)
+                    subprocess.run(["systemctl", "start", "projectplant-hub.service"], check=False)
+                    subprocess.run(["systemctl", "start", "projectplant-agent.service"], check=False)
                     # Avahi advertisement unit installed by our installer
                     subprocess.run(["systemctl", "start", "projectplant-avahi.service"], check=False)
                 except Exception:

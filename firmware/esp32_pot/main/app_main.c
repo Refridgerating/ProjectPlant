@@ -61,7 +61,9 @@ static void handle_command_task(void *arg)
         if (xQueueReceive(command_queue, &cmd, portMAX_DELAY) == pdTRUE) {
             switch (cmd.type) {
             case MQTT_CMD_PUMP_OVERRIDE:
-                ESP_LOGI(TAG, "Pump command: %s duration %u ms", cmd.pump_on ? "ON" : "OFF", (unsigned)cmd.duration_ms);
+            {
+                uint32_t pulse_ms = cmd.duration_ms > 0 ? cmd.duration_ms : PUMP_PULSE_MS;
+                ESP_LOGI(TAG, "Pump command: %s duration %u ms", cmd.pump_on ? "ON" : "OFF", (unsigned)pulse_ms);
                 sensors_set_pump_state(cmd.pump_on);
                 const char *request_id = cmd.request_id[0] ? cmd.request_id : NULL;
                 if (mqtt_client) {
@@ -69,14 +71,29 @@ static void handle_command_task(void *arg)
                                         cmd.pump_on ? "pump_on" : "pump_off",
                                         request_id);
                 }
-                if (cmd.pump_on && cmd.duration_ms > 0) {
-                    vTaskDelay(pdMS_TO_TICKS(cmd.duration_ms));
+                if (cmd.pump_on && pulse_ms > 0) {
+                    vTaskDelay(pdMS_TO_TICKS(pulse_ms));
                     sensors_set_pump_state(false);
                     if (mqtt_client) {
-                        mqtt_publish_status(mqtt_client, device_id, FW_VERSION, "pump_timeout_off", request_id);
+                        mqtt_publish_status(mqtt_client, device_id, FW_VERSION, "pump_off", request_id);
                     }
                 }
                 break;
+            }
+            case MQTT_CMD_IC_ZONE1_OVERRIDE:
+            {
+                uint32_t pulse_ms = cmd.duration_ms > 0 ? cmd.duration_ms : IC_ZONE1_PULSE_MS;
+                ESP_LOGI(TAG, "IC Zone 1 command: %s duration %u ms", cmd.ic_zone1_on ? "ON" : "OFF", (unsigned)pulse_ms);
+                sensors_pulse_ic_zone1(cmd.ic_zone1_on, pulse_ms);
+                sensors_set_ic_zone1_state(cmd.ic_zone1_on);
+                const char *request_id = cmd.request_id[0] ? cmd.request_id : NULL;
+                if (mqtt_client) {
+                    mqtt_publish_status(mqtt_client, device_id, FW_VERSION,
+                                        cmd.ic_zone1_on ? "ic_zone1_on" : "ic_zone1_off",
+                                        request_id);
+                }
+                break;
+            }
             case MQTT_CMD_FAN_OVERRIDE: {
                 ESP_LOGI(TAG, "Fan command: %s duration %u ms", cmd.fan_on ? "ON" : "OFF", (unsigned)cmd.duration_ms);
                 sensors_set_fan_state(cmd.fan_on);

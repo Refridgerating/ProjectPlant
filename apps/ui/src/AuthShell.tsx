@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 
-import type { AppleSignInResponse, GoogleSignInResponse, LocalSignInResponse } from "./api/hubClient";
+import {
+  fetchHubInfo,
+  fetchManagedEffectiveAccess,
+  type AppleSignInResponse,
+  type GoogleSignInResponse,
+  type LocalSignInResponse,
+} from "./api/hubClient";
 import App from "./App";
 import { LoginPage } from "./components/LoginPage";
 import { getAuthTokenSync, getSettings, setSettings, type UiSettings } from "./settings";
@@ -14,6 +20,22 @@ function hasSession(): boolean {
   const token = getAuthTokenSync();
   const settings = getSettings();
   return Boolean(token && settings.activeUserId.trim());
+}
+
+function clearSessionSettings(current: UiSettings): UiSettings {
+  return {
+    ...current,
+    authToken: "",
+    authTokenExpiresAt: null,
+    activeUserId: "",
+    activeUserName: "",
+    mfaSatisfied: false,
+    effectiveAccess: null,
+  };
+}
+
+function fleetConsoleUrlFromControlPlane(controlPlaneUrl: string): string {
+  return controlPlaneUrl.trim().replace(/\/$/, "");
 }
 
 function getPromptDismissed(): boolean {
@@ -40,9 +62,49 @@ export function AuthShell() {
   const [authenticated, setAuthenticated] = useState(() => hasSession());
   const [showPrompt, setShowPrompt] = useState(() => !hasSession() && !getPromptDismissed());
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [authMode, setAuthMode] = useState(() => getSettings().authMode || "local_compat");
 
-  const refreshAuth = useCallback(() => {
-    setAuthenticated(hasSession());
+  const syncHubAuthMode = useCallback(async () => {
+    try {
+      const info = await fetchHubInfo();
+      const current = getSettings();
+      const nextMode = info.authMode?.trim() || "local_compat";
+      const nextControlPlaneUrl = info.controlPlaneUrl?.trim() ?? "";
+      setSettings({
+        ...current,
+        authMode: nextMode,
+        controlPlaneUrl: nextControlPlaneUrl,
+        fleetConsoleUrl: nextControlPlaneUrl ? fleetConsoleUrlFromControlPlane(nextControlPlaneUrl) : current.fleetConsoleUrl,
+      });
+      setAuthMode(nextMode);
+    } catch {
+      setAuthMode(getSettings().authMode || "local_compat");
+    }
+  }, []);
+
+  const refreshAuth = useCallback(async () => {
+    const current = getSettings();
+    setAuthMode(current.authMode || "local_compat");
+    if (!hasSession()) {
+      setAuthenticated(false);
+      return;
+    }
+    if (current.authMode !== "managed") {
+      setAuthenticated(true);
+      return;
+    }
+    try {
+      const effectiveAccess = await fetchManagedEffectiveAccess();
+      setSettings({
+        ...current,
+        effectiveAccess,
+        mfaSatisfied: effectiveAccess.mfaSatisfied,
+      });
+      setAuthenticated(true);
+    } catch {
+      setSettings(clearSessionSettings(current));
+      setAuthenticated(false);
+    }
   }, []);
 
   const openLogin = useCallback(() => {
@@ -66,29 +128,43 @@ export function AuthShell() {
         activeUserName: session.user.display_name?.trim() || session.user.email,
         authToken: session.access_token,
         authTokenExpiresAt: Date.now() + session.expires_in * 1000,
+        effectiveAccess: "effective_access" in session ? (session.effective_access ?? null) : current.effectiveAccess,
+        mfaSatisfied:
+          "effective_access" in session && session.effective_access
+            ? session.effective_access.mfaSatisfied
+            : current.mfaSatisfied,
       };
       setSettings(next);
+      setAuthMode(next.authMode || "local_compat");
       setPromptDismissed(false);
       setShowPrompt(false);
       setShowLoginModal(false);
-      refreshAuth();
+      void refreshAuth();
     },
     [refreshAuth]
   );
 
   useEffect(() => {
+    void syncHubAuthMode();
+  }, [syncHubAuthMode]);
+
+  useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
       if (!event.key || event.key === "projectplant:ui:settings") {
-        refreshAuth();
+        void refreshAuth();
       }
     };
-    const handleSettingsChanged = () => refreshAuth();
+    const handleSettingsChanged = () => void refreshAuth();
     window.addEventListener("storage", handleStorage);
     window.addEventListener(SETTINGS_CHANGED_EVENT, handleSettingsChanged);
     return () => {
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener(SETTINGS_CHANGED_EVENT, handleSettingsChanged);
     };
+  }, [refreshAuth]);
+
+  useEffect(() => {
+    void refreshAuth();
   }, [refreshAuth]);
 
   useEffect(() => {
@@ -134,6 +210,7 @@ export function AuthShell() {
       {!authenticated && showLoginModal ? (
         <LoginPage
           mode="modal"
+          authMode={authMode}
           onCancel={() => {
             setShowLoginModal(false);
             setShowPrompt(true);

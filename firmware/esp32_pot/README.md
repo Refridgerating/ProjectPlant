@@ -1,6 +1,6 @@
 # ProjectPlant ESP32 Pot Firmware
 
-This ESP-IDF application connects an ESP32-based planter node to the ProjectPlant MQTT broker. It reads soil moisture (capacitive probe on ADC1 channel 6), SHT41 temperature/RH over I2C, and a float switch for reservoir level while controlling a 3V pump.
+This ESP-IDF application connects an ESP32-based planter node to the ProjectPlant MQTT broker. It reads soil moisture (capacitive probe on ADC1 channel 6), SHT41 temperature/RH over I2C, and a float switch for reservoir level while controlling a 3V pump via an H-bridge (IN1/IN2).
 
 ## Features
 - Periodic telemetry publishing (soil moisture, temperature, humidity, water level, pump status)

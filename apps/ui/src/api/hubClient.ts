@@ -10,6 +10,12 @@ export type HubInfo = {
   mqtt_port: number;
   pot_telemetry_retention_hours: number;
   pot_telemetry_max_rows: number;
+  authMode?: string;
+  controlPlaneUrl?: string | null;
+  hubId?: string | null;
+  siteId?: string | null;
+  organizationId?: string | null;
+  currentReleaseId?: string | null;
 };
 
 export type HealthStatus = "ok" | "warning" | "critical" | "disabled" | "unknown";
@@ -37,6 +43,7 @@ export type HeartbeatStatus = {
   age_seconds: number | null;
   status: HealthStatus;
   pump_on?: boolean | null;
+  ic_zone1_on?: boolean | null;
   fan_on?: boolean | null;
   mister_on?: boolean | null;
   light_on?: boolean | null;
@@ -191,6 +198,8 @@ export type TelemetrySample = {
   pot_id?: string | null;
   valve_open?: boolean | null;
   valveOpen?: boolean | null;
+  ic_zone1_on?: boolean | null;
+  icZone1On?: boolean | null;
   fan_on?: boolean | null;
   fanOn?: boolean | null;
   mister_on?: boolean | null;
@@ -335,6 +344,7 @@ export type SensorReadPayload = {
   fanOn?: boolean | null;
   misterOn?: boolean | null;
   lightOn?: boolean | null;
+  icZone1On?: boolean | null;
   [key: string]: unknown;
 };
 
@@ -349,6 +359,13 @@ export type RequestSensorReadOptions = {
 };
 
 export type ControlPumpOptions = {
+  on: boolean;
+  durationMs?: number;
+  timeout?: number;
+  signal?: AbortSignal;
+};
+
+export type ControlIcZone1Options = {
   on: boolean;
   durationMs?: number;
   timeout?: number;
@@ -422,6 +439,7 @@ export type PlantControlSchedule = {
   potId: string;
   light: PlantScheduleTimer;
   pump: PlantScheduleTimer;
+  icZone1: PlantScheduleTimer;
   fan: PlantScheduleTimer;
   mister: PlantScheduleTimer;
   updatedAt: string;
@@ -430,6 +448,7 @@ export type PlantControlSchedule = {
 export type PlantControlScheduleUpdate = {
   light: PlantScheduleTimer;
   pump: PlantScheduleTimer;
+  icZone1: PlantScheduleTimer;
   fan: PlantScheduleTimer;
   mister: PlantScheduleTimer;
   signal?: AbortSignal;
@@ -669,8 +688,29 @@ export type AuthTokenResponse = {
   expires_in: number;
 };
 
+export type EffectiveAccessResponse = {
+  accountId: string;
+  email: string;
+  systemRole: string;
+  isPrimaryMaster: boolean;
+  isBackupMaster: boolean;
+  masterControlsEnabled: boolean;
+  capabilities: string[];
+  scopes: string[];
+  organizations: string[];
+  sites: string[];
+  hubs: string[];
+  mfaRequired: boolean;
+  mfaSatisfied: boolean;
+};
+
 export type LocalSignInResponse = AuthTokenResponse & {
-  user: UserAccountSummary;
+  user: UserAccountSummary | null;
+  effective_access?: EffectiveAccessResponse | null;
+  mfa_required?: boolean;
+  challenge_id?: string | null;
+  factor_type?: string | null;
+  expires_at?: string | null;
 };
 
 export type GoogleSignInResponse = AuthTokenResponse & {
@@ -681,12 +721,86 @@ export type AppleSignInResponse = AuthTokenResponse & {
   user: UserAccountSummary;
 };
 
+export type MfaVerifyResponse = LocalSignInResponse;
+
+export type SecurityStatusResponse = {
+  mfaEnabled: boolean;
+  factorTypes: string[];
+  recoveryCodesRemaining: number;
+  lastMfaVerifiedAt: string | null;
+};
+
+export type FleetHubSummaryResponse = {
+  hub: Record<string, unknown>;
+  releases: Array<Record<string, unknown>>;
+};
+
+export type FleetAuditResponse = {
+  events: Array<Record<string, unknown>>;
+};
+
 export async function fetchHubInfo(signal?: AbortSignal): Promise<HubInfo> {
   const response = await fetch(`${apiBase()}/info`, withUser({ signal }));
   if (!response.ok) {
     throw new Error(`Failed to load hub info (${response.status})`);
   }
   return (await response.json()) as HubInfo;
+}
+
+export async function fetchManagedEffectiveAccess(signal?: AbortSignal): Promise<EffectiveAccessResponse> {
+  const response = await fetch(`${apiBase()}/me/effective-access`, withUser({ signal }));
+  if (!response.ok) {
+    throw new Error(`Failed to load effective access (${response.status})`);
+  }
+  return (await response.json()) as EffectiveAccessResponse;
+}
+
+export async function fetchManagedSecurity(signal?: AbortSignal): Promise<SecurityStatusResponse> {
+  const response = await fetch(`${apiBase()}/me/security`, withUser({ signal }));
+  if (!response.ok) {
+    throw new Error(`Failed to load security status (${response.status})`);
+  }
+  return (await response.json()) as SecurityStatusResponse;
+}
+
+export async function fetchFleetHubSummary(signal?: AbortSignal): Promise<FleetHubSummaryResponse> {
+  const response = await fetch(`${apiBase()}/fleet/hub-summary`, withUser({ signal }));
+  if (!response.ok) {
+    throw new Error(`Failed to load fleet hub summary (${response.status})`);
+  }
+  return (await response.json()) as FleetHubSummaryResponse;
+}
+
+export async function fetchFleetHubAudit(limit = 10, signal?: AbortSignal): Promise<FleetAuditResponse> {
+  const response = await fetch(`${apiBase()}/fleet/hub-audit?limit=${encodeURIComponent(String(limit))}`, withUser({ signal }));
+  if (!response.ok) {
+    throw new Error(`Failed to load fleet hub audit (${response.status})`);
+  }
+  return (await response.json()) as FleetAuditResponse;
+}
+
+export async function queueFleetHubUpdate(releaseId: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
+  const response = await fetch(
+    `${apiBase()}/fleet/hub-update`,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ releaseId }),
+      signal,
+    })
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to queue fleet hub update (${response.status})`);
+  }
+  return (await response.json()) as Record<string, unknown>;
+}
+
+export async function queueFleetHubRollback(signal?: AbortSignal): Promise<Record<string, unknown>> {
+  const response = await fetch(`${apiBase()}/fleet/hub-rollback`, withUser({ method: "POST", signal }));
+  if (!response.ok) {
+    throw new Error(`Failed to queue fleet hub rollback (${response.status})`);
+  }
+  return (await response.json()) as Record<string, unknown>;
 }
 
 export async function fetchEventToken(signal?: AbortSignal): Promise<AuthTokenResponse> {
@@ -738,6 +852,35 @@ export async function signInWithLocalCredentials(
     throw new Error(detail);
   }
   return (await response.json()) as LocalSignInResponse;
+}
+
+export async function signInWithMfaCode(
+  challengeId: string,
+  code: string,
+  signal?: AbortSignal
+): Promise<MfaVerifyResponse> {
+  const response = await fetch(
+    `${apiBase()}/auth/mfa/verify`,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ challenge_id: challengeId.trim(), code: code.trim() }),
+      signal,
+    })
+  );
+  if (!response.ok) {
+    let detail = `MFA verification failed (${response.status})`;
+    try {
+      const payload = (await response.json()) as { detail?: string };
+      if (typeof payload.detail === "string" && payload.detail.trim()) {
+        detail = payload.detail;
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error(detail);
+  }
+  return (await response.json()) as MfaVerifyResponse;
 }
 
 export async function signInWithGoogleIdToken(
@@ -1332,6 +1475,72 @@ export async function controlPump(potId: string, options: ControlPumpOptions): P
   return { payload: payloadJson, requestId };
 }
 
+export async function controlIcZone1(potId: string, options: ControlIcZone1Options): Promise<SensorReadResponse> {
+  const trimmedId = potId.trim();
+  if (!trimmedId) {
+    throw new Error("Pot ID is required to control IC Zone 1");
+  }
+
+  const { on, durationMs, timeout, signal } = options;
+  if (typeof on !== "boolean") {
+    throw new Error("IC Zone 1 command requires an on/off state");
+  }
+
+  if (durationMs !== undefined) {
+    if (Number.isNaN(durationMs) || !Number.isFinite(durationMs)) {
+      throw new Error("IC Zone 1 duration must be a finite number of milliseconds");
+    }
+    if (durationMs <= 0) {
+      throw new Error("IC Zone 1 duration must be greater than zero");
+    }
+  }
+
+  if (timeout !== undefined) {
+    if (Number.isNaN(timeout) || !Number.isFinite(timeout)) {
+      throw new Error("IC Zone 1 timeout must be a finite number of seconds");
+    }
+    if (timeout <= 0) {
+      throw new Error("IC Zone 1 timeout must be greater than zero");
+    }
+  }
+
+  const payload: Record<string, unknown> = { on };
+  if (durationMs !== undefined) {
+    payload["durationMs"] = durationMs;
+  }
+  if (timeout !== undefined) {
+    payload["timeout"] = timeout;
+  }
+
+  const url = `${apiBase()}/plant-control/${encodeURIComponent(trimmedId)}/ic-zone-1`;
+  const response = await fetch(
+    url,
+    withUser({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    })
+  );
+
+  if (!response.ok) {
+    let message = `Failed to control IC Zone 1 (${response.status})`;
+    try {
+      const problem = await response.json();
+      if (problem && typeof problem.detail === "string") {
+        message = problem.detail;
+      }
+    } catch {
+      // ignore JSON parsing errors
+    }
+    throw new Error(message);
+  }
+
+  const payloadJson = (await response.json()) as SensorReadPayload;
+  const requestId = response.headers.get("x-command-request-id");
+  return { payload: payloadJson, requestId };
+}
+
 export async function controlFan(potId: string, options: ControlFanOptions): Promise<SensorReadResponse> {
   const trimmedId = potId.trim();
   if (!trimmedId) {
@@ -1664,6 +1873,7 @@ export async function updatePlantControlSchedule(
   }
   const light = ensureValidScheduleTimer(payload.light, "Lights");
   const pump = ensureValidScheduleTimer(payload.pump, "Pumps");
+  const icZone1 = ensureValidScheduleTimer(payload.icZone1, "IC Zone 1");
   const fan = ensureValidScheduleTimer(payload.fan, "Fans");
   const mister = ensureValidScheduleTimer(payload.mister, "Misters");
   const url = `${apiBase()}/plant-control/${encodeURIComponent(trimmed)}/schedule`;
@@ -1672,7 +1882,7 @@ export async function updatePlantControlSchedule(
     withUser({
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ light, pump, fan, mister }),
+      body: JSON.stringify({ light, pump, icZone1, fan, mister }),
       signal: payload.signal,
     })
   );

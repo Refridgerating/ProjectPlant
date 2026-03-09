@@ -1,5 +1,6 @@
 packages:
   - "apps/web"
+  - "apps/fleet-ui"
   - "apps/android"
   - "packages/care-engine"
   - "packages/sdk"

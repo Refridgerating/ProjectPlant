@@ -22,6 +22,7 @@
 
 static const char *TAG = "sensors";
 static bool pump_state = false;
+static bool ic_zone1_state = false;
 static bool fan_state = false;
 static bool mister_state = false;
 static bool light_state = false;
@@ -112,6 +113,31 @@ bool sensors_get_pump_state(void)
     return pump_state;
 }
 
+void sensors_set_ic_zone1_state(bool on)
+{
+    ic_zone1_state = on;
+}
+
+bool sensors_get_ic_zone1_state(void)
+{
+    return ic_zone1_state;
+}
+
+void sensors_pulse_ic_zone1(bool forward, uint32_t pulse_ms)
+{
+    if (forward) {
+        gpio_set_level(IC_ZONE1_IN1_GPIO, 1);
+        gpio_set_level(IC_ZONE1_IN2_GPIO, 0);
+    } else {
+        gpio_set_level(IC_ZONE1_IN1_GPIO, 0);
+        gpio_set_level(IC_ZONE1_IN2_GPIO, 1);
+    }
+    if (pulse_ms > 0) {
+        vTaskDelay(pdMS_TO_TICKS(pulse_ms));
+    }
+    gpio_set_level(IC_ZONE1_IN1_GPIO, 0);
+    gpio_set_level(IC_ZONE1_IN2_GPIO, 0);
+}
 void sensors_set_fan_state(bool on)
 {
     gpio_set_level(FAN_GPIO, on ? 1 : 0);
@@ -147,8 +173,9 @@ bool sensors_get_light_state(void)
 
 void sensors_init(void)
 {
+    uint64_t pump_mask = BIT64(PUMP_GPIO);
     gpio_config_t pump_cfg = {
-        .pin_bit_mask = BIT64(PUMP_GPIO),
+        .pin_bit_mask = pump_mask,
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
@@ -156,6 +183,18 @@ void sensors_init(void)
     };
     gpio_config(&pump_cfg);
     sensors_set_pump_state(false);
+
+    uint64_t ic_zone1_mask = BIT64(IC_ZONE1_IN1_GPIO) | BIT64(IC_ZONE1_IN2_GPIO);
+    gpio_config_t ic_zone1_cfg = {
+        .pin_bit_mask = ic_zone1_mask,
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&ic_zone1_cfg);
+    sensors_pulse_ic_zone1(false, 0);
+    sensors_set_ic_zone1_state(false);
 
     gpio_config_t fan_cfg = {
         .pin_bit_mask = BIT64(FAN_GPIO),
@@ -244,6 +283,7 @@ void sensors_collect(sensor_reading_t *out)
         out->water_low = false;
         out->water_cutoff = false;
         out->pump_is_on = sensors_get_pump_state();
+        out->ic_zone1_is_on = sensors_get_ic_zone1_state();
         out->fan_is_on = sensors_get_fan_state();
         out->mister_is_on = sensors_get_mister_state();
         out->light_is_on = sensors_get_light_state();
@@ -266,6 +306,7 @@ void sensors_collect(sensor_reading_t *out)
         out->temperature_c = NAN;
         out->humidity_pct = NAN;
         out->pump_is_on = sensors_get_pump_state();
+        out->ic_zone1_is_on = sensors_get_ic_zone1_state();
         out->fan_is_on = sensors_get_fan_state();
         out->mister_is_on = sensors_get_mister_state();
         out->light_is_on = sensors_get_light_state();
@@ -333,6 +374,7 @@ void sensors_collect(sensor_reading_t *out)
         sensors_set_pump_state(false);
     }
     out->pump_is_on = sensors_get_pump_state();
+    out->ic_zone1_is_on = sensors_get_ic_zone1_state();
     out->fan_is_on = sensors_get_fan_state();
     out->mister_is_on = sensors_get_mister_state();
     out->light_is_on = sensors_get_light_state();

@@ -4,6 +4,7 @@ import {
   type AppleSignInResponse,
   type GoogleSignInResponse,
   type LocalSignInResponse,
+  signInWithMfaCode,
   signInWithAppleIdToken,
   signInWithGoogleIdToken,
   signInWithLocalCredentials,
@@ -104,11 +105,14 @@ type LoginPageProps = {
   onAuthenticated: (session: AuthSession) => void;
   mode?: LoginPageMode;
   onCancel?: () => void;
+  authMode?: string;
 };
 
-export function LoginPage({ onAuthenticated, mode = "page", onCancel }: LoginPageProps) {
+export function LoginPage({ onAuthenticated, mode = "page", onCancel, authMode = "local_compat" }: LoginPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mfaChallengeId, setMfaChallengeId] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -216,6 +220,12 @@ export function LoginPage({ onAuthenticated, mode = "page", onCancel }: LoginPag
       setMessage(null);
       try {
         const session = await signInWithLocalCredentials(email, password);
+        if (session.mfa_required && session.challenge_id) {
+          setMfaChallengeId(session.challenge_id);
+          setPassword("");
+          setMessage("Enter the 6-digit authenticator code to finish signing in.");
+          return;
+        }
         completeSignIn(session);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Email sign-in failed.");
@@ -225,6 +235,28 @@ export function LoginPage({ onAuthenticated, mode = "page", onCancel }: LoginPag
     },
     [completeSignIn, email, password]
   );
+
+  const handleMfaContinue = useCallback(async () => {
+    if (!mfaChallengeId) {
+      setError("MFA challenge is missing.");
+      return;
+    }
+    if (!mfaCode.trim()) {
+      setError("Authenticator code is required.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const session = await signInWithMfaCode(mfaChallengeId, mfaCode);
+      completeSignIn(session);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "MFA verification failed.");
+    } finally {
+      setBusy(false);
+    }
+  }, [completeSignIn, mfaChallengeId, mfaCode]);
 
   useEffect(() => {
     if (!googleClientId) {
@@ -383,40 +415,71 @@ export function LoginPage({ onAuthenticated, mode = "page", onCancel }: LoginPag
         >
           Continue with Email
         </button>
-        <p className="text-xs text-slate-500">
-          Debug master account: <code>grower@example.com</code> / <code>demo-owner-password</code>
-        </p>
+        {authMode !== "managed" ? (
+          <p className="text-xs text-slate-500">
+            Debug master account: <code>grower@example.com</code> / <code>demo-owner-password</code>
+          </p>
+        ) : null}
       </form>
 
-      <div className="my-8 flex items-center gap-3 text-sm text-slate-500">
-        <div className="h-px flex-1 bg-slate-300" />
-        <span>or</span>
-        <div className="h-px flex-1 bg-slate-300" />
-      </div>
+      {mfaChallengeId ? (
+        <div className="mt-6 space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-sm font-semibold text-slate-900">Multi-factor authentication</p>
+          <input
+            type="text"
+            value={mfaCode}
+            onChange={(event) => setMfaCode(event.target.value)}
+            placeholder="123456"
+            className="w-full rounded-lg border border-slate-400 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          />
+          <button
+            type="button"
+            onClick={() => void handleMfaContinue()}
+            disabled={busy}
+            className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base font-semibold text-slate-900 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Verify MFA Code
+          </button>
+        </div>
+      ) : null}
 
-      <div className="space-y-3">
-        <div className="min-h-[44px]">
-          {googleClientId ? (
-            <div ref={googleButtonRef} />
-          ) : (
+      {authMode !== "managed" ? (
+        <>
+          <div className="my-8 flex items-center gap-3 text-sm text-slate-500">
+            <div className="h-px flex-1 bg-slate-300" />
+            <span>or</span>
+            <div className="h-px flex-1 bg-slate-300" />
+          </div>
+
+          <div className="space-y-3">
+            <div className="min-h-[44px]">
+              {googleClientId ? (
+                <div ref={googleButtonRef} />
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full cursor-not-allowed rounded-lg border border-slate-300 px-4 py-3 text-base font-semibold text-slate-400"
+                >
+                  Continue with Google (not configured)
+                </button>
+              )}
+            </div>
             <button
               type="button"
-              disabled
-              className="w-full cursor-not-allowed rounded-lg border border-slate-300 px-4 py-3 text-base font-semibold text-slate-400"
+              onClick={() => void handleAppleSignIn()}
+              disabled={busy || !appleClientId || !appleReady}
+              className="w-full rounded-lg border border-slate-400 bg-white px-4 py-3 text-base font-semibold text-slate-900 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Continue with Google (not configured)
+              Continue with Apple
             </button>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => void handleAppleSignIn()}
-          disabled={busy || !appleClientId || !appleReady}
-          className="w-full rounded-lg border border-slate-400 bg-white px-4 py-3 text-base font-semibold text-slate-900 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          Continue with Apple
-        </button>
-      </div>
+          </div>
+        </>
+      ) : (
+        <p className="mt-6 text-sm text-slate-500">
+          This hub is using managed sign-in. Authentication is delegated to the ProjectPlant control plane.
+        </p>
+      )}
 
       {busy ? <p className="mt-4 text-sm text-slate-500">Signing in...</p> : null}
       {message ? <p className="mt-4 text-sm text-emerald-700">{message}</p> : null}

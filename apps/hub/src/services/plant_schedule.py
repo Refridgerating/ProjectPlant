@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,13 +18,15 @@ from services.pump_status import PumpStatusSnapshot, pump_status_cache
 
 logger = logging.getLogger("projectplant.hub.plant_schedule")
 
-TimerActuator = Literal["light", "pump", "mister", "fan"]
-SCHEDULED_ACTUATORS: tuple[TimerActuator, ...] = ("light", "pump", "mister", "fan")
+TimerActuator = Literal["light", "pump", "ic_zone1", "mister", "fan"]
+SCHEDULED_ACTUATORS: tuple[TimerActuator, ...] = ("light", "pump", "ic_zone1", "mister", "fan")
 TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+DEFAULT_MANUAL_OVERRIDE_DURATION_MS = 100_000
 
 DEFAULT_TIMER_WINDOWS: dict[TimerActuator, tuple[str, str]] = {
     "light": ("06:00", "20:00"),
     "pump": ("07:00", "07:15"),
+    "ic_zone1": ("07:00", "07:15"),
     "mister": ("08:00", "08:15"),
     "fan": ("09:00", "18:00"),
 }
@@ -32,6 +35,26 @@ DEFAULT_TIMER_WINDOWS: dict[TimerActuator, tuple[str, str]] = {
 def _utc_now_iso() -> str:
     iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
     return iso.replace("+00:00", "Z")
+
+def _isoformat_utc(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _iso_to_epoch_ms(value: str | None) -> int | None:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return int(dt.timestamp() * 1000)
+
+
+def _epoch_ms_to_iso(value: int) -> str:
+    dt = datetime.fromtimestamp(value / 1000.0, tz=timezone.utc)
+    return _isoformat_utc(dt)
 
 
 def _normalize_required_pot_id(value: str) -> str:
@@ -107,6 +130,7 @@ class PotSchedule:
     pot_id: str
     light: ScheduleTimer
     pump: ScheduleTimer
+    ic_zone1: ScheduleTimer
     mister: ScheduleTimer
     fan: ScheduleTimer
     updated_at: str
@@ -118,6 +142,7 @@ class PotSchedule:
             pot_id=normalized,
             light=ScheduleTimer.default("light"),
             pump=ScheduleTimer.default("pump"),
+            ic_zone1=ScheduleTimer.default("ic_zone1"),
             mister=ScheduleTimer.default("mister"),
             fan=ScheduleTimer.default("fan"),
             updated_at=_utc_now_iso(),
@@ -137,6 +162,8 @@ class PotSchedule:
         raw = payload if isinstance(payload, Mapping) else {}
         light = ScheduleTimer.from_payload(raw.get("light"), fallback=baseline.light)
         pump = ScheduleTimer.from_payload(raw.get("pump"), fallback=baseline.pump)
+        ic_zone1_payload = raw.get("icZone1", raw.get("ic_zone1"))
+        ic_zone1 = ScheduleTimer.from_payload(ic_zone1_payload, fallback=baseline.ic_zone1)
         mister = ScheduleTimer.from_payload(raw.get("mister"), fallback=baseline.mister)
         fan = ScheduleTimer.from_payload(raw.get("fan"), fallback=baseline.fan)
         schedule_updated_at = updated_at or _utc_now_iso()
@@ -144,6 +171,7 @@ class PotSchedule:
             pot_id=normalized,
             light=light,
             pump=pump,
+            ic_zone1=ic_zone1,
             mister=mister,
             fan=fan,
             updated_at=schedule_updated_at,
@@ -154,6 +182,8 @@ class PotSchedule:
             return self.light
         if actuator == "pump":
             return self.pump
+        if actuator == "ic_zone1":
+            return self.ic_zone1
         if actuator == "mister":
             return self.mister
         return self.fan
@@ -163,6 +193,7 @@ class PotSchedule:
             "potId": self.pot_id,
             "light": self.light.to_payload(),
             "pump": self.pump.to_payload(),
+            "icZone1": self.ic_zone1.to_payload(),
             "mister": self.mister.to_payload(),
             "fan": self.fan.to_payload(),
             "updatedAt": self.updated_at,
@@ -184,6 +215,12 @@ class PlantScheduleStore:
             if existing is not None:
                 return existing
         return PotSchedule.default(normalized)
+
+    def get_existing(self, pot_id: str) -> PotSchedule | None:
+        normalized = _normalize_required_pot_id(pot_id)
+        self._ensure_loaded()
+        with self._lock:
+            return self._schedules.get(normalized)
 
     def upsert(self, schedule: PotSchedule) -> PotSchedule:
         self._ensure_loaded()
@@ -275,6 +312,7 @@ class PlantScheduleService:
         self._scheduler_stop: Optional[asyncio.Event] = None
         self._apply_lock = asyncio.Lock()
         self._last_applied: dict[tuple[str, TimerActuator], bool] = {}
+        self._manual_overrides: dict[tuple[str, TimerActuator], float] = {}
 
     def get_schedule(self, pot_id: str) -> PotSchedule:
         return self._store.get(pot_id)
@@ -285,6 +323,7 @@ class PlantScheduleService:
         *,
         light: ScheduleTimer,
         pump: ScheduleTimer,
+        ic_zone1: ScheduleTimer | None = None,
         mister: ScheduleTimer,
         fan: ScheduleTimer,
     ) -> PotSchedule:
@@ -293,14 +332,111 @@ class PlantScheduleService:
             pot_id=normalized,
             light=light,
             pump=pump,
+            ic_zone1=ic_zone1 or ScheduleTimer.default("ic_zone1"),
             mister=mister,
             fan=fan,
             updated_at=_utc_now_iso(),
         )
         stored = self._store.upsert(schedule)
-        for actuator in SCHEDULED_ACTUATORS:
-            self._last_applied.pop((normalized, actuator), None)
+        self._clear_last_applied_for_pot(normalized)
         return stored
+
+    def _clear_last_applied_for_pot(self, pot_id: str) -> None:
+        for actuator in SCHEDULED_ACTUATORS:
+            self._last_applied.pop((pot_id, actuator), None)
+
+    def set_manual_override(
+        self,
+        pot_id: str,
+        actuator: TimerActuator,
+        *,
+        on: bool,
+        duration_ms: float | int | None = None,
+    ) -> None:
+        normalized = _normalize_required_pot_id(pot_id)
+        key = (normalized, actuator)
+
+        if not on:
+            self._manual_overrides.pop(key, None)
+            logger.info("Cleared hub manual override for %s actuator %s", normalized, actuator)
+            return
+
+        effective_duration_ms = DEFAULT_MANUAL_OVERRIDE_DURATION_MS
+        if duration_ms is not None:
+            effective_duration_ms = max(1, int(duration_ms))
+
+        self._manual_overrides[key] = time.monotonic() + (effective_duration_ms / 1000.0)
+        logger.info(
+            "Armed hub manual override for %s actuator %s (durationMs=%d)",
+            normalized,
+            actuator,
+            effective_duration_ms,
+        )
+
+    def _has_manual_override(self, pot_id: str, actuator: TimerActuator) -> bool:
+        key = (pot_id, actuator)
+        expires_at = self._manual_overrides.get(key)
+        if expires_at is None:
+            return False
+        if time.monotonic() >= expires_at:
+            self._manual_overrides.pop(key, None)
+            return False
+        return True
+
+    async def reconcile_device_schedule(
+        self,
+        pot_id: str,
+        schedule_payload: Mapping[str, Any],
+        *,
+        updated_at_ms: int | None,
+    ) -> None:
+        if not isinstance(schedule_payload, Mapping):
+            return
+
+        normalized = _normalize_required_pot_id(pot_id)
+        existing = self._store.get_existing(normalized)
+
+        if updated_at_ms is None or updated_at_ms <= 0:
+            if existing is None:
+                schedule = PotSchedule.from_payload(
+                    normalized,
+                    schedule_payload,
+                    updated_at=_utc_now_iso(),
+                )
+                self._store.upsert(schedule)
+                self._clear_last_applied_for_pot(normalized)
+                logger.info("Stored device schedule for %s without updatedAtMs", normalized)
+            else:
+                logger.debug("Ignoring device schedule for %s without updatedAtMs", pot_id)
+            return
+
+        device_updated_iso = _epoch_ms_to_iso(updated_at_ms)
+        if existing is None:
+            schedule = PotSchedule.from_payload(
+                normalized,
+                schedule_payload,
+                updated_at=device_updated_iso,
+            )
+            self._store.upsert(schedule)
+            self._clear_last_applied_for_pot(normalized)
+            logger.info("Stored device schedule for %s (updatedAtMs=%d)", normalized, updated_at_ms)
+            return
+
+        hub_updated_ms = _iso_to_epoch_ms(existing.updated_at) or 0
+        if updated_at_ms > hub_updated_ms:
+            schedule = PotSchedule.from_payload(
+                normalized,
+                schedule_payload,
+                fallback=existing,
+                updated_at=device_updated_iso,
+            )
+            self._store.upsert(schedule)
+            self._clear_last_applied_for_pot(normalized)
+            logger.info("Applied newer device schedule for %s (updatedAtMs=%d)", normalized, updated_at_ms)
+            return
+
+        if hub_updated_ms > updated_at_ms:
+            await self.sync_schedule_to_device(existing)
 
     async def sync_schedule_to_device(self, schedule: PotSchedule) -> bool:
         tz_offset = datetime.now().astimezone().utcoffset()
@@ -308,9 +444,14 @@ class PlantScheduleService:
         if tz_offset is not None:
             tz_offset_minutes = int(tz_offset.total_seconds() // 60)
 
+        updated_at_ms = _iso_to_epoch_ms(schedule.updated_at)
+        if updated_at_ms is None:
+            updated_at_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+
         schedule_payload = {
             "light": schedule.light.to_payload(),
             "pump": schedule.pump.to_payload(),
+            "icZone1": schedule.ic_zone1.to_payload(),
             "mister": schedule.mister.to_payload(),
             "fan": schedule.fan.to_payload(),
         }
@@ -320,6 +461,7 @@ class PlantScheduleService:
                 schedule.pot_id,
                 schedule=schedule_payload,
                 tz_offset_minutes=tz_offset_minutes,
+                schedule_updated_at_ms=updated_at_ms,
                 timeout=self._command_timeout_seconds,
             )
             logger.info(
@@ -377,6 +519,7 @@ class PlantScheduleService:
 
     def reset(self) -> None:
         self._last_applied.clear()
+        self._manual_overrides.clear()
         self._store.reset()
 
     async def _scheduler_loop(self) -> None:
@@ -398,6 +541,8 @@ class PlantScheduleService:
     async def _apply_schedule_for_pot(self, schedule: PotSchedule, minute_of_day: int) -> None:
         snapshot = pump_status_cache.get(schedule.pot_id)
         for actuator in SCHEDULED_ACTUATORS:
+            if self._has_manual_override(schedule.pot_id, actuator):
+                continue
             desired_on = schedule.timer_for(actuator).is_active(minute_of_day)
             key = (schedule.pot_id, actuator)
             observed_state = self._state_from_snapshot(snapshot, actuator)
@@ -421,6 +566,8 @@ class PlantScheduleService:
             return snapshot.light_on
         if actuator == "pump":
             return snapshot.pump_on
+        if actuator == "ic_zone1":
+            return snapshot.ic_zone1_on
         if actuator == "mister":
             return snapshot.mister_on
         return snapshot.fan_on
@@ -437,6 +584,12 @@ class PlantScheduleService:
                 await command_service.send_pump_override(
                     pot_id,
                     pump_on=desired_on,
+                    timeout=self._command_timeout_seconds,
+                )
+            elif actuator == "ic_zone1":
+                await command_service.send_ic_zone1_override(
+                    pot_id,
+                    zone_on=desired_on,
                     timeout=self._command_timeout_seconds,
                 )
             elif actuator == "mister":

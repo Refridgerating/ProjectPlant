@@ -18,6 +18,7 @@ class PumpStatusSnapshot:
     timestamp: Optional[str]
     timestamp_ms: Optional[int]
     received_at: str
+    ic_zone1_on: Optional[bool] = None
     fan_on: Optional[bool] = None
     mister_on: Optional[bool] = None
     light_on: Optional[bool] = None
@@ -31,6 +32,8 @@ class PumpStatusSnapshot:
             payload["status"] = self.status
         if self.pump_on is not None:
             payload["pumpOn"] = self.pump_on
+        if self.ic_zone1_on is not None:
+            payload["icZone1On"] = self.ic_zone1_on
         if self.fan_on is not None:
             payload["fanOn"] = self.fan_on
         if self.mister_on is not None:
@@ -67,6 +70,7 @@ class PumpStatusCache:
                 pot_id=normalized_id,
                 status=snapshot.status,
                 pump_on=snapshot.pump_on,
+                ic_zone1_on=snapshot.ic_zone1_on,
                 fan_on=snapshot.fan_on,
                 mister_on=snapshot.mister_on,
                 light_on=snapshot.light_on,
@@ -86,6 +90,9 @@ class PumpStatusCache:
                         pot_id=snapshot.pot_id,
                         status=snapshot.status if snapshot.status is not None else existing.status,
                         pump_on=snapshot.pump_on if snapshot.pump_on is not None else existing.pump_on,
+                        ic_zone1_on=snapshot.ic_zone1_on
+                        if snapshot.ic_zone1_on is not None
+                        else existing.ic_zone1_on,
                         fan_on=snapshot.fan_on if snapshot.fan_on is not None else existing.fan_on,
                         mister_on=snapshot.mister_on if snapshot.mister_on is not None else existing.mister_on,
                         light_on=snapshot.light_on if snapshot.light_on is not None else existing.light_on,

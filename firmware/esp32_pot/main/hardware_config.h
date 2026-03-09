@@ -27,8 +27,16 @@ extern const char *MQTT_PASSWORD;
 #define SOIL_SENSOR_RAW_DRY     17040       // Completely dry soil
 #define SOIL_SENSOR_RAW_WET     7507        // Waterlogged soil
 
-// Pump control GPIO (drives IRLZ44N gate via 100 ohm gate resistor)
-#define PUMP_GPIO               GPIO_NUM_23 // Pump MOSFET gate input
+// Pump control GPIO (NOT IRRIGATION CONTROLLER H-BRIDGE)
+// Forward run: IN1=HIGH, IN2=LOW; Off: IN1=LOW, IN2=LOW
+#define PUMP_GPIO           GPIO_NUM_23
+
+
+// Irrigation Controller Zone 1 (IC Zone 1)
+// Default to same H-bridge pins; override if zone uses different outputs.
+#define IC_ZONE1_IN1_GPIO       GPIO_NUM_14
+#define IC_ZONE1_IN2_GPIO       GPIO_NUM_27
+#define IC_ZONE1_PULSE_MS       50
 
 // Fan control GPIO (circulation fan MOSFET/relay)
 #define FAN_GPIO                GPIO_NUM_25
@@ -41,7 +49,7 @@ extern const char *MQTT_PASSWORD;
 
 // Sensor power switch (P-MOSFET FQP27P06 via 2N3904)
 // Logic: drive HIGH to enable sensors (pull P-MOSFET gate low via NPN)
-#define SENSOR_EN_GPIO          GPIO_NUM_27
+#define SENSOR_EN_GPIO          GPIO_NUM_26
 #define SENSOR_POWER_ON_DELAY_MS 150        // allow sensors/I2C to power-stabilize and I2C settle
 
 // Water level float switches (active-low), external 100k pull-ups to 3V3_SW

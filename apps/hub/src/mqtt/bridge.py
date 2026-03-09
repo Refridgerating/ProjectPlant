@@ -162,6 +162,7 @@ class NormalizedTelemetry:
     waterCutoff: Optional[bool] = None
     soilRaw: Optional[float] = None
     requestId: Optional[str] = None
+    icZone1On: Optional[bool] = None
     fanOn: Optional[bool] = None
     misterOn: Optional[bool] = None
     lightOn: Optional[bool] = None
@@ -190,6 +191,8 @@ class NormalizedTelemetry:
             payload["soilRaw"] = self.soilRaw
         if self.requestId:
             payload["requestId"] = self.requestId
+        if self.icZone1On is not None:
+            payload["icZone1On"] = self.icZone1On
         if self.fanOn is not None:
             payload["fanOn"] = self.fanOn
         if self.misterOn is not None:
@@ -426,6 +429,7 @@ class MqttBridge:
             pot_id=telemetry.potId,
             status=None,
             pump_on=telemetry.valveOpen,
+            ic_zone1_on=telemetry.icZone1On,
             fan_on=telemetry.fanOn,
             mister_on=telemetry.misterOn,
             light_on=telemetry.lightOn,
@@ -514,6 +518,14 @@ class MqttBridge:
         if valve_open is None:
             valve_open = _coerce_bool(data.get("valve_open"))
 
+        ic_zone1_on = _coerce_bool(data.get("icZone1On"))
+        if ic_zone1_on is None:
+            ic_zone1_on = _coerce_bool(data.get("ic_zone1_on"))
+        if ic_zone1_on is None:
+            ic_zone1_on = _coerce_bool(data.get("icZone1"))
+        if ic_zone1_on is None:
+            ic_zone1_on = _coerce_bool(data.get("ic_zone1"))
+
         fan_on = _coerce_bool(data.get("fanOn"))
         if fan_on is None:
             fan_on = _coerce_bool(data.get("fan_on"))
@@ -585,6 +597,7 @@ class MqttBridge:
             pot_id=normalized_pot_id,
             status=None,
             pump_on=valve_open,
+            ic_zone1_on=ic_zone1_on,
             fan_on=fan_on,
             mister_on=mister_on,
             light_on=light_on,
@@ -611,7 +624,12 @@ class MqttBridge:
             self._logger.debug("Ignoring firmware status with unexpected topic: %s", message.topic)
             return
 
-        snapshot = build_status_payload(message.payload, pot_id)
+        decoded = _decode_json_payload(message.payload)
+        if decoded is None:
+            self._logger.debug("Firmware status payload for %s could not be normalized", pot_id)
+            return
+
+        snapshot = build_status_payload_from_data(decoded, pot_id)
         if snapshot is None:
             self._logger.debug("Firmware status payload for %s could not be normalized", pot_id)
             return
@@ -625,6 +643,18 @@ class MqttBridge:
             self._logger.debug("Bridged status %s -> %s", message.topic, target_topic)
         else:
             self._logger.debug("Captured canonical status %s", message.topic)
+
+        schedule_payload = decoded.get("schedule")
+        if isinstance(schedule_payload, dict):
+            schedule_updated_ms = _extract_schedule_updated_at_ms(decoded)
+            from services.plant_schedule import plant_schedule_service
+            asyncio.create_task(
+                plant_schedule_service.reconcile_device_schedule(
+                    snapshot.pot_id,
+                    schedule_payload,
+                    updated_at_ms=schedule_updated_ms,
+                )
+            )
 
     async def _handle_state_message(self, message: Message) -> None:
         device_id = _extract_state_device_id(message.topic)
@@ -679,6 +709,14 @@ def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[Normalized
     if pump_on is None:
         pump_on = _coerce_bool(data.get("valveOpen"))
 
+    ic_zone1_on = _coerce_bool(data.get("icZone1On"))
+    if ic_zone1_on is None:
+        ic_zone1_on = _coerce_bool(data.get("ic_zone1_on"))
+    if ic_zone1_on is None:
+        ic_zone1_on = _coerce_bool(data.get("icZone1"))
+    if ic_zone1_on is None:
+        ic_zone1_on = _coerce_bool(data.get("ic_zone1"))
+
     fan_on = _coerce_bool(data.get("fanOn"))
     if fan_on is None:
         fan_on = _coerce_bool(data.get("fan_on"))
@@ -729,6 +767,7 @@ def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[Normalized
         and humidity_pct is None
         and flow_rate is None
         and pump_on is None
+        and ic_zone1_on is None
         and light_on is None
     ):
         # Nothing usable in this payload
@@ -767,6 +806,7 @@ def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[Normalized
         waterCutoff=water_cutoff,
         soilRaw=soil_raw,
         requestId=request_id,
+        icZone1On=ic_zone1_on,
         fanOn=fan_on,
         misterOn=mister_on,
         lightOn=light_on,
@@ -776,16 +816,13 @@ def build_sensor_payload(raw_payload: bytes, pot_id: str) -> Optional[Normalized
 
 
 def build_status_payload(raw_payload: bytes, pot_id: str) -> Optional[PumpStatusSnapshot]:
-    try:
-        decoded = raw_payload.decode("utf-8")
-    except UnicodeDecodeError:
+    data = _decode_json_payload(raw_payload)
+    if data is None:
         return None
+    return build_status_payload_from_data(data, pot_id)
 
-    try:
-        data = json.loads(decoded)
-    except json.JSONDecodeError:
-        return None
 
+def build_status_payload_from_data(data: dict[str, Any], pot_id: str) -> Optional[PumpStatusSnapshot]:
     if not isinstance(data, dict):
         return None
 
@@ -797,6 +834,13 @@ def build_status_payload(raw_payload: bytes, pot_id: str) -> Optional[PumpStatus
         pump_on = _coerce_bool(data.get("pumpOn"))
     if pump_on is None:
         pump_on = _coerce_bool(data.get("pump"))
+    ic_zone1_on = _coerce_bool(data.get("icZone1On"))
+    if ic_zone1_on is None:
+        ic_zone1_on = _coerce_bool(data.get("ic_zone1_on"))
+    if ic_zone1_on is None:
+        ic_zone1_on = _coerce_bool(data.get("icZone1"))
+    if ic_zone1_on is None:
+        ic_zone1_on = _coerce_bool(data.get("ic_zone1"))
     fan_on = _coerce_bool(data.get("fan_on"))
     if fan_on is None:
         fan_on = _coerce_bool(data.get("fanOn"))
@@ -814,6 +858,8 @@ def build_status_payload(raw_payload: bytes, pot_id: str) -> Optional[PumpStatus
         light_on = _coerce_bool(data.get("light"))
     if pump_on is None and status:
         pump_on = _infer_pump_state(status)
+    if ic_zone1_on is None and status:
+        ic_zone1_on = _infer_ic_zone1_state(status)
     if fan_on is None and status:
         fan_on = _infer_fan_state(status)
     if mister_on is None and status:
@@ -861,6 +907,7 @@ def build_status_payload(raw_payload: bytes, pot_id: str) -> Optional[PumpStatus
         pot_id=normalized_pot_id,
         status=status,
         pump_on=pump_on,
+        ic_zone1_on=ic_zone1_on,
         fan_on=fan_on,
         mister_on=mister_on,
         light_on=light_on,
@@ -872,6 +919,47 @@ def build_status_payload(raw_payload: bytes, pot_id: str) -> Optional[PumpStatus
         is_named=is_named,
         sensor_mode=sensor_mode,
     )
+
+
+def _decode_json_payload(raw_payload: bytes) -> Optional[dict[str, Any]]:
+    try:
+        decoded = raw_payload.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+    try:
+        data = json.loads(decoded)
+    except json.JSONDecodeError:
+        return None
+
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
+def _extract_schedule_updated_at_ms(data: dict[str, Any]) -> Optional[int]:
+    raw_value = data.get("scheduleUpdatedAtMs")
+    if raw_value is None:
+        raw_value = data.get("updatedAtMs")
+    if raw_value is None:
+        raw_value = data.get("scheduleUpdatedAt")
+    if raw_value is None:
+        raw_value = data.get("updatedAt")
+
+    value = _coerce_float(raw_value)
+    if value is not None and value > 0:
+        return int(value)
+
+    if isinstance(raw_value, str):
+        try:
+            dt = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return int(dt.timestamp() * 1000)
+
+    return None
 
 
 def _extract_pot_id(topic: Any) -> Optional[str]:
@@ -1010,6 +1098,27 @@ def _infer_pump_state(status: str) -> Optional[bool]:
         return True
     if lowered.endswith("_off") and any(token in lowered for token in pump_tokens):
         return False
+    return None
+
+
+def _infer_ic_zone1_state(status: str) -> Optional[bool]:
+    lowered = status.strip().lower()
+    if not lowered:
+        return None
+
+    positive_markers = {"ic_zone1_on", "ic1_on", "irrigation_zone1_on"}
+    negative_markers = {"ic_zone1_off", "ic1_off", "irrigation_zone1_off"}
+
+    if lowered in positive_markers:
+        return True
+    if lowered in negative_markers:
+        return False
+
+    if "ic_zone1" in lowered or "irrigation_zone1" in lowered or "ic1" in lowered:
+        if lowered.endswith("_on"):
+            return True
+        if lowered.endswith("_off"):
+            return False
     return None
 
 

@@ -12,6 +12,7 @@ typedef struct {
     bool water_low;      // Backwards-compatible: maps to refill float
     bool water_cutoff;   // New: cutoff float (active-low)
     bool pump_is_on;
+    bool ic_zone1_is_on;
     bool fan_is_on;
     bool mister_is_on;
     bool light_is_on;
@@ -21,6 +22,9 @@ void sensors_init(void);
 void sensors_collect(sensor_reading_t *out);
 void sensors_set_pump_state(bool on);
 bool sensors_get_pump_state(void);
+void sensors_set_ic_zone1_state(bool on);
+bool sensors_get_ic_zone1_state(void);
+void sensors_pulse_ic_zone1(bool forward, uint32_t pulse_ms);
 void sensors_set_fan_state(bool on);
 bool sensors_get_fan_state(void);
 void sensors_set_mister_state(bool on);

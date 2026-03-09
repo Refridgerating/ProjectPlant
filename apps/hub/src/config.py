@@ -26,6 +26,19 @@ class Settings(BaseSettings):
     auth_jwt_audience: str = Field(default="projectplant-clients")
     auth_access_token_ttl_seconds: int = Field(default=3600, ge=60, le=86400)
 
+    # Managed control-plane auth
+    control_plane_url: str | None = Field(default=None)
+    control_plane_auth_mode: str = Field(default="local_compat", description="managed or local_compat")
+    control_plane_jwks_url: str | None = Field(default=None)
+    control_plane_jwt_issuer: str = Field(default="projectplant-fleet")
+    control_plane_jwt_audience: str = Field(default="projectplant-managed")
+    control_plane_http_timeout_seconds: float = Field(default=5.0, ge=0.5, le=30.0)
+    control_plane_jwks_cache_ttl_seconds: int = Field(default=300, ge=30, le=86400)
+    hub_id: str | None = Field(default=None)
+    organization_id: str | None = Field(default=None)
+    site_id: str | None = Field(default=None)
+    current_release_id: str | None = Field(default=None)
+
     # Google sign-in
     google_oauth_enabled: bool = Field(
         default=False,

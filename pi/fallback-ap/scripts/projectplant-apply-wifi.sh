@@ -63,8 +63,12 @@ if [[ "${CONNECTED:-0}" -eq 1 ]]; then
   date +%s > "$STATE_DIR/provisioned"
   # Remove desired credentials to avoid reuse
   rm -f "$DESIRED_ENV"
+  # Leave fleet.env untouched so enrollment/update credentials survive reprovisioning.
   # Restart BLE provisioner if present (optional)
   systemctl start projectplant-ble-provision.service 2>/dev/null || true
+  # Start standardized hub runtime if installed.
+  systemctl start projectplant-hub.service 2>/dev/null || true
+  systemctl start projectplant-agent.service 2>/dev/null || true
   # Optionally start Avahi announcement
   systemctl start projectplant-avahi.service 2>/dev/null || true
   exit 0

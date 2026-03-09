@@ -18,6 +18,7 @@ typedef enum {
     MQTT_CMD_FAN_OVERRIDE,
     MQTT_CMD_MISTER_OVERRIDE,
     MQTT_CMD_LIGHT_OVERRIDE,
+    MQTT_CMD_IC_ZONE1_OVERRIDE,
 } mqtt_command_type_t;
 
 #define MQTT_REQUEST_ID_MAX_LEN 64
@@ -31,6 +32,7 @@ typedef struct {
     sensor_mode_t sensor_mode;
     node_schedule_t schedule;
     bool pump_on;
+    bool ic_zone1_on;
     bool fan_on;
     bool mister_on;
     bool light_on;
@@ -55,6 +57,10 @@ void mqtt_publish_status(esp_mqtt_client_handle_t client,
                          const char *version,
                          const char *status,
                          const char *request_id);
+
+void mqtt_publish_schedule_state(esp_mqtt_client_handle_t client,
+                                 const char *device_id,
+                                 const char *version);
 
 void mqtt_publish_ping(esp_mqtt_client_handle_t client,
                        const char *device_id);

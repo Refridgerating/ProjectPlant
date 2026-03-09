@@ -400,6 +400,7 @@ async def test_set_device_schedule_publishes_schedule_and_waits_for_status(monke
         pot_id,
         schedule=schedule_payload,
         tz_offset_minutes=-300,
+        schedule_updated_at_ms=1700000000000,
         timeout=0.5,
     )
 
@@ -415,6 +416,7 @@ async def test_set_device_schedule_publishes_schedule_and_waits_for_status(monke
     published_data = json.loads(payload)
     assert published_data["schedule"] == schedule_payload
     assert published_data["tzOffsetMinutes"] == -300
+    assert published_data["scheduleUpdatedAtMs"] == 1700000000000
     assert result.request_id == published_data["requestId"]
     assert result.payload["status"] == "schedule_updated"
 

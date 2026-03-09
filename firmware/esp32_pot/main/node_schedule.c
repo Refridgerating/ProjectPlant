@@ -12,12 +12,15 @@
 #include "freertos/task.h"
 #include "nvs.h"
 
+#include "esp_timer.h"
 #include "preferences.h"
+#include "hardware_config.h"
 #include "sensors.h"
 #include "time_sync.h"
 
 #define SCHEDULE_NAMESPACE "schedule"
 #define SCHEDULE_TASK_PERIOD_MS 10000
+#define DEFAULT_SCHEDULE_OVERRIDE_DURATION_MS (10U * SCHEDULE_TASK_PERIOD_MS)
 
 static const char *TAG = "node_schedule";
 
@@ -27,10 +30,21 @@ static const int16_t TZ_OFFSET_MAX = 840;
 static SemaphoreHandle_t schedule_lock = NULL;
 static node_schedule_t schedule_state;
 static bool schedule_initialized = false;
-static int last_applied_minute = -1;
+
+typedef struct {
+    bool active;
+    uint64_t expires_at_ms;
+} schedule_override_t;
+
+static schedule_override_t override_light = {0};
+static schedule_override_t override_pump = {0};
+static schedule_override_t override_ic_zone1 = {0};
+static schedule_override_t override_mister = {0};
+static schedule_override_t override_fan = {0};
 
 static const node_schedule_timer_t DEFAULT_LIGHT = { .enabled = false, .start_minute = 6 * 60, .end_minute = 20 * 60 };
 static const node_schedule_timer_t DEFAULT_PUMP = { .enabled = false, .start_minute = 7 * 60, .end_minute = (7 * 60) + 15 };
+static const node_schedule_timer_t DEFAULT_IC_ZONE1 = { .enabled = false, .start_minute = 7 * 60, .end_minute = (7 * 60) + 15 };
 static const node_schedule_timer_t DEFAULT_MISTER = { .enabled = false, .start_minute = 8 * 60, .end_minute = (8 * 60) + 15 };
 static const node_schedule_timer_t DEFAULT_FAN = { .enabled = false, .start_minute = 9 * 60, .end_minute = 18 * 60 };
 
@@ -54,12 +68,72 @@ static bool is_valid_schedule(const node_schedule_t *schedule)
     }
     if (!is_valid_timer(&schedule->light) ||
         !is_valid_timer(&schedule->pump) ||
+        !is_valid_timer(&schedule->ic_zone1) ||
         !is_valid_timer(&schedule->mister) ||
         !is_valid_timer(&schedule->fan)) {
         return false;
     }
     return schedule->timezone_offset_minutes >= TZ_OFFSET_MIN &&
            schedule->timezone_offset_minutes <= TZ_OFFSET_MAX;
+}
+
+static uint64_t monotonic_ms(void)
+{
+    return (uint64_t)(esp_timer_get_time() / 1000ULL);
+}
+
+static bool override_should_skip(schedule_override_t *ovr)
+{
+    if (!ovr || !ovr->active) {
+        return false;
+    }
+
+    if (monotonic_ms() >= ovr->expires_at_ms) {
+        ovr->active = false;
+        return false;
+    }
+    return true;
+}
+
+static schedule_override_t *override_for_target(node_schedule_target_t target)
+{
+    switch (target) {
+    case NODE_SCHEDULE_TARGET_LIGHT:
+        return &override_light;
+    case NODE_SCHEDULE_TARGET_PUMP:
+        return &override_pump;
+    case NODE_SCHEDULE_TARGET_IC_ZONE1:
+        return &override_ic_zone1;
+    case NODE_SCHEDULE_TARGET_MISTER:
+        return &override_mister;
+    case NODE_SCHEDULE_TARGET_FAN:
+        return &override_fan;
+    default:
+        return NULL;
+    }
+}
+
+static const char *target_name(node_schedule_target_t target)
+{
+    switch (target) {
+    case NODE_SCHEDULE_TARGET_LIGHT:
+        return "light";
+    case NODE_SCHEDULE_TARGET_PUMP:
+        return "pump";
+    case NODE_SCHEDULE_TARGET_IC_ZONE1:
+        return "ic_zone1";
+    case NODE_SCHEDULE_TARGET_MISTER:
+        return "mister";
+    case NODE_SCHEDULE_TARGET_FAN:
+        return "fan";
+    default:
+        return "unknown";
+    }
+}
+
+static uint32_t override_duration_ms(uint32_t duration_ms)
+{
+    return duration_ms > 0 ? duration_ms : DEFAULT_SCHEDULE_OVERRIDE_DURATION_MS;
 }
 
 void node_schedule_defaults(node_schedule_t *out_schedule)
@@ -69,9 +143,11 @@ void node_schedule_defaults(node_schedule_t *out_schedule)
     }
     out_schedule->light = DEFAULT_LIGHT;
     out_schedule->pump = DEFAULT_PUMP;
+    out_schedule->ic_zone1 = DEFAULT_IC_ZONE1;
     out_schedule->mister = DEFAULT_MISTER;
     out_schedule->fan = DEFAULT_FAN;
     out_schedule->timezone_offset_minutes = 0;
+    out_schedule->updated_at_ms = 0;
 }
 
 bool node_schedule_parse_hhmm(const char *value, uint16_t *out_minutes)
@@ -149,6 +225,19 @@ static esp_err_t save_schedule_locked(const node_schedule_t *schedule)
         return err;
     }
 
+    err = prefs_put_bool(SCHEDULE_NAMESPACE, "i_en", schedule->ic_zone1.enabled);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = prefs_put_u32(SCHEDULE_NAMESPACE, "i_st", schedule->ic_zone1.start_minute);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = prefs_put_u32(SCHEDULE_NAMESPACE, "i_et", schedule->ic_zone1.end_minute);
+    if (err != ESP_OK) {
+        return err;
+    }
+
     err = prefs_put_bool(SCHEDULE_NAMESPACE, "m_en", schedule->mister.enabled);
     if (err != ESP_OK) {
         return err;
@@ -175,7 +264,12 @@ static esp_err_t save_schedule_locked(const node_schedule_t *schedule)
         return err;
     }
 
-    return prefs_put_i32(SCHEDULE_NAMESPACE, "tz_ofs", (int32_t)schedule->timezone_offset_minutes);
+    err = prefs_put_i32(SCHEDULE_NAMESPACE, "tz_ofs", (int32_t)schedule->timezone_offset_minutes);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    return prefs_put_u64(SCHEDULE_NAMESPACE, "upd_ms", schedule->updated_at_ms);
 }
 
 static esp_err_t load_schedule_locked(node_schedule_t *schedule)
@@ -190,6 +284,7 @@ static esp_err_t load_schedule_locked(node_schedule_t *schedule)
     bool b = false;
     uint32_t u = 0;
     int32_t tz = 0;
+    uint64_t updated_ms = 0;
 
     b = schedule->light.enabled;
     err = prefs_get_bool(SCHEDULE_NAMESPACE, "l_en", &b, schedule->light.enabled);
@@ -238,6 +333,32 @@ static esp_err_t load_schedule_locked(node_schedule_t *schedule)
     if (err == ESP_OK || is_pref_missing(err)) {
         if (u < 1440U) {
             schedule->pump.end_minute = (uint16_t)u;
+        }
+    } else {
+        return err;
+    }
+
+    b = schedule->ic_zone1.enabled;
+    err = prefs_get_bool(SCHEDULE_NAMESPACE, "i_en", &b, schedule->ic_zone1.enabled);
+    if (err == ESP_OK || is_pref_missing(err)) {
+        schedule->ic_zone1.enabled = b;
+    } else {
+        return err;
+    }
+    u = schedule->ic_zone1.start_minute;
+    err = prefs_get_u32(SCHEDULE_NAMESPACE, "i_st", &u, schedule->ic_zone1.start_minute);
+    if (err == ESP_OK || is_pref_missing(err)) {
+        if (u < 1440U) {
+            schedule->ic_zone1.start_minute = (uint16_t)u;
+        }
+    } else {
+        return err;
+    }
+    u = schedule->ic_zone1.end_minute;
+    err = prefs_get_u32(SCHEDULE_NAMESPACE, "i_et", &u, schedule->ic_zone1.end_minute);
+    if (err == ESP_OK || is_pref_missing(err)) {
+        if (u < 1440U) {
+            schedule->ic_zone1.end_minute = (uint16_t)u;
         }
     } else {
         return err;
@@ -305,6 +426,14 @@ static esp_err_t load_schedule_locked(node_schedule_t *schedule)
         return err;
     }
 
+    updated_ms = schedule->updated_at_ms;
+    err = prefs_get_u64(SCHEDULE_NAMESPACE, "upd_ms", &updated_ms, schedule->updated_at_ms);
+    if (err == ESP_OK || is_pref_missing(err)) {
+        schedule->updated_at_ms = updated_ms;
+    } else {
+        return err;
+    }
+
     return ESP_OK;
 }
 
@@ -334,22 +463,33 @@ static bool current_minute_of_day(int16_t timezone_offset_minutes, int *out_minu
 static void apply_schedule_state(const node_schedule_t *schedule, int minute_of_day)
 {
     bool desired_light = timer_is_active(&schedule->light, minute_of_day);
-    if (sensors_get_light_state() != desired_light) {
+    if (!override_should_skip(&override_light) &&
+        sensors_get_light_state() != desired_light) {
         sensors_set_light_state(desired_light);
     }
 
     bool desired_pump = timer_is_active(&schedule->pump, minute_of_day);
-    if (sensors_get_pump_state() != desired_pump) {
+    if (!override_should_skip(&override_pump) &&
+        sensors_get_pump_state() != desired_pump) {
         sensors_set_pump_state(desired_pump);
     }
 
+    bool desired_ic_zone1 = timer_is_active(&schedule->ic_zone1, minute_of_day);
+    if (!override_should_skip(&override_ic_zone1) &&
+        sensors_get_ic_zone1_state() != desired_ic_zone1) {
+        sensors_pulse_ic_zone1(desired_ic_zone1, IC_ZONE1_PULSE_MS);
+        sensors_set_ic_zone1_state(desired_ic_zone1);
+    }
+
     bool desired_mister = timer_is_active(&schedule->mister, minute_of_day);
-    if (sensors_get_mister_state() != desired_mister) {
+    if (!override_should_skip(&override_mister) &&
+        sensors_get_mister_state() != desired_mister) {
         sensors_set_mister_state(desired_mister);
     }
 
     bool desired_fan = timer_is_active(&schedule->fan, minute_of_day);
-    if (sensors_get_fan_state() != desired_fan) {
+    if (!override_should_skip(&override_fan) &&
+        sensors_get_fan_state() != desired_fan) {
         sensors_set_fan_state(desired_fan);
     }
 }
@@ -374,7 +514,6 @@ static void apply_now_if_possible(void)
     }
 
     apply_schedule_state(&snapshot, minute_of_day);
-    last_applied_minute = minute_of_day;
 }
 
 esp_err_t node_schedule_init(void)
@@ -396,14 +535,14 @@ esp_err_t node_schedule_init(void)
     }
 
     schedule_initialized = true;
-    last_applied_minute = -1;
-
     ESP_LOGI(
         TAG,
-        "Schedule initialized (tzOffsetMin=%d light=%d[%u-%u] pump=%d[%u-%u] mister=%d[%u-%u] fan=%d[%u-%u])",
+        "Schedule initialized (tzOffsetMin=%d updatedAtMs=%llu light=%d[%u-%u] pump=%d[%u-%u] ic1=%d[%u-%u] mister=%d[%u-%u] fan=%d[%u-%u])",
         (int)schedule_state.timezone_offset_minutes,
+        (unsigned long long)schedule_state.updated_at_ms,
         schedule_state.light.enabled ? 1 : 0, (unsigned)schedule_state.light.start_minute, (unsigned)schedule_state.light.end_minute,
         schedule_state.pump.enabled ? 1 : 0, (unsigned)schedule_state.pump.start_minute, (unsigned)schedule_state.pump.end_minute,
+        schedule_state.ic_zone1.enabled ? 1 : 0, (unsigned)schedule_state.ic_zone1.start_minute, (unsigned)schedule_state.ic_zone1.end_minute,
         schedule_state.mister.enabled ? 1 : 0, (unsigned)schedule_state.mister.start_minute, (unsigned)schedule_state.mister.end_minute,
         schedule_state.fan.enabled ? 1 : 0, (unsigned)schedule_state.fan.start_minute, (unsigned)schedule_state.fan.end_minute
     );
@@ -444,6 +583,16 @@ esp_err_t node_schedule_set(const node_schedule_t *schedule)
         return ESP_ERR_TIMEOUT;
     }
 
+    if (schedule_state.updated_at_ms > 0 &&
+        schedule->updated_at_ms > 0 &&
+        schedule->updated_at_ms < schedule_state.updated_at_ms) {
+        xSemaphoreGive(schedule_lock);
+        ESP_LOGW(TAG, "Ignoring stale schedule update (incoming=%llu current=%llu)",
+                 (unsigned long long)schedule->updated_at_ms,
+                 (unsigned long long)schedule_state.updated_at_ms);
+        return ESP_ERR_INVALID_STATE;
+    }
+
     schedule_state = *schedule;
     esp_err_t err = save_schedule_locked(&schedule_state);
     xSemaphoreGive(schedule_lock);
@@ -477,12 +626,33 @@ void node_schedule_task(void *arg)
 
         int minute_of_day = 0;
         if (current_minute_of_day(snapshot.timezone_offset_minutes, &minute_of_day)) {
-            if (minute_of_day != last_applied_minute) {
-                apply_schedule_state(&snapshot, minute_of_day);
-                last_applied_minute = minute_of_day;
-            }
+            apply_schedule_state(&snapshot, minute_of_day);
         }
 
         vTaskDelay(pdMS_TO_TICKS(SCHEDULE_TASK_PERIOD_MS));
     }
+}
+
+void node_schedule_set_override(node_schedule_target_t target, bool on, uint32_t duration_ms)
+{
+    schedule_override_t *ovr = override_for_target(target);
+    if (!ovr) {
+        return;
+    }
+
+    if (on) {
+        uint32_t effective_duration_ms = override_duration_ms(duration_ms);
+        ovr->active = true;
+        ovr->expires_at_ms = monotonic_ms() + (uint64_t)effective_duration_ms;
+        ESP_LOGI(TAG, "Manual override armed for %s; deferring schedule for %u ms (%u ms requested)",
+                 target_name(target),
+                 (unsigned)effective_duration_ms,
+                 (unsigned)duration_ms);
+        return;
+    }
+
+    ovr->active = false;
+    ovr->expires_at_ms = 0;
+    ESP_LOGI(TAG, "Manual override cleared for %s; reapplying schedule", target_name(target));
+    apply_now_if_possible();
 }

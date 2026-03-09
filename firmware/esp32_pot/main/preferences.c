@@ -163,6 +163,42 @@ esp_err_t prefs_get_u32(const char *nvs_namespace, const char *key, uint32_t *ou
     return err;
 }
 
+esp_err_t prefs_put_u64(const char *nvs_namespace, const char *key, uint64_t value)
+{
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open(resolve_namespace(nvs_namespace), NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    err = nvs_set_u64(handle, key, value);
+    return commit_and_close(handle, err);
+}
+
+esp_err_t prefs_get_u64(const char *nvs_namespace, const char *key, uint64_t *out_value, uint64_t default_value)
+{
+    if (!out_value) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open(resolve_namespace(nvs_namespace), NVS_READONLY, &handle);
+    if (err != ESP_OK) {
+        *out_value = default_value;
+        return err;
+    }
+
+    uint64_t value = default_value;
+    err = nvs_get_u64(handle, key, &value);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        err = ESP_OK;
+    }
+
+    nvs_close(handle);
+    *out_value = value;
+    return err;
+}
+
 esp_err_t prefs_put_bool(const char *nvs_namespace, const char *key, bool value)
 {
     return prefs_put_u8(nvs_namespace, key, value ? 1U : 0U);

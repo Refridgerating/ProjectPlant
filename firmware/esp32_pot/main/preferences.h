@@ -16,6 +16,8 @@ esp_err_t prefs_get_i32(const char *nvs_namespace, const char *key, int32_t *out
 
 esp_err_t prefs_put_u32(const char *nvs_namespace, const char *key, uint32_t value);
 esp_err_t prefs_get_u32(const char *nvs_namespace, const char *key, uint32_t *out_value, uint32_t default_value);
+esp_err_t prefs_put_u64(const char *nvs_namespace, const char *key, uint64_t value);
+esp_err_t prefs_get_u64(const char *nvs_namespace, const char *key, uint64_t *out_value, uint64_t default_value);
 
 esp_err_t prefs_put_bool(const char *nvs_namespace, const char *key, bool value);
 esp_err_t prefs_get_bool(const char *nvs_namespace, const char *key, bool *out_value, bool default_value);

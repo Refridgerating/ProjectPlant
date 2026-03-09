@@ -13,6 +13,7 @@ from .weather_router import router as weather_router
 from .telemetry_router import router as telemetry_router
 from .provision_router import router as provision_router
 from .events_router import router as events_router
+from .managed_router import router as managed_router
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
 router.include_router(auth_router)
@@ -27,6 +28,7 @@ router.include_router(telemetry_router)
 router.include_router(provision_router)
 router.include_router(health_router)
 router.include_router(events_router)
+router.include_router(managed_router)
 
 
 @router.get("/health")
@@ -46,4 +48,10 @@ async def info():
         "mqtt_port": settings.mqtt_port,
         "pot_telemetry_retention_hours": settings.pot_telemetry_retention_hours,
         "pot_telemetry_max_rows": settings.pot_telemetry_max_rows,
+        "authMode": settings.control_plane_auth_mode,
+        "controlPlaneUrl": settings.control_plane_url,
+        "hubId": settings.hub_id,
+        "siteId": settings.site_id,
+        "organizationId": settings.organization_id,
+        "currentReleaseId": settings.current_release_id,
     }

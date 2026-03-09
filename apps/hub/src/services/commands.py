@@ -97,6 +97,46 @@ class CommandService:
         payload["requestId"] = pump_result.request_id
         return SensorReadResult(request_id=pump_result.request_id, payload=payload)
 
+    async def control_ic_zone1(
+        self,
+        pot_id: str,
+        *,
+        on: bool,
+        duration_ms: Optional[float] = None,
+        timeout: Optional[float] = None,
+    ) -> SensorReadResult:
+        if duration_ms is not None and duration_ms <= 0:
+            raise ValueError("duration_ms must be greater than zero")
+
+        duration_int: Optional[int]
+        if duration_ms is None:
+            duration_int = None
+        else:
+            duration_int = int(duration_ms)
+
+        overall_start = time.monotonic()
+        zone_result = await self.send_ic_zone1_override(
+            pot_id,
+            zone_on=on,
+            duration_ms=duration_int,
+            timeout=timeout,
+        )
+
+        sensor_timeout: Optional[float] = None
+        if timeout is not None:
+            elapsed = time.monotonic() - overall_start
+            remaining = timeout - elapsed
+            if remaining <= 0:
+                raise CommandTimeoutError(
+                    f"Timed out waiting for sensor reading after ic zone 1 command for {pot_id}"
+                )
+            sensor_timeout = remaining
+
+        sensor_result = await self.request_sensor_read(pot_id, timeout=sensor_timeout)
+        payload = dict(sensor_result.payload)
+        payload["requestId"] = zone_result.request_id
+        return SensorReadResult(request_id=zone_result.request_id, payload=payload)
+
     async def control_fan(
         self,
         pot_id: str,
@@ -439,6 +479,102 @@ class CommandService:
 
                     self._logger.debug(
                         "Received pump status for %s in %.2f s", pot_id, time.monotonic() - start_monotonic
+                    )
+                    return CommandAckResult(request_id=request_id, payload=data)
+            finally:
+                try:
+                    await client.unsubscribe(status_topic)
+                except MqttError:
+                    self._logger.debug("Failed to unsubscribe from %s during cleanup", status_topic, exc_info=True)
+
+    async def send_ic_zone1_override(
+        self,
+        pot_id: str,
+        *,
+        zone_on: bool,
+        duration_ms: Optional[int] = None,
+        timeout: Optional[float] = None,
+    ) -> CommandAckResult:
+        pot_id = self._normalize_pot_id(pot_id)
+        if not pot_id:
+            raise ValueError("pot_id is required")
+        if duration_ms is not None:
+            if duration_ms < 0:
+                raise ValueError("duration_ms must be non-negative")
+            duration_ms = int(duration_ms)
+
+        manager = get_mqtt_manager()
+        if manager is None:
+            raise CommandServiceError("MQTT manager is not connected")
+
+        try:
+            client = manager.get_client()
+        except RuntimeError as exc:
+            raise CommandServiceError(str(exc)) from exc
+
+        target_timeout = timeout if timeout is not None else self._default_timeout
+        if target_timeout <= 0:
+            raise ValueError("timeout must be greater than zero")
+
+        command_topic = COMMAND_TOPIC_FMT.format(pot_id=pot_id)
+        status_topic = STATUS_TOPIC_FMT.format(pot_id=pot_id)
+        request_id = str(uuid4())
+
+        payload_dict: dict[str, Any] = {
+            "requestId": request_id,
+            "icZone1": "on" if zone_on else "off",
+        }
+        if duration_ms is not None:
+            payload_dict["duration_ms"] = duration_ms
+
+        payload = json.dumps(payload_dict, separators=(",", ":"))
+
+        start_monotonic = time.monotonic()
+
+        async with client.messages() as messages:
+            try:
+                await client.subscribe(status_topic)
+            except MqttError as exc:
+                raise CommandServiceError(f"Failed to subscribe to {status_topic}") from exc
+
+            try:
+                await client.publish(command_topic, payload, qos=1, retain=False)
+            except MqttError as exc:
+                raise CommandServiceError(f"Failed to publish ic zone 1 override command to {command_topic}") from exc
+
+            deadline = start_monotonic + target_timeout
+            try:
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise CommandTimeoutError(f"Timed out waiting for status update on {status_topic}")
+
+                    try:
+                        message = await asyncio.wait_for(messages.__anext__(), timeout=remaining)
+                    except asyncio.TimeoutError as exc:
+                        raise CommandTimeoutError(f"Timed out waiting for status update on {status_topic}") from exc
+                    except MqttError as exc:
+                        raise CommandServiceError("MQTT error while awaiting status update") from exc
+
+                    topic_value = getattr(message, "topic", status_topic)
+                    if hasattr(topic_value, "matches"):
+                        if not topic_value.matches(status_topic):
+                            continue
+                    elif str(topic_value) != status_topic:
+                        continue
+
+                    data = self._decode_payload(message.payload)
+                    if data is None:
+                        continue
+
+                    if data.get("requestId") != request_id:
+                        self._logger.debug(
+                            "Ignoring status payload for %s with unmatched requestId %r", pot_id, data.get("requestId")
+                        )
+                        continue
+
+                    self._logger.debug(
+                        "Received ic zone 1 status for %s in %.2f s", pot_id, time.monotonic() - start_monotonic
                     )
                     return CommandAckResult(request_id=request_id, payload=data)
             finally:
@@ -933,6 +1069,7 @@ class CommandService:
         *,
         schedule: Mapping[str, Any],
         tz_offset_minutes: Optional[int] = None,
+        schedule_updated_at_ms: Optional[int] = None,
         timeout: Optional[float] = None,
     ) -> CommandAckResult:
         pot_id = self._normalize_pot_id(pot_id)
@@ -968,6 +1105,8 @@ class CommandService:
         }
         if tz_offset_minutes is not None:
             payload_dict["tzOffsetMinutes"] = int(tz_offset_minutes)
+        if schedule_updated_at_ms is not None:
+            payload_dict["scheduleUpdatedAtMs"] = int(schedule_updated_at_ms)
 
         payload = json.dumps(payload_dict, separators=(",", ":"))
         start_monotonic = time.monotonic()

@@ -1,0 +1,16 @@
+[Unit]
+Description=ProjectPlant Fleet Update Agent
+After=network-online.target projectplant-hub.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/projectplant/current/pi/update-agent
+EnvironmentFile=-/etc/projectplant/fleet.env
+ExecStart=/usr/bin/env python3 -m agent.main
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

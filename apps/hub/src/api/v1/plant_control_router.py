@@ -30,6 +30,7 @@ def _normalize_status_payload(payload: dict[str, Any], pot_id: str, request_id: 
         "pot_id": "potId",
         "received_at": "receivedAt",
         "pump_on": "pumpOn",
+        "ic_zone1_on": "icZone1On",
         "fan_on": "fanOn",
         "mister_on": "misterOn",
         "light_on": "lightOn",
@@ -103,6 +104,24 @@ class PumpControlRequest(BaseModel):
         ge=0.1,
         le=30.0,
         description="Optional timeout (seconds) to wait for a status update after issuing the pump command.",
+    )
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class IcZone1ControlRequest(BaseModel):
+    on: bool
+    duration_ms: float | int | None = Field(
+        default=None,
+        alias="durationMs",
+        gt=0,
+        description="Optional IC Zone 1 run duration in milliseconds. Positive values only.",
+    )
+    timeout: float | None = Field(
+        default=None,
+        ge=0.1,
+        le=30.0,
+        description="Optional timeout (seconds) to wait for a status update after issuing the IC Zone 1 command.",
     )
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
@@ -201,6 +220,7 @@ class PumpStatusPayload(BaseModel):
     receivedAt: str
     status: str | None = None
     pumpOn: bool | None = None
+    icZone1On: bool | None = None
     fanOn: bool | None = None
     misterOn: bool | None = None
     lightOn: bool | None = None
@@ -241,6 +261,7 @@ class PlantSchedulePayload(BaseModel):
     pot_id: str = Field(..., alias="potId")
     light: PlantScheduleTimerPayload
     pump: PlantScheduleTimerPayload
+    ic_zone1: PlantScheduleTimerPayload = Field(..., alias="icZone1")
     mister: PlantScheduleTimerPayload
     fan: PlantScheduleTimerPayload
     updated_at: str = Field(..., alias="updatedAt")
@@ -255,6 +276,7 @@ class PlantSchedulePayload(BaseModel):
 class PlantScheduleUpdateRequest(BaseModel):
     light: PlantScheduleTimerPayload
     pump: PlantScheduleTimerPayload
+    ic_zone1: PlantScheduleTimerPayload | None = Field(default=None, alias="icZone1")
     mister: PlantScheduleTimerPayload | None = None
     fan: PlantScheduleTimerPayload
 
@@ -309,18 +331,20 @@ async def request_sensor_read(
 )
 async def control_pump(pot_id: str, payload: PumpControlRequest, response: Response) -> SensorReadPayload:
     start = time.monotonic()
+    request_on = payload.on
+    request_duration_ms = payload.duration_ms
     logger.debug(
         "pump control command received for %s (on=%s, durationMs=%s, timeout=%s)",
         pot_id,
-        payload.on,
-        payload.duration_ms,
+        request_on,
+        request_duration_ms,
         payload.timeout,
     )
     try:
         result = await command_service.control_pump(
             pot_id,
-            on=payload.on,
-            duration_ms=float(payload.duration_ms) if payload.duration_ms is not None else None,
+            on=request_on,
+            duration_ms=float(request_duration_ms) if request_duration_ms is not None else None,
             timeout=payload.timeout,
         )
     except CommandTimeoutError as exc:
@@ -340,9 +364,68 @@ async def control_pump(pot_id: str, payload: PumpControlRequest, response: Respo
         result.request_id,
     )
     response.headers["X-Command-Request-Id"] = result.request_id
-    payload = SensorReadPayload.from_result(result)
-    await _persist_sensor_snapshot(payload, source="pump-control", request_id=result.request_id)
-    return payload
+    sensor_payload = SensorReadPayload.from_result(result)
+    plant_schedule_service.set_manual_override(
+        pot_id,
+        "pump",
+        on=request_on,
+        duration_ms=request_duration_ms,
+    )
+    if not request_on and settings.mqtt_enabled:
+        await plant_schedule_service.apply_schedule_now(pot_id)
+    await _persist_sensor_snapshot(sensor_payload, source="pump-control", request_id=result.request_id)
+    return sensor_payload
+
+
+@router.post(
+    "/{pot_id}/ic-zone-1",
+    response_model=SensorReadPayload,
+    response_model_exclude_none=True,
+)
+async def control_ic_zone1(pot_id: str, payload: IcZone1ControlRequest, response: Response) -> SensorReadPayload:
+    start = time.monotonic()
+    logger.debug(
+        "ic zone 1 control command received for %s (on=%s, durationMs=%s, timeout=%s)",
+        pot_id,
+        payload.on,
+        payload.duration_ms,
+        payload.timeout,
+    )
+    try:
+        result = await command_service.control_ic_zone1(
+            pot_id,
+            on=payload.on,
+            duration_ms=float(payload.duration_ms) if payload.duration_ms is not None else None,
+            timeout=payload.timeout,
+        )
+    except CommandTimeoutError as exc:
+        elapsed = time.monotonic() - start
+        logger.warning("ic zone 1 control for %s timed out after %.2fs: %s", pot_id, elapsed, exc)
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except CommandServiceError as exc:
+        elapsed = time.monotonic() - start
+        logger.error("ic zone 1 control for %s failed: %s", pot_id, exc)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    elapsed = time.monotonic() - start
+    logger.debug(
+        "ic zone 1 control for %s completed in %.2fs (requestId=%s)",
+        pot_id,
+        elapsed,
+        result.request_id,
+    )
+    response.headers["X-Command-Request-Id"] = result.request_id
+    payload_model = SensorReadPayload.from_result(result)
+    plant_schedule_service.set_manual_override(
+        pot_id,
+        "ic_zone1",
+        on=payload.on,
+        duration_ms=payload.duration_ms,
+    )
+    if not payload.on and settings.mqtt_enabled:
+        await plant_schedule_service.apply_schedule_now(pot_id)
+    await _persist_sensor_snapshot(payload_model, source="ic-zone-1-control", request_id=result.request_id)
+    return payload_model
 
 
 @router.post(
@@ -384,6 +467,14 @@ async def control_fan(pot_id: str, payload: FanControlRequest, response: Respons
     )
     response.headers["X-Command-Request-Id"] = result.request_id
     payload_model = SensorReadPayload.from_result(result)
+    plant_schedule_service.set_manual_override(
+        pot_id,
+        "fan",
+        on=payload.on,
+        duration_ms=payload.duration_ms,
+    )
+    if not payload.on and settings.mqtt_enabled:
+        await plant_schedule_service.apply_schedule_now(pot_id)
     await _persist_sensor_snapshot(payload_model, source="fan-control", request_id=result.request_id)
     return payload_model
 
@@ -427,6 +518,14 @@ async def control_mister(pot_id: str, payload: MisterControlRequest, response: R
     )
     response.headers["X-Command-Request-Id"] = result.request_id
     payload_model = SensorReadPayload.from_result(result)
+    plant_schedule_service.set_manual_override(
+        pot_id,
+        "mister",
+        on=payload.on,
+        duration_ms=payload.duration_ms,
+    )
+    if not payload.on and settings.mqtt_enabled:
+        await plant_schedule_service.apply_schedule_now(pot_id)
     await _persist_sensor_snapshot(payload_model, source="mister-control", request_id=result.request_id)
     return payload_model
 
@@ -470,6 +569,14 @@ async def control_light(pot_id: str, payload: LightControlRequest, response: Res
     )
     response.headers["X-Command-Request-Id"] = result.request_id
     payload_model = SensorReadPayload.from_result(result)
+    plant_schedule_service.set_manual_override(
+        pot_id,
+        "light",
+        on=payload.on,
+        duration_ms=payload.duration_ms,
+    )
+    if not payload.on and settings.mqtt_enabled:
+        await plant_schedule_service.apply_schedule_now(pot_id)
     await _persist_sensor_snapshot(payload_model, source="light-control", request_id=result.request_id)
     return payload_model
 
@@ -512,6 +619,7 @@ async def set_device_name(pot_id: str, payload: DeviceNameRequest, response: Res
         pot_id=normalized["potId"],
         status=normalized.get("status"),
         pump_on=normalized.get("pumpOn"),
+        ic_zone1_on=normalized.get("icZone1On"),
         fan_on=normalized.get("fanOn"),
         mister_on=normalized.get("misterOn"),
         light_on=normalized.get("lightOn"),
@@ -567,6 +675,7 @@ async def set_sensor_mode(pot_id: str, payload: SensorModeRequest, response: Res
         pot_id=normalized["potId"],
         status=normalized.get("status"),
         pump_on=normalized.get("pumpOn"),
+        ic_zone1_on=normalized.get("icZone1On"),
         fan_on=normalized.get("fanOn"),
         mister_on=normalized.get("misterOn"),
         light_on=normalized.get("lightOn"),
@@ -603,11 +712,13 @@ async def get_plant_schedule(pot_id: str) -> PlantSchedulePayload:
 async def update_plant_schedule(pot_id: str, payload: PlantScheduleUpdateRequest) -> PlantSchedulePayload:
     try:
         existing = plant_schedule_service.get_schedule(pot_id)
+        ic_zone1_timer = payload.ic_zone1.to_timer() if payload.ic_zone1 is not None else existing.ic_zone1
         mister_timer = payload.mister.to_timer() if payload.mister is not None else existing.mister
         schedule = plant_schedule_service.update_schedule(
             pot_id,
             light=payload.light.to_timer(),
             pump=payload.pump.to_timer(),
+            ic_zone1=ic_zone1_timer,
             mister=mister_timer,
             fan=payload.fan.to_timer(),
         )

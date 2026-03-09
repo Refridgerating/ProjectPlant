@@ -52,11 +52,21 @@ type WateringCalendarMonth = {
   weeks: WateringCalendarDay[][];
 };
 
-const AVAILABLE_ACTUATORS = ["pump", "mister", "fan", "light", "feeder"] as const;
+const AVAILABLE_ACTUATORS = ["ic_zone1", "pump", "mister", "fan", "light", "feeder"] as const;
 type ActuatorId = (typeof AVAILABLE_ACTUATORS)[number];
+
+const ACTUATOR_LABELS: Record<ActuatorId, string> = {
+  ic_zone1: "IC Zone 1",
+  pump: "Pump",
+  mister: "Mister",
+  fan: "Fan",
+  light: "Light",
+  feeder: "Feeder",
+};
 
 const TIMER_DEVICE_OPTIONS = [
   { id: "light", label: "Lights" },
+  { id: "ic_zone1", label: "IC Zone 1" },
   { id: "pump", label: "Pumps" },
   { id: "mister", label: "Mister" },
   { id: "fan", label: "Fans" },
@@ -83,6 +93,7 @@ type WateringDayOverride = {
 function createDefaultDeviceTimers(): DeviceTimers {
   return {
     light: { enabled: false, startTime: "06:00", endTime: "20:00" },
+    ic_zone1: { enabled: false, startTime: "07:00", endTime: "07:15" },
     pump: { enabled: false, startTime: "07:00", endTime: "07:15" },
     mister: { enabled: false, startTime: "08:00", endTime: "08:15" },
     fan: { enabled: false, startTime: "09:00", endTime: "18:00" },
@@ -121,6 +132,11 @@ function deviceTimersFromSchedule(schedule: PlantControlSchedule): DeviceTimers 
       startTime: normalizeTimerValue(schedule.light.startTime, defaults.light.startTime),
       endTime: normalizeTimerValue(schedule.light.endTime, defaults.light.endTime),
     },
+    ic_zone1: {
+      enabled: schedule.icZone1.enabled,
+      startTime: normalizeTimerValue(schedule.icZone1.startTime, defaults.ic_zone1.startTime),
+      endTime: normalizeTimerValue(schedule.icZone1.endTime, defaults.ic_zone1.endTime),
+    },
     pump: {
       enabled: schedule.pump.enabled,
       startTime: normalizeTimerValue(schedule.pump.startTime, defaults.pump.startTime),
@@ -145,6 +161,11 @@ function schedulePayloadFromDeviceTimers(timers: DeviceTimers): PlantControlSche
       enabled: timers.light.enabled,
       startTime: normalizeTimerValue(timers.light.startTime, "06:00"),
       endTime: normalizeTimerValue(timers.light.endTime, "20:00"),
+    },
+    icZone1: {
+      enabled: timers.ic_zone1.enabled,
+      startTime: normalizeTimerValue(timers.ic_zone1.startTime, "07:00"),
+      endTime: normalizeTimerValue(timers.ic_zone1.endTime, "07:15"),
     },
     pump: {
       enabled: timers.pump.enabled,
@@ -263,7 +284,7 @@ export function WateringRecommendationCard({ recommendation, loading, error, onR
 
   const subtitle = recommendation
     ? "Penman-Monteith baseline tuned for your pot profile."
-    : "Set daily timers for lights, pumps, misters, and fans while watering guidance is pending.";
+    : "Set daily timers for lights, IC Zone 1, pumps, misters, and fans while watering guidance is pending.";
   const climateSummary = recommendation
     ? `Averages ${formatValue(recommendation.outputs.etc_mm_day, 2)} mm ETc, ${formatValue(
         recommendation.climate.avg_temperature_c,
@@ -660,7 +681,7 @@ function DeviceTimerPanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-semibold text-emerald-50">Device Timers</p>
-          <p className="text-xs text-emerald-200/70">Set daily start and stop times for lights, pumps, misters, and fans.</p>
+          <p className="text-xs text-emerald-200/70">Set daily start and stop times for lights, IC Zone 1, pumps, misters, and fans.</p>
         </div>
         <button
           type="button"
@@ -942,7 +963,7 @@ function WateringDayModal({
     return normalizeTimeValues(baseTimes, Math.max(1, initialEvents), defaults);
   });
   const [actuators, setActuators] = useState<Set<ActuatorId>>(
-    () => new Set(existingOverride?.actuators ?? ["pump"])
+    () => new Set(existingOverride?.actuators ?? ["ic_zone1"])
   );
 
   const handleEventsChange = (value: number) => {
@@ -1087,7 +1108,7 @@ function WateringDayModal({
                         : "border-emerald-800/60 bg-[rgba(7,28,19,0.78)] text-emerald-200/70 hover:border-emerald-500/50 hover:text-emerald-100"
                     }`}
                   >
-                    {id}
+                    {ACTUATOR_LABELS[id]}
                   </button>
                 );
               })}

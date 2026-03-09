@@ -16,6 +16,14 @@ interface PlantDataProvider {
 }
 
 const storageNamespace = "projectplant-web";
+const CONTROL_TARGETS = [
+  { id: "pump", label: "Pump", path: "pump" },
+  { id: "ic_zone1", label: "IC Zone 1", path: "ic-zone-1" },
+  { id: "fan", label: "Fan", path: "fan" },
+  { id: "mister", label: "Mister", path: "mister" },
+  { id: "light", label: "Grow Light", path: "light" }
+] as const;
+type ControlTarget = (typeof CONTROL_TARGETS)[number];
 
 function createDemoProvider(backend: MockBackend): PlantDataProvider {
   return {
@@ -263,6 +271,9 @@ function Dashboard({ provider, mode, status, discovering, onToggleMode, manualUr
   const [selectedPotId, setSelectedPotId] = useState<string | null>(null);
   const [telemetry, setTelemetry] = useState<SensorTelemetry | null>(null);
   const [note, setNote] = useState("");
+  const [controlStates, setControlStates] = useState<Record<string, boolean>>({});
+  const [controlMessage, setControlMessage] = useState<string>("");
+  const [manualDurationSec, setManualDurationSec] = useState<string>("60");
   const storage = useMemo(() => namespacedStorage(storageNamespace), []);
 
   useEffect(() => {
@@ -375,6 +386,62 @@ function Dashboard({ provider, mode, status, discovering, onToggleMode, manualUr
 
   const activeTelemetry = telemetry ?? fallbackTelemetry;
   const modeBadge = mode === "demo" ? "Demo Mode" : "Live Mode";
+  const manualOverrideDurationMs = useMemo(() => {
+    const trimmed = manualDurationSec.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return undefined;
+    }
+    return Math.round(parsed * 1000);
+  }, [manualDurationSec]);
+  const manualDurationInvalid = manualDurationSec.trim().length > 0 && manualOverrideDurationMs === undefined;
+
+  useEffect(() => {
+    if (activeTelemetry) {
+      setControlStates((prev) => ({ ...prev, pump: activeTelemetry.valveOpen }));
+    }
+  }, [activeTelemetry]);
+
+  const sendManualControl = async (potId: string, target: ControlTarget, on: boolean, durationMs?: number) => {
+    const env = await getEnv();
+    if (env.mode !== "live" || !env.baseUrl) {
+      throw new Error("Manual controls require live mode.");
+    }
+    const baseUrl = env.baseUrl.replace(/\/$/, "");
+    const url = `${baseUrl}/api/v1/plant-control/${encodeURIComponent(potId)}/${target.path}`;
+    const payload: Record<string, unknown> = { on };
+    if (durationMs !== undefined) {
+      payload.durationMs = durationMs;
+    }
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      throw new Error(`Command failed (${response.status})`);
+    }
+  };
+
+  const handleControlToggle = async (target: ControlTarget) => {
+    if (!selectedPotId) {
+      setControlMessage("Select a pot before sending a control command.");
+      return;
+    }
+    const next = !(controlStates[target.id] ?? false);
+    setControlMessage(`Sending ${target.label} ${next ? "on" : "off"}...`);
+    try {
+      await sendManualControl(selectedPotId, target, next, manualOverrideDurationMs);
+      setControlStates((prev) => ({ ...prev, [target.id]: next }));
+      setControlMessage(`${target.label} ${next ? "on" : "off"} command sent.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Command failed";
+      setControlMessage(message);
+    }
+  };
 
   return (
     <main
@@ -602,6 +669,61 @@ function Dashboard({ provider, mode, status, discovering, onToggleMode, manualUr
         ) : (
           <p style={{ color: "#6b7280" }}>No irrigation zones detected.</p>
         )}
+      </section>
+
+      <section
+        style={{
+          border: "1px solid #e5e7eb",
+          borderRadius: "12px",
+          padding: "1.5rem",
+          marginBottom: "2rem"
+        }}
+      >
+        <h2 style={{ marginTop: 0 }}>Manual Controls</h2>
+        <p style={{ color: "#6b7280", marginTop: "0.25rem" }}>
+          Send live override commands to your pot. Leave duration blank to use the device default.
+        </p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "flex-end", marginTop: "1rem" }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ color: "#374151", fontSize: "0.85rem" }}>Override duration (seconds)</span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={manualDurationSec}
+              onChange={(event) => setManualDurationSec(event.target.value)}
+              placeholder="e.g. 60"
+              style={{ padding: "0.5rem", border: "1px solid #d1d5db", borderRadius: 8, width: 180 }}
+            />
+          </label>
+          <span style={{ color: manualDurationInvalid ? "#b91c1c" : "#6b7280", fontSize: "0.85rem" }}>
+            {manualDurationInvalid ? "Enter a positive number or leave blank." : "Duration applies to each manual command."}
+          </span>
+        </div>
+        <div style={{ display: "grid", gap: "0.75rem", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", marginTop: "1rem" }}>
+          {CONTROL_TARGETS.map((target) => {
+            const isOn = controlStates[target.id] ?? false;
+            return (
+              <button
+                key={target.id}
+                onClick={() => void handleControlToggle(target)}
+                style={{
+                  border: "1px solid #d1d5db",
+                  borderRadius: 10,
+                  padding: "0.75rem",
+                  textAlign: "left",
+                  background: isOn ? "#ecfdf3" : "#fff"
+                }}
+              >
+                <div style={{ fontWeight: 600 }}>{target.label}</div>
+                <div style={{ color: isOn ? "#047857" : "#6b7280", fontSize: "0.85rem" }}>
+                  {isOn ? "On" : "Off"}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        {controlMessage ? <p style={{ color: "#374151", marginTop: "0.75rem" }}>{controlMessage}</p> : null}
       </section>
 
       <section>

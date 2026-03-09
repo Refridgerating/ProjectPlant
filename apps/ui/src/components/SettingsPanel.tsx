@@ -4,11 +4,13 @@ import {
   createUserAccount,
   deleteShare,
   fetchCurrentUser,
+  fetchManagedSecurity,
   fetchMyShares,
   fetchUsers,
   ShareRecordSummary,
   ShareRole,
   ShareStatus,
+  type SecurityStatusResponse,
   signInWithGoogleIdToken,
   updateShare,
   type UserAccountSummary,
@@ -85,11 +87,15 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
   const [googleSignInMessage, setGoogleSignInMessage] = useState<string | null>(null);
   const [manualGoogleToken, setManualGoogleToken] = useState("");
   const [googleScriptReady, setGoogleScriptReady] = useState(false);
+  const [managedSecurity, setManagedSecurity] = useState<SecurityStatusResponse | null>(null);
+  const [managedSecurityLoading, setManagedSecurityLoading] = useState(false);
+  const [managedSecurityError, setManagedSecurityError] = useState<string | null>(null);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const googleClientId = useMemo(() => {
     const raw = (import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "") as string;
     return raw.trim();
   }, []);
+  const isManagedMode = settings.authMode === "managed";
 
   const refreshUserData = useCallback(
     async (signal?: AbortSignal) => {
@@ -138,9 +144,30 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
     []
   );
 
+  const refreshManagedSecurity = useCallback(async (signal?: AbortSignal) => {
+    setManagedSecurityLoading(true);
+    setManagedSecurityError(null);
+    try {
+      const next = await fetchManagedSecurity(signal);
+      if (!signal?.aborted) {
+        setManagedSecurity(next);
+      }
+    } catch (err) {
+      if (!signal?.aborted) {
+        setManagedSecurity(null);
+        setManagedSecurityError(err instanceof Error ? err.message : "Failed to load security status.");
+      }
+    } finally {
+      if (!signal?.aborted) {
+        setManagedSecurityLoading(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (!open) return;
-    setLocal(getSettings());
+    const currentSettings = getSettings();
+    setLocal(currentSettings);
     setTestResult(null);
     setDiscoverMsg(null);
     setUserActionMessage(null);
@@ -156,9 +183,20 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
     setNewUserPasswordConfirm("");
     setShareContractorId("");
     const controller = new AbortController();
-    void refreshUserData(controller.signal);
+    if ((currentSettings.authMode || "local_compat") === "managed") {
+      setUsers([]);
+      setCurrentUser(null);
+      setShares([]);
+      setUserError(null);
+      setShareError(null);
+      void refreshManagedSecurity(controller.signal);
+    } else {
+      setManagedSecurity(null);
+      setManagedSecurityError(null);
+      void refreshUserData(controller.signal);
+    }
     return () => controller.abort();
-  }, [open, refreshUserData]);
+  }, [open, refreshManagedSecurity, refreshUserData]);
 
   const userNameLookup = useMemo(() => {
     const entries: Array<[string, string]> = users.map((user) => [
@@ -224,7 +262,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
   );
 
   useEffect(() => {
-    if (!open || !googleClientId) {
+    if (!open || !googleClientId || isManagedMode) {
       return;
     }
     if ((window as WindowWithGoogle).google?.accounts?.id) {
@@ -261,10 +299,10 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
       script.removeEventListener("load", handleScriptLoad);
       script.removeEventListener("error", handleScriptError);
     };
-  }, [open, googleClientId]);
+  }, [isManagedMode, open, googleClientId]);
 
   useEffect(() => {
-    if (!open || !googleClientId || !googleScriptReady || !googleButtonRef.current) {
+    if (!open || isManagedMode || !googleClientId || !googleScriptReady || !googleButtonRef.current) {
       return;
     }
     const google = (window as WindowWithGoogle).google;
@@ -288,7 +326,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
       width: 260,
       logo_alignment: "left",
     });
-  }, [open, googleClientId, googleScriptReady, handleGoogleCredential]);
+  }, [isManagedMode, open, googleClientId, googleScriptReady, handleGoogleCredential]);
 
   const handleSignOut = useCallback(() => {
     setLocal((prev) => {
@@ -296,6 +334,10 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
         ...prev,
         authToken: "",
         authTokenExpiresAt: null,
+        activeUserId: "",
+        activeUserName: "",
+        effectiveAccess: null,
+        mfaSatisfied: false,
       };
       setSettings(next);
       return next;
@@ -563,6 +605,94 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
         </CollapsibleTile>
 
         <CollapsibleTile
+          id="settings-managed-access"
+          title="Managed Access"
+          subtitle="Central session and fleet-linked permissions for this hub."
+          className="mt-6 border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300"
+          bodyClassName="mt-3 space-y-4"
+          titleClassName="text-sm font-semibold text-slate-200"
+          subtitleClassName="text-xs text-slate-400"
+        >
+          {isManagedMode ? (
+            <>
+              <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-xs text-slate-300">
+                <p className="font-semibold text-slate-100">{settings.effectiveAccess?.email || settings.activeUserName || "No managed session"}</p>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Role: {settings.effectiveAccess?.systemRole || "user"}
+                  {settings.effectiveAccess?.isPrimaryMaster ? " · primary master" : ""}
+                  {settings.effectiveAccess?.isBackupMaster ? " · backup master" : ""}
+                </p>
+                <p className="text-[11px] text-slate-400">Auth mode: {settings.authMode}</p>
+                <p className="text-[11px] text-slate-400">
+                  Control plane: {settings.controlPlaneUrl || "Not configured"}
+                </p>
+                {settings.fleetConsoleUrl ? (
+                  <p className="text-[11px] text-slate-400">Fleet console: {settings.fleetConsoleUrl}</p>
+                ) : null}
+                <p className="text-[11px] text-slate-400">
+                  Scopes: {settings.effectiveAccess?.scopes?.length ? settings.effectiveAccess.scopes.join(", ") : "No scoped assignments"}
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Capabilities: {settings.effectiveAccess?.capabilities?.length ? settings.effectiveAccess.capabilities.join(", ") : "No elevated capabilities"}
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Session token: {settings.authToken ? `active${settings.authTokenExpiresAt ? ` until ${new Date(settings.authTokenExpiresAt).toLocaleString()}` : ""}` : "not present"}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void refreshManagedSecurity()}
+                  disabled={managedSecurityLoading}
+                  className="rounded-lg border border-slate-700 px-3 py-1 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {managedSecurityLoading ? "Refreshing..." : "Refresh security"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="rounded-lg border border-slate-700 px-3 py-1 text-sm text-slate-200 hover:bg-slate-800"
+                >
+                  Sign out
+                </button>
+              </div>
+              {managedSecurityError ? <p className="text-xs text-red-400">{managedSecurityError}</p> : null}
+            </>
+          ) : (
+            <p className="text-xs text-slate-400">This hub is running in local compatibility mode.</p>
+          )}
+        </CollapsibleTile>
+
+        {isManagedMode ? (
+          <CollapsibleTile
+            id="settings-security"
+            title="Security"
+            subtitle="Current MFA state for the active managed session."
+            className="mt-6 border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300"
+            bodyClassName="mt-3 space-y-3"
+            titleClassName="text-sm font-semibold text-slate-200"
+            subtitleClassName="text-xs text-slate-400"
+          >
+            <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-xs text-slate-300">
+              <p className="text-slate-100">
+                MFA: {managedSecurity?.mfaEnabled ? "Enabled" : "Not enabled"}
+                {settings.mfaSatisfied ? " · verified for this session" : ""}
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Factors: {managedSecurity?.factorTypes?.length ? managedSecurity.factorTypes.join(", ") : "None"}
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Recovery codes remaining: {managedSecurity?.recoveryCodesRemaining ?? 0}
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Last MFA verification: {managedSecurity?.lastMfaVerifiedAt ? new Date(managedSecurity.lastMfaVerifiedAt).toLocaleString() : "Not verified"}
+              </p>
+            </div>
+          </CollapsibleTile>
+        ) : null}
+
+        {!isManagedMode ? (
+          <CollapsibleTile
           id="settings-user"
           title="Active User"
           subtitle="Select the hub user id used for authenticated requests."
@@ -750,9 +880,11 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
           {userActionMessage ? <p className="text-xs text-emerald-400">{userActionMessage}</p> : null}
           {userActionError ? <p className="text-xs text-red-400">{userActionError}</p> : null}
           </div>
-        </CollapsibleTile>
+          </CollapsibleTile>
+        ) : null}
 
-        <CollapsibleTile
+        {!isManagedMode ? (
+          <CollapsibleTile
           id="settings-sharing"
           title="Sharing"
           subtitle="Invite collaborators and manage contractor access."
@@ -859,7 +991,8 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
           </div>
           {shareActionMessage ? <p className="text-xs text-emerald-400">{shareActionMessage}</p> : null}
           {shareActionError ? <p className="text-xs text-red-400">{shareActionError}</p> : null}
-        </CollapsibleTile>
+          </CollapsibleTile>
+        ) : null}
 
         <CollapsibleTile
           id="settings-mqtt"

@@ -1,5 +1,21 @@
 export type RuntimeMode = "demo" | "live";
 
+export type EffectiveAccessSnapshot = {
+  accountId: string;
+  email: string;
+  systemRole: string;
+  isPrimaryMaster: boolean;
+  isBackupMaster: boolean;
+  masterControlsEnabled: boolean;
+  capabilities: string[];
+  scopes: string[];
+  organizations: string[];
+  sites: string[];
+  hubs: string[];
+  mfaRequired: boolean;
+  mfaSatisfied: boolean;
+};
+
 export type UiSettings = {
   mode: RuntimeMode;
   serverBaseUrl: string; // e.g. http://projectplant.local:80
@@ -9,6 +25,11 @@ export type UiSettings = {
   authTokenExpiresAt: number | null;
   activeUserId: string;
   activeUserName: string;
+  authMode: string;
+  controlPlaneUrl: string;
+  fleetConsoleUrl: string;
+  mfaSatisfied: boolean;
+  effectiveAccess: EffectiveAccessSnapshot | null;
 };
 
 const STORAGE_KEY = "projectplant:ui:settings";
@@ -24,6 +45,11 @@ const DEFAULT_SETTINGS: UiSettings = {
   authTokenExpiresAt: null,
   activeUserId: DEBUG_MASTER_USER_ID,
   activeUserName: DEBUG_MASTER_USER_NAME || (DEBUG_MASTER_USER_ID ? "Debug Master" : ""),
+  authMode: "local_compat",
+  controlPlaneUrl: "",
+  fleetConsoleUrl: "",
+  mfaSatisfied: false,
+  effectiveAccess: null,
 };
 
 export function getSettings(): UiSettings {
@@ -59,6 +85,14 @@ function normalize(value: Partial<UiSettings>): UiSettings {
       : null;
   const activeUserId = typeof value.activeUserId === "string" ? value.activeUserId.trim() : "";
   const activeUserName = typeof value.activeUserName === "string" ? value.activeUserName.trim() : "";
+  const authMode = typeof value.authMode === "string" ? value.authMode.trim() || "local_compat" : "local_compat";
+  const controlPlaneUrl = typeof value.controlPlaneUrl === "string" ? value.controlPlaneUrl.trim() : "";
+  const fleetConsoleUrl = typeof value.fleetConsoleUrl === "string" ? value.fleetConsoleUrl.trim() : "";
+  const mfaSatisfied = value.mfaSatisfied === true;
+  const effectiveAccess =
+    value.effectiveAccess && typeof value.effectiveAccess === "object"
+      ? (value.effectiveAccess as EffectiveAccessSnapshot)
+      : null;
   return {
     mode,
     serverBaseUrl,
@@ -68,6 +102,11 @@ function normalize(value: Partial<UiSettings>): UiSettings {
     authTokenExpiresAt,
     activeUserId,
     activeUserName,
+    authMode,
+    controlPlaneUrl,
+    fleetConsoleUrl,
+    mfaSatisfied,
+    effectiveAccess,
   };
 }
 
@@ -176,8 +215,8 @@ export async function discoverServer(): Promise<DiscoverResult> {
     const base = `http://${hostname}:${port}`;
     const healthy = await tryHealth(`${base}/healthz`);
     if (!healthy) continue;
-    const hasProjects = await tryHealth(`${base}/projects.json`);
-    if (!hasProjects) continue;
+    const hasInfo = await tryHealth(`${base}/api/v1/info`);
+    if (!hasInfo) continue;
     return { host: hostname, port, via: "web" };
   }
   return null;

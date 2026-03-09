@@ -50,8 +50,8 @@ async function tryWebFallback(options?: DiscoverOptions): Promise<DiscoverResult
       continue;
     }
 
-    const projectsOk = await checkEndpoint(`${baseUrl}/projects.json`, timeoutMs);
-    if (!projectsOk) {
+    const infoOk = await checkEndpoint(`${baseUrl}/api/v1/info`, timeoutMs);
+    if (!infoOk) {
       continue;
     }
 

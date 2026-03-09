@@ -1,0 +1,16 @@
+[Unit]
+Description=ProjectPlant Avahi _projectplant._tcp publisher
+After=avahi-daemon.service network-online.target
+Requires=avahi-daemon.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/projectplant/avahi.env
+ExecStart=/opt/projectplant/current/pi/avahi/publish-projectplant-service.sh /etc/projectplant/avahi.env
+Restart=on-failure
+RestartSec=2
+User=avahi
+Group=avahi
+
+[Install]
+WantedBy=multi-user.target

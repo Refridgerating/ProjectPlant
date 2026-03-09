@@ -45,6 +45,14 @@ WIFI_COUNTRY=US
 EOF
   chmod 0644 "$CONF_DIR/ap.env"
 fi
+if [[ ! -f "$CONF_DIR/fleet.env" ]]; then
+  cat > "$CONF_DIR/fleet.env" <<'EOF'
+FLEET_CONTROL_URL=
+FLEET_BOOTSTRAP_TOKEN=
+PROJECTPLANT_CHANNEL=dev
+EOF
+  chmod 0644 "$CONF_DIR/fleet.env"
+fi
 
 echo "[5/6] Enabling units..."
 systemctl daemon-reload

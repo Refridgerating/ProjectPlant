@@ -1,5 +1,6 @@
 #include "plant_mqtt.h"
 
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +27,8 @@ static char device_id_buffer[64];
 static const uint64_t MIN_VALID_TIMESTAMP_MS = 1609459200ULL * 1000ULL;
 
 static uint64_t current_epoch_ms(void);
+static void format_hhmm(uint16_t minutes, char *buffer, size_t buffer_len);
+static void add_schedule_timer(cJSON *schedule_obj, const char *name, const node_schedule_timer_t *timer);
 
 static void log_stack_metrics(const char *label)
 {
@@ -105,6 +108,12 @@ static bool parse_schedule_config(cJSON *root, node_schedule_t *out_schedule)
         return false;
     }
 
+    if (!parse_schedule_timer(schedule_obj, "ic_zone1", &parsed.ic_zone1)) {
+        if (!parse_schedule_timer(schedule_obj, "icZone1", &parsed.ic_zone1)) {
+            ESP_LOGD(TAG, "Schedule payload missing ic_zone1; keeping defaults");
+        }
+    }
+
     cJSON *tz_offset = cJSON_GetObjectItemCaseSensitive(root, "tzOffsetMinutes");
     if (!tz_offset) {
         tz_offset = cJSON_GetObjectItemCaseSensitive(schedule_obj, "tzOffsetMinutes");
@@ -115,6 +124,27 @@ static bool parse_schedule_config(cJSON *root, node_schedule_t *out_schedule)
             parsed.timezone_offset_minutes = (int16_t)tz_value;
         } else {
             ESP_LOGW(TAG, "tzOffsetMinutes out of range (%d); keeping default", tz_value);
+        }
+    }
+
+    cJSON *updated_at = cJSON_GetObjectItemCaseSensitive(root, "scheduleUpdatedAtMs");
+    if (!updated_at) {
+        updated_at = cJSON_GetObjectItemCaseSensitive(schedule_obj, "scheduleUpdatedAtMs");
+    }
+    if (!updated_at) {
+        updated_at = cJSON_GetObjectItemCaseSensitive(root, "updatedAtMs");
+    }
+    if (!updated_at) {
+        updated_at = cJSON_GetObjectItemCaseSensitive(schedule_obj, "updatedAtMs");
+    }
+    if (cJSON_IsNumber(updated_at) && updated_at->valuedouble >= 0) {
+        double updated_value = updated_at->valuedouble;
+        if (updated_value > 0) {
+            if (updated_value > (double)UINT64_MAX) {
+                parsed.updated_at_ms = UINT64_MAX;
+            } else {
+                parsed.updated_at_ms = (uint64_t)updated_value;
+            }
         }
     }
 
@@ -177,6 +207,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         esp_mqtt_client_subscribe(client, MQTT_PING_TOPIC, 0);
         if (device_id_buffer[0]) {
             mqtt_publish_ping(client, device_id_buffer);
+            mqtt_publish_schedule_state(client, device_id_buffer, NULL);
         }
         break;
     case MQTT_EVENT_DATA: {
@@ -263,6 +294,37 @@ static uint64_t current_epoch_ms(void)
     return fallback;
 }
 
+static void format_hhmm(uint16_t minutes, char *buffer, size_t buffer_len)
+{
+    if (!buffer || buffer_len == 0) {
+        return;
+    }
+    unsigned hour = (unsigned)(minutes / 60U);
+    unsigned minute = (unsigned)(minutes % 60U);
+    snprintf(buffer, buffer_len, "%02u:%02u", hour, minute);
+}
+
+static void add_schedule_timer(cJSON *schedule_obj, const char *name, const node_schedule_timer_t *timer)
+{
+    if (!schedule_obj || !name || !timer) {
+        return;
+    }
+
+    cJSON *timer_obj = cJSON_AddObjectToObject(schedule_obj, name);
+    if (!timer_obj) {
+        return;
+    }
+
+    cJSON_AddBoolToObject(timer_obj, "enabled", timer->enabled);
+
+    char start_buf[6] = {0};
+    char end_buf[6] = {0};
+    format_hhmm(timer->start_minute, start_buf, sizeof(start_buf));
+    format_hhmm(timer->end_minute, end_buf, sizeof(end_buf));
+    cJSON_AddStringToObject(timer_obj, "startTime", start_buf);
+    cJSON_AddStringToObject(timer_obj, "endTime", end_buf);
+}
+
 static bool format_iso8601_timestamp(uint64_t timestamp_ms, char *buffer, size_t buffer_len)
 {
     if (!buffer || buffer_len == 0) {
@@ -346,6 +408,7 @@ void mqtt_publish_reading(esp_mqtt_client_handle_t client,
         cJSON_AddNumberToObject(root, "humidity", reading->humidity_pct);
     }
     cJSON_AddBoolToObject(root, "valveOpen", reading->pump_is_on);
+    cJSON_AddBoolToObject(root, "icZone1On", reading->ic_zone1_is_on);
     cJSON_AddBoolToObject(root, "fanOn", reading->fan_is_on);
     cJSON_AddBoolToObject(root, "misterOn", reading->mister_is_on);
     cJSON_AddBoolToObject(root, "lightOn", reading->light_is_on);
@@ -403,6 +466,52 @@ void mqtt_publish_status(esp_mqtt_client_handle_t client,
     cJSON_free(payload);
 }
 
+void mqtt_publish_schedule_state(esp_mqtt_client_handle_t client,
+                                 const char *device_id,
+                                 const char *version)
+{
+    if (!client || !device_id || !device_id[0]) {
+        return;
+    }
+
+    cJSON *root = cJSON_CreateObject();
+    if (!root) {
+        return;
+    }
+
+    add_common_fields(root, device_id, current_epoch_ms());
+    cJSON_AddStringToObject(root, "status", "schedule_state");
+    if (version) {
+        cJSON_AddStringToObject(root, "fwVersion", version);
+    }
+
+    node_schedule_t schedule;
+    node_schedule_get(&schedule);
+    if (schedule.updated_at_ms > 0) {
+        cJSON_AddNumberToObject(root, "scheduleUpdatedAtMs", (double)schedule.updated_at_ms);
+    }
+
+    cJSON *schedule_obj = cJSON_AddObjectToObject(root, "schedule");
+    if (schedule_obj) {
+        add_schedule_timer(schedule_obj, "light", &schedule.light);
+        add_schedule_timer(schedule_obj, "pump", &schedule.pump);
+        add_schedule_timer(schedule_obj, "icZone1", &schedule.ic_zone1);
+        add_schedule_timer(schedule_obj, "mister", &schedule.mister);
+        add_schedule_timer(schedule_obj, "fan", &schedule.fan);
+    }
+
+    char *payload = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!payload) {
+        return;
+    }
+
+    char topic[96];
+    snprintf(topic, sizeof(topic), STATUS_TOPIC_FMT, device_id);
+    esp_mqtt_client_publish(client, topic, payload, 0, 1, true);
+    cJSON_free(payload);
+}
+
 mqtt_command_t mqtt_parse_command(const char *payload, int payload_len)
 {
     mqtt_command_t cmd = {
@@ -413,6 +522,7 @@ mqtt_command_t mqtt_parse_command(const char *payload, int payload_len)
         .has_schedule = false,
         .sensor_mode = SENSOR_MODE_FULL,
         .pump_on = false,
+        .ic_zone1_on = false,
         .fan_on = false,
         .mister_on = false,
         .light_on = false,
@@ -535,58 +645,80 @@ mqtt_command_t mqtt_parse_command(const char *payload, int payload_len)
             cmd.duration_ms = (uint32_t)duration->valueint;
         }
     } else {
-        cJSON *fan = cJSON_GetObjectItemCaseSensitive(root, "fan");
-        if (fan && (cJSON_IsBool(fan) || (cJSON_IsString(fan) && fan->valuestring))) {
-            bool fan_on = false;
-            if (cJSON_IsBool(fan)) {
-                fan_on = cJSON_IsTrue(fan);
-            } else if (strcmp(fan->valuestring, "on") == 0) {
-                fan_on = true;
-            } else if (strcmp(fan->valuestring, "off") == 0) {
-                fan_on = false;
+        cJSON *ic_zone1 = cJSON_GetObjectItemCaseSensitive(root, "icZone1");
+        if (!ic_zone1) {
+            ic_zone1 = cJSON_GetObjectItemCaseSensitive(root, "ic_zone1");
+        }
+        if (ic_zone1 && (cJSON_IsBool(ic_zone1) || (cJSON_IsString(ic_zone1) && ic_zone1->valuestring))) {
+            bool zone_on = false;
+            if (cJSON_IsBool(ic_zone1)) {
+                zone_on = cJSON_IsTrue(ic_zone1);
+            } else if (strcmp(ic_zone1->valuestring, "on") == 0) {
+                zone_on = true;
+            } else if (strcmp(ic_zone1->valuestring, "off") == 0) {
+                zone_on = false;
             }
-            cmd.type = MQTT_CMD_FAN_OVERRIDE;
-            cmd.fan_on = fan_on;
+            cmd.type = MQTT_CMD_IC_ZONE1_OVERRIDE;
+            cmd.ic_zone1_on = zone_on;
 
             cJSON *duration = cJSON_GetObjectItemCaseSensitive(root, "duration_ms");
             if (cJSON_IsNumber(duration) && duration->valueint > 0) {
                 cmd.duration_ms = (uint32_t)duration->valueint;
             }
         } else {
-            cJSON *mister = cJSON_GetObjectItemCaseSensitive(root, "mister");
-            if (mister && (cJSON_IsBool(mister) || (cJSON_IsString(mister) && mister->valuestring))) {
-                bool mister_on = false;
-                if (cJSON_IsBool(mister)) {
-                    mister_on = cJSON_IsTrue(mister);
-                } else if (strcmp(mister->valuestring, "on") == 0) {
-                    mister_on = true;
-                } else if (strcmp(mister->valuestring, "off") == 0) {
-                    mister_on = false;
+            cJSON *fan = cJSON_GetObjectItemCaseSensitive(root, "fan");
+            if (fan && (cJSON_IsBool(fan) || (cJSON_IsString(fan) && fan->valuestring))) {
+                bool fan_on = false;
+                if (cJSON_IsBool(fan)) {
+                    fan_on = cJSON_IsTrue(fan);
+                } else if (strcmp(fan->valuestring, "on") == 0) {
+                    fan_on = true;
+                } else if (strcmp(fan->valuestring, "off") == 0) {
+                    fan_on = false;
                 }
-                cmd.type = MQTT_CMD_MISTER_OVERRIDE;
-                cmd.mister_on = mister_on;
+                cmd.type = MQTT_CMD_FAN_OVERRIDE;
+                cmd.fan_on = fan_on;
 
                 cJSON *duration = cJSON_GetObjectItemCaseSensitive(root, "duration_ms");
                 if (cJSON_IsNumber(duration) && duration->valueint > 0) {
                     cmd.duration_ms = (uint32_t)duration->valueint;
                 }
             } else {
-                cJSON *light = cJSON_GetObjectItemCaseSensitive(root, "light");
-                if (light && (cJSON_IsBool(light) || (cJSON_IsString(light) && light->valuestring))) {
-                    bool light_on = false;
-                    if (cJSON_IsBool(light)) {
-                        light_on = cJSON_IsTrue(light);
-                    } else if (strcmp(light->valuestring, "on") == 0) {
-                        light_on = true;
-                    } else if (strcmp(light->valuestring, "off") == 0) {
-                        light_on = false;
+                cJSON *mister = cJSON_GetObjectItemCaseSensitive(root, "mister");
+                if (mister && (cJSON_IsBool(mister) || (cJSON_IsString(mister) && mister->valuestring))) {
+                    bool mister_on = false;
+                    if (cJSON_IsBool(mister)) {
+                        mister_on = cJSON_IsTrue(mister);
+                    } else if (strcmp(mister->valuestring, "on") == 0) {
+                        mister_on = true;
+                    } else if (strcmp(mister->valuestring, "off") == 0) {
+                        mister_on = false;
                     }
-                    cmd.type = MQTT_CMD_LIGHT_OVERRIDE;
-                    cmd.light_on = light_on;
+                    cmd.type = MQTT_CMD_MISTER_OVERRIDE;
+                    cmd.mister_on = mister_on;
 
                     cJSON *duration = cJSON_GetObjectItemCaseSensitive(root, "duration_ms");
                     if (cJSON_IsNumber(duration) && duration->valueint > 0) {
                         cmd.duration_ms = (uint32_t)duration->valueint;
+                    }
+                } else {
+                    cJSON *light = cJSON_GetObjectItemCaseSensitive(root, "light");
+                    if (light && (cJSON_IsBool(light) || (cJSON_IsString(light) && light->valuestring))) {
+                        bool light_on = false;
+                        if (cJSON_IsBool(light)) {
+                            light_on = cJSON_IsTrue(light);
+                        } else if (strcmp(light->valuestring, "on") == 0) {
+                            light_on = true;
+                        } else if (strcmp(light->valuestring, "off") == 0) {
+                            light_on = false;
+                        }
+                        cmd.type = MQTT_CMD_LIGHT_OVERRIDE;
+                        cmd.light_on = light_on;
+
+                        cJSON *duration = cJSON_GetObjectItemCaseSensitive(root, "duration_ms");
+                        if (cJSON_IsNumber(duration) && duration->valueint > 0) {
+                            cmd.duration_ms = (uint32_t)duration->valueint;
+                        }
                     }
                 }
             }

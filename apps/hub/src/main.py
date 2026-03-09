@@ -2,10 +2,13 @@ import logging
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from config import settings
 from api.search_router import router as search_router
@@ -50,6 +53,10 @@ def create_app() -> FastAPI:
             await hrrr_weather_service.close()
             await plant_lookup_service.close()
 
+    ui_dist_env = __import__("os").environ.get("PROJECTPLANT_UI_DIST")
+    ui_dist = Path(ui_dist_env).resolve() if ui_dist_env else None
+    ui_index = ui_dist / "index.html" if ui_dist and ui_dist.exists() else None
+
     app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=lifespan)
     app.state.started_at = datetime.now(timezone.utc)
 
@@ -71,15 +78,20 @@ def create_app() -> FastAPI:
 
     @app.get("/", tags=["meta"])
     async def root():
+        if ui_index and ui_index.exists():
+            return FileResponse(ui_index)
         return {"name": settings.app_name, "version": settings.app_version}
 
     @app.get("/health", tags=["meta"])
+    @app.get("/healthz", tags=["meta"])
     async def health():
         return JSONResponse({"status": "ok", "version": settings.app_version})
 
     app.include_router(search_router)
     app.include_router(v1_router)
     app.include_router(etkc_router)
+    if ui_dist and ui_dist.exists():
+        app.mount("/", StaticFiles(directory=ui_dist, html=True), name="ui")
 
     return app
 

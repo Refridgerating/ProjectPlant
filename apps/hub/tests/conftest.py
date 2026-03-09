@@ -6,6 +6,21 @@ from typing import Any, Callable, Dict
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC_PATH = ROOT / "src"
+
+
+def _purge_conflicting_modules() -> None:
+    src_prefix = str(SRC_PATH.resolve())
+    for name, module in list(sys.modules.items()):
+        if name not in {"config", "main", "auth"} and not name.startswith(("services", "api", "auth.")):
+            continue
+        module_file = getattr(module, "__file__", None)
+        if not module_file:
+            continue
+        if not str(Path(module_file).resolve()).startswith(src_prefix):
+            sys.modules.pop(name, None)
+
+
+_purge_conflicting_modules()
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 

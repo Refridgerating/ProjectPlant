@@ -7,7 +7,7 @@ import {
 } from "../discover";
 
 const HEALTH_ENDPOINT = "/healthz";
-const PROJECTS_ENDPOINT = "/projects.json";
+const INFO_ENDPOINT = "/api/v1/info";
 
 async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
   if (typeof fetch !== "function") {
@@ -50,8 +50,8 @@ export class DiscoverWeb extends WebPlugin implements DiscoverPlugin {
           continue;
         }
 
-        const projectsResponse = await fetchWithTimeout(`${baseUrl}${PROJECTS_ENDPOINT}`, timeoutMs);
-        if (!projectsResponse.ok) {
+        const infoResponse = await fetchWithTimeout(`${baseUrl}${INFO_ENDPOINT}`, timeoutMs);
+        if (!infoResponse.ok) {
           continue;
         }
 

@@ -10,6 +10,7 @@ fi
 
 SRC_DIR=$(cd "$(dirname "$0")" && pwd)
 INSTALL_DIR=/opt/projectplant/ble-provision
+AVAHI_INSTALL_DIR=/opt/projectplant/current/pi/avahi
 SYSTEMD_DIR=/etc/systemd/system
 CONF_DIR=/etc/projectplant
 
@@ -27,7 +28,9 @@ python3 -m pip install dbus-next
 
 echo "[3/6] Installing service files..."
 install -d "$INSTALL_DIR"
+install -d "$AVAHI_INSTALL_DIR"
 install -m 0755 "$SRC_DIR/pp_ble_provision.py" "$INSTALL_DIR/pp_ble_provision.py"
+install -m 0755 "$SRC_DIR/../avahi/publish-projectplant-service.sh" "$AVAHI_INSTALL_DIR/publish-projectplant-service.sh"
 
 install -m 0644 "$SRC_DIR/projectplant-ble-provision.service" "$SYSTEMD_DIR/projectplant-ble-provision.service"
 install -m 0644 "$SRC_DIR/projectplant-avahi.service" "$SYSTEMD_DIR/projectplant-avahi.service"
@@ -40,10 +43,14 @@ if [[ ! -f "$CONF_DIR/pop" ]]; then
   chmod 0640 "$CONF_DIR/pop"
 fi
 
-# Optional Avahi port override via environment file
-if [[ ! -f "$CONF_DIR/avahi-port.env" ]]; then
-  echo "PROJECTPLANT_PORT=80" > "$CONF_DIR/avahi-port.env"
-  chmod 0644 "$CONF_DIR/avahi-port.env"
+# Optional Avahi metadata override via environment file
+if [[ ! -f "$CONF_DIR/avahi.env" ]]; then
+  cat > "$CONF_DIR/avahi.env" <<'EOF'
+PROJECTPLANT_AVAHI_NAME=ProjectPlant Hub
+PROJECTPLANT_PORT=8080
+PROJECTPLANT_AVAHI_TXT=role=hub;channel=dev;hub_version=unknown;agent_version=0.1.0
+EOF
+  chmod 0644 "$CONF_DIR/avahi.env"
 fi
 
 echo "[5/6] Enabling services..."

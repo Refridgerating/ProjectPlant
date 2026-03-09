@@ -1,4 +1,4 @@
-import { ArrowDownTrayIcon, ArrowPathIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
+﻿import { ArrowDownTrayIcon, ArrowPathIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHubInfo } from "./hooks/useHubInfo";
 import { useGeolocation } from "./hooks/useGeolocation";
@@ -25,6 +25,7 @@ import { WaterModelSection } from "./components/WaterModelSection";
 import { CollapsibleTile } from "./components/CollapsibleTile";
 import { DeviceNamingPrompt } from "./components/DeviceNamingPrompt";
 import { useSensorRead } from "./hooks/useSensorRead";
+import { useIcZone1Control } from "./hooks/useIcZone1Control";
 import { usePumpControl } from "./hooks/usePumpControl";
 import { useFanControl } from "./hooks/useFanControl";
 import { useMisterControl } from "./hooks/useMisterControl";
@@ -33,13 +34,18 @@ import {
   TelemetrySample,
   SensorReadPayload,
   exportPotTelemetry,
+  fetchFleetHubAudit,
+  fetchFleetHubSummary,
   fetchPotTelemetry,
+  type HubInfo,
+  queueFleetHubRollback,
+  queueFleetHubUpdate,
   updateDeviceName,
   updateSensorMode,
 } from "./api/hubClient";
 import { useHealthDiagnostics } from "./hooks/useHealthDiagnostics";
 import { DiagnosticsPage } from "./pages/DiagnosticsPage";
-import { getSettings, RuntimeMode } from "./settings";
+import { getSettings, setSettings, type EffectiveAccessSnapshot, RuntimeMode, type UiSettings } from "./settings";
 import {
   useEventStore,
   selectPotTelemetry,
@@ -101,9 +107,11 @@ const DEFAULT_POT_TELEMETRY_CAP = 4_096;
 const HEALTH_REFRESH_THROTTLE_MS = 15_000;
 const HEALTH_REFRESH_POLL_MS = 30_000;
 const CONTROL_POT_STORAGE_KEY = "projectplant:plant-control:selected-pot:v1";
+const CONTROL_DURATION_STORAGE_KEY = "projectplant:plant-control:manual-duration-sec:v1";
 
 const CONTROL_DEVICES = [
-  { id: "pump", label: "H2O Pump" },
+  { id: "ic_zone1", label: "IC Zone 1" },
+  { id: "pump", label: "Pump" },
   { id: "fan", label: "Fan" },
   { id: "light", label: "Grow Light" },
   { id: "feeder", label: "Feeder" },
@@ -190,6 +198,255 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
         Try again
       </button>
     </div>
+  );
+}
+
+function recordString(value: Record<string, unknown> | null | undefined, key: string): string | null {
+  if (!value) {
+    return null;
+  }
+  const next = value[key];
+  return typeof next === "string" && next.trim() ? next.trim() : null;
+}
+
+function ManagedAccessBanner({
+  settings,
+  info,
+}: {
+  settings: UiSettings;
+  info: HubInfo | null;
+}) {
+  const access = settings.effectiveAccess;
+  if (settings.authMode !== "managed" || !access) {
+    return null;
+  }
+  const scopeLabel = access.scopes.length ? access.scopes.join(" · ") : "No scoped assignments";
+  return (
+    <div className="rounded-2xl border border-sky-500/30 bg-[linear-gradient(135deg,rgba(8,33,23,0.92),rgba(10,31,44,0.9))] p-4 text-sm text-sky-100 shadow-[0_18px_40px_rgba(5,20,18,0.45)]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-200/70">Managed Access</p>
+          <p className="text-base font-semibold text-sky-50">
+            {access.email} · {access.systemRole}
+            {access.isPrimaryMaster ? " · primary master" : ""}
+            {access.isBackupMaster ? " · backup master" : ""}
+          </p>
+          <p className="text-xs text-sky-100/70">{scopeLabel}</p>
+          <p className="text-xs text-sky-100/60">
+            Hub {info?.hubId || settings.effectiveAccess.hubs[0] || "unassigned"} · site {info?.siteId || access.sites[0] || "-"} · org {info?.organizationId || access.organizations[0] || "-"}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center rounded-full border border-sky-400/30 bg-sky-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-sky-100">
+            MFA {access.mfaSatisfied ? "verified" : access.mfaRequired ? "required" : "optional"}
+          </span>
+          {settings.fleetConsoleUrl ? (
+            <a
+              href={settings.fleetConsoleUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center rounded-full border border-sky-400/30 bg-sky-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-sky-100 transition hover:border-sky-300/60 hover:bg-sky-500/20"
+            >
+              Open Fleet Console
+            </a>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FleetQuickOpsTile({
+  settings,
+}: {
+  settings: UiSettings;
+}) {
+  const access = settings.effectiveAccess;
+  const visible = settings.authMode === "managed" && !!access;
+  const canView = !!access && access.capabilities.includes("hub.view");
+  const canUpdate = !!access && access.capabilities.includes("hub.update");
+  const canRollback = !!access && access.capabilities.includes("hub.rollback");
+  const canAudit = !!access && access.capabilities.includes("audit.view");
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<{ hub: Record<string, unknown>; releases: Array<Record<string, unknown>> } | null>(null);
+  const [auditEvents, setAuditEvents] = useState<Array<Record<string, unknown>>>([]);
+  const [selectedReleaseId, setSelectedReleaseId] = useState("");
+  const [actionStatus, setActionStatus] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!visible || !canView) {
+      return;
+    }
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const [nextSummary, nextAudit] = await Promise.all([
+        fetchFleetHubSummary(),
+        canAudit ? fetchFleetHubAudit(6) : Promise.resolve({ events: [] }),
+      ]);
+      setSummary(nextSummary);
+      setAuditEvents(nextAudit.events);
+      setSelectedReleaseId((current) => current || recordString(nextSummary.releases[0] as Record<string, unknown> | undefined, "releaseId") || "");
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Failed to load fleet quick ops.");
+      setSummary(null);
+      setAuditEvents([]);
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [canAudit, canView, visible]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  if (!visible || !access) {
+    return null;
+  }
+
+  const hubRecord = summary?.hub ?? null;
+  const releases = summary?.releases ?? [];
+  const currentReleaseId = recordString(hubRecord, "currentReleaseId");
+  const lastKnownGoodReleaseId = recordString(hubRecord, "lastKnownGoodReleaseId");
+  const channel = recordString(hubRecord, "channel");
+  const lastCheckInAt = recordString(hubRecord, "lastCheckInAt");
+
+  return (
+    <CollapsibleTile
+      id="managed-fleet-quick-ops"
+      title="Fleet Quick Ops"
+      subtitle="Managed release controls and recent control-plane audit for this hub."
+      className="text-sm text-emerald-100/90"
+      bodyClassName="mt-4 space-y-4 text-emerald-100"
+      titleClassName="text-base font-semibold text-emerald-50"
+      subtitleClassName="text-xs text-emerald-200/70"
+    >
+      {summaryError ? (
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-100">{summaryError}</div>
+      ) : null}
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border border-emerald-700/40 bg-[rgba(8,28,20,0.72)] p-3">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-200/60">Current Release</p>
+          <p className="mt-2 text-lg font-semibold text-emerald-50">{currentReleaseId || "-"}</p>
+        </div>
+        <div className="rounded-xl border border-emerald-700/40 bg-[rgba(8,28,20,0.72)] p-3">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-200/60">Last Known Good</p>
+          <p className="mt-2 text-lg font-semibold text-emerald-50">{lastKnownGoodReleaseId || "-"}</p>
+        </div>
+        <div className="rounded-xl border border-emerald-700/40 bg-[rgba(8,28,20,0.72)] p-3">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-200/60">Channel</p>
+          <p className="mt-2 text-lg font-semibold text-emerald-50">{channel || "-"}</p>
+        </div>
+        <div className="rounded-xl border border-emerald-700/40 bg-[rgba(8,28,20,0.72)] p-3">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-200/60">Last Check-In</p>
+          <p className="mt-2 text-sm font-semibold text-emerald-50">{formatIsoTimestamp(lastCheckInAt)}</p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <select
+          value={selectedReleaseId}
+          onChange={(event) => setSelectedReleaseId(event.target.value)}
+          className="min-w-[14rem] rounded-lg border border-emerald-600/30 bg-[rgba(7,28,20,0.82)] px-3 py-2 text-sm text-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
+        >
+          <option value="">Select release</option>
+          {releases.map((release, index) => {
+            const releaseId = recordString(release, "releaseId") || `release-${index}`;
+            const releaseChannel = recordString(release, "channel");
+            return (
+              <option key={releaseId} value={releaseId}>
+                {releaseId}{releaseChannel ? ` · ${releaseChannel}` : ""}
+              </option>
+            );
+          })}
+        </select>
+        <button
+          type="button"
+          onClick={() =>
+            void (async () => {
+              if (!selectedReleaseId) {
+                setActionStatus("Select a release first.");
+                return;
+              }
+              try {
+                setActionStatus("Queueing update...");
+                await queueFleetHubUpdate(selectedReleaseId);
+                setActionStatus(`Queued update to ${selectedReleaseId}.`);
+                await refresh();
+              } catch (err) {
+                setActionStatus(err instanceof Error ? err.message : "Failed to queue update.");
+              }
+            })()
+          }
+          disabled={!canUpdate || !selectedReleaseId || summaryLoading}
+          className="inline-flex items-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Queue Update
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void (async () => {
+              try {
+                setActionStatus("Queueing rollback...");
+                await queueFleetHubRollback();
+                setActionStatus("Queued rollback to the last known good release.");
+                await refresh();
+              } catch (err) {
+                setActionStatus(err instanceof Error ? err.message : "Failed to queue rollback.");
+              }
+            })()
+          }
+          disabled={!canRollback || summaryLoading}
+          className="inline-flex items-center rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Queue Rollback
+        </button>
+        <button
+          type="button"
+          onClick={() => void refresh()}
+          disabled={summaryLoading}
+          className="inline-flex items-center rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {summaryLoading ? "Refreshing..." : "Refresh Fleet Data"}
+        </button>
+        {settings.fleetConsoleUrl ? (
+          <a
+            href={settings.fleetConsoleUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center rounded-lg border border-slate-500/30 bg-slate-500/10 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-500/20"
+          >
+            Fleet Console
+          </a>
+        ) : null}
+      </div>
+
+      {actionStatus ? <p className="text-xs text-emerald-200/75">{actionStatus}</p> : null}
+
+      {canAudit ? (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200/60">Recent Audit</p>
+          {auditEvents.length ? (
+            auditEvents.map((event, index) => (
+              <div
+                key={recordString(event, "eventId") || `audit-${index}`}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-700/30 bg-[rgba(7,24,18,0.72)] px-3 py-2 text-xs"
+              >
+                <div>
+                  <p className="font-semibold text-emerald-50">{recordString(event, "eventType") || "event"}</p>
+                  <p className="text-emerald-200/60">{formatIsoTimestamp(recordString(event, "createdAt"))}</p>
+                </div>
+                <span className="uppercase tracking-wide text-emerald-200/70">{recordString(event, "outcome") || "-"}</span>
+              </div>
+            ))
+          ) : (
+            <p className="text-xs text-emerald-200/70">No audit events available for this hub.</p>
+          )}
+        </div>
+      ) : null}
+    </CollapsibleTile>
   );
 }
 
@@ -398,6 +655,32 @@ function persistControlPotSelection(selection: {
   }
 }
 
+function loadPersistedManualDuration(): string {
+  if (typeof window === "undefined") {
+    return "60";
+  }
+  try {
+    const stored = window.localStorage.getItem(CONTROL_DURATION_STORAGE_KEY);
+    if (stored === null) {
+      return "60";
+    }
+    return stored;
+  } catch {
+    return "60";
+  }
+}
+
+function persistManualDuration(value: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(CONTROL_DURATION_STORAGE_KEY, value);
+  } catch {
+    // ignore storage failures
+  }
+}
+
 export default function App() {
   const { data, loading, error, refresh } = useHubInfo();
   const {
@@ -419,6 +702,7 @@ export default function App() {
     return DEFAULT_POT_TELEMETRY_CAP;
   }, [data]);
   const initialSettings = getSettings();
+  const [sessionSettings, setSessionSettings] = useState<UiSettings>(initialSettings);
   const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>(initialSettings.mode);
   const initialTelemetrySource = initialSettings.mode === "live" ? DEFAULT_TELEMETRY_POTS[0] : "mock";
   useEventSource(runtimeMode === "live");
@@ -524,6 +808,44 @@ export default function App() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const syncSettings = () => setSessionSettings(getSettings());
+    const handleStorage = (event: StorageEvent) => {
+      if (!event.key || event.key === "projectplant:ui:settings") {
+        syncSettings();
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("projectplant:settings-changed", syncSettings);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("projectplant:settings-changed", syncSettings);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!data) {
+      return;
+    }
+    const current = getSettings();
+    const nextAuthMode = data.authMode?.trim() || current.authMode || "local_compat";
+    const nextControlPlaneUrl = data.controlPlaneUrl?.trim() ?? current.controlPlaneUrl;
+    const nextFleetConsoleUrl = nextControlPlaneUrl ? nextControlPlaneUrl.replace(/\/$/, "") : current.fleetConsoleUrl;
+    if (
+      current.authMode === nextAuthMode &&
+      current.controlPlaneUrl === nextControlPlaneUrl &&
+      current.fleetConsoleUrl === nextFleetConsoleUrl
+    ) {
+      return;
+    }
+    setSettings({
+      ...current,
+      authMode: nextAuthMode,
+      controlPlaneUrl: nextControlPlaneUrl,
+      fleetConsoleUrl: nextFleetConsoleUrl,
+    });
+  }, [data]);
 
   useEffect(() => {
     if (geolocation.status !== "granted" || !geolocation.coords) {
@@ -1183,18 +1505,21 @@ export default function App() {
 
     if (activeChartTab === "control") {
       return (
-        <PlantControlPanel
-          states={controlStates}
-          onToggle={toggleControl}
-          watering={watering}
-          onSnapshot={handleSensorSnapshot}
-          resolvePotLabel={resolvePotLabel}
-          availablePotIds={controlPotIds}
-          potIdentities={potIdentities}
-          onRename={handleManualRename}
-          onRefreshDevices={() => requestHealthRefresh(true)}
-          refreshingDevices={healthLoading}
-        />
+        <div className="space-y-6">
+          <FleetQuickOpsTile settings={sessionSettings} />
+          <PlantControlPanel
+            states={controlStates}
+            onToggle={toggleControl}
+            watering={watering}
+            onSnapshot={handleSensorSnapshot}
+            resolvePotLabel={resolvePotLabel}
+            availablePotIds={controlPotIds}
+            potIdentities={potIdentities}
+            onRename={handleManualRename}
+            onRefreshDevices={() => requestHealthRefresh(true)}
+            refreshingDevices={healthLoading}
+          />
+        </div>
       );
     }
 
@@ -1254,17 +1579,20 @@ export default function App() {
 
     if (activeChartTab === "diagnostics") {
       return (
-        <DiagnosticsPage
-          summary={healthSummary}
-          mqtt={healthMqtt}
-          weather={healthWeather}
-          storage={healthStorage}
-          events={healthEvents}
-          eventsCount={healthEventsCount}
-          loading={healthLoading}
-          error={healthError}
-          onRefresh={refreshHealth}
-        />
+        <div className="space-y-6">
+          <FleetQuickOpsTile settings={sessionSettings} />
+          <DiagnosticsPage
+            summary={healthSummary}
+            mqtt={healthMqtt}
+            weather={healthWeather}
+            storage={healthStorage}
+            events={healthEvents}
+            eventsCount={healthEventsCount}
+            loading={healthLoading}
+            error={healthError}
+            onRefresh={refreshHealth}
+          />
+        </div>
       );
     }
 
@@ -1294,6 +1622,7 @@ export default function App() {
     telemetryActions,
     handleRefresh,
     handleSensorSnapshot,
+    sessionSettings,
     coverageHours,
     localStation,
     runtimeMode,
@@ -1378,6 +1707,12 @@ export default function App() {
               error={healthError ?? error}
               onHandleCache={() => setCacheManagerOpen(true)}
             />
+          </div>
+        ) : null}
+
+        {!loading ? (
+          <div className="mx-auto w-full max-w-6xl px-6 lg:px-12 xl:px-20">
+            <ManagedAccessBanner settings={sessionSettings} info={data} />
           </div>
         ) : null}
 
@@ -1557,6 +1892,16 @@ function PlantControlPanel({
     [availablePotIds]
   );
   const {
+    isOn: icZone1IsOn,
+    pending: icZone1Pending,
+    requestId: icZone1RequestId,
+    lastConfirmedAt: icZone1LastConfirmedAt,
+    feedback: icZone1Feedback,
+    clearFeedback: clearIcZone1Feedback,
+    toggle: toggleIcZone1,
+    syncTelemetry: syncIcZone1Telemetry,
+  } = useIcZone1Control(undefined, trimmedPotId);
+  const {
     isOn: pumpIsOn,
     pending: pumpPending,
     requestId: pumpRequestId,
@@ -1610,6 +1955,7 @@ function PlantControlPanel({
   const [sensorModeSaving, setSensorModeSaving] = useState(false);
   const [useCustomPotId, setUseCustomPotId] = useState(() => persistedControlPotSelection.useCustomPotId ?? false);
   const [customPotId, setCustomPotId] = useState(() => persistedControlPotSelection.customPotId ?? "");
+  const [manualDurationSec, setManualDurationSec] = useState<string>(() => loadPersistedManualDuration());
   const connectedPotIdSet = useMemo(() => new Set(connectedPotIds), [connectedPotIds]);
   const controlPotSelectValue = useMemo(() => {
     if (!connectedPotIds.length || useCustomPotId) {
@@ -1668,6 +2014,7 @@ function PlantControlPanel({
     setFeedback(null);
     setRenameFeedback(null);
     setSensorModeFeedback(null);
+    clearIcZone1Feedback();
     clearPumpFeedback();
     clearFanFeedback();
     clearMisterFeedback();
@@ -1675,6 +2022,7 @@ function PlantControlPanel({
   }, [
     trimmedPotId,
     sensorRead.reset,
+    clearIcZone1Feedback,
     clearPumpFeedback,
     clearFanFeedback,
     clearMisterFeedback,
@@ -1731,6 +2079,10 @@ function PlantControlPanel({
     });
   }, [selectedPotId, useCustomPotId, customPotId]);
 
+  useEffect(() => {
+    persistManualDuration(manualDurationSec);
+  }, [manualDurationSec]);
+
   const handleControlPotChange = useCallback(
     (value: string) => {
       if (value === "__custom__") {
@@ -1771,6 +2123,13 @@ function PlantControlPanel({
     return () => clearTimeout(timer);
   }, [feedback]);
 
+  useEffect(() => {
+    if (!icZone1Feedback) {
+      return;
+    }
+    const timer = setTimeout(() => clearIcZone1Feedback(), 5000);
+    return () => clearTimeout(timer);
+  }, [icZone1Feedback, clearIcZone1Feedback]);
   useEffect(() => {
     if (!pumpFeedback) {
       return;
@@ -1864,6 +2223,7 @@ function PlantControlPanel({
       ...sensorSnapshot,
       requestId: sensorRead.requestId ?? null,
     };
+    syncIcZone1Telemetry(payload);
     syncPumpTelemetry(payload);
     syncFanTelemetry(payload);
     syncMisterTelemetry(payload);
@@ -1871,6 +2231,7 @@ function PlantControlPanel({
   }, [
     sensorSnapshot,
     sensorRead.requestId,
+    syncIcZone1Telemetry,
     syncPumpTelemetry,
     syncFanTelemetry,
     syncMisterTelemetry,
@@ -1884,6 +2245,14 @@ function PlantControlPanel({
     const status = pumpStatusMap[trimmedPotId];
     if (!status) {
       return;
+    }
+    if (typeof status.icZone1On === "boolean") {
+      syncIcZone1Telemetry({
+        icZone1On: status.icZone1On,
+        timestamp: status.timestamp ?? null,
+        timestampMs: status.timestampMs ?? null,
+        requestId: status.requestId ?? null,
+      });
     }
     if (typeof status.pumpOn === "boolean") {
       syncPumpTelemetry({
@@ -1917,7 +2286,15 @@ function PlantControlPanel({
         requestId: status.requestId ?? null,
       });
     }
-  }, [pumpStatusMap, syncPumpTelemetry, syncFanTelemetry, syncMisterTelemetry, syncLightTelemetry, trimmedPotId]);
+  }, [
+    pumpStatusMap,
+    syncIcZone1Telemetry,
+    syncPumpTelemetry,
+    syncFanTelemetry,
+    syncMisterTelemetry,
+    syncLightTelemetry,
+    trimmedPotId,
+  ]);
 
   const isSubmitDisabled = sensorRead.loading || !trimmedPotId;
   const snapshotTimestamp = sensorSnapshot
@@ -1928,11 +2305,22 @@ function PlantControlPanel({
   const temperatureValue = formatMaybeNumber(sensorSnapshot?.temperature ?? NaN, 1);
   const humidityValue = formatMaybeNumber(sensorSnapshot?.humidity ?? NaN, 1);
   const flowRateValue = formatMaybeNumber(sensorSnapshot?.flowRateLpm ?? NaN, 2);
-  const valveDisplay = typeof sensorSnapshot?.valveOpen === "boolean"
-    ? sensorSnapshot.valveOpen
-      ? "Open"
-      : "Closed"
-    : "Unknown";
+  const pumpDisplay =
+    typeof sensorSnapshot?.valveOpen === "boolean"
+      ? sensorSnapshot.valveOpen
+        ? "On"
+        : "Off"
+      : "Unknown";
+  const icZone1Display =
+    typeof sensorSnapshot?.icZone1On === "boolean"
+      ? sensorSnapshot.icZone1On
+        ? "On"
+        : "Off"
+      : typeof sensorSnapshot?.valveOpen === "boolean"
+        ? sensorSnapshot.valveOpen
+          ? "On"
+          : "Off"
+        : "Unknown";
   const fanDisplay = typeof sensorSnapshot?.fanOn === "boolean"
     ? sensorSnapshot.fanOn
       ? "On"
@@ -1955,6 +2343,45 @@ function PlantControlPanel({
   const reservoirDisplay = describeWaterLow(sensorSnapshot?.waterLow);
   const cutoffDisplay = describeWaterCutoff(sensorSnapshot?.waterCutoff);
   const potIdDisplay = sensorSnapshot?.potId ? sensorSnapshot.potId : null;
+  const manualOverrideDurationMs = useMemo(() => {
+    const trimmed = manualDurationSec.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return undefined;
+    }
+    return Math.round(parsed * 1000);
+  }, [manualDurationSec]);
+  const manualDurationInvalid = manualDurationSec.trim().length > 0 && manualOverrideDurationMs === undefined;
+
+  const icZone1StatusLabel = icZone1Pending
+    ? "Pending"
+    : icZone1IsOn === null
+      ? "Unknown"
+      : icZone1IsOn
+        ? "On"
+        : "Off";
+  const icZone1Helper = (() => {
+    if (!trimmedPotId) {
+      return "Select a control pot above to enable IC Zone 1 control.";
+    }
+    if (icZone1Pending) {
+      return "Awaiting confirmation from the hub...";
+    }
+    if (icZone1LastConfirmedAt) {
+      return icZone1RequestId
+        ? `Last confirmed ${icZone1LastConfirmedAt} - Request ${icZone1RequestId}`
+        : `Last confirmed ${icZone1LastConfirmedAt}`;
+    }
+    return "Tap to toggle IC Zone 1.";
+  })();
+  const icZone1ButtonDisabled = !trimmedPotId || icZone1Pending;
+  const handleIcZone1Toggle = useCallback(() => {
+    void toggleIcZone1({ potId: trimmedPotId, durationMs: manualOverrideDurationMs });
+  }, [manualOverrideDurationMs, toggleIcZone1, trimmedPotId]);
+
   const pumpStatusLabel = pumpPending
     ? "Pending"
     : pumpIsOn === null
@@ -1971,15 +2398,15 @@ function PlantControlPanel({
     }
     if (pumpLastConfirmedAt) {
       return pumpRequestId
-        ? `Last confirmed ${pumpLastConfirmedAt} · Request ${pumpRequestId}`
+        ? `Last confirmed ${pumpLastConfirmedAt} - Request ${pumpRequestId}`
         : `Last confirmed ${pumpLastConfirmedAt}`;
     }
     return "Tap to toggle the pump.";
   })();
   const pumpButtonDisabled = !trimmedPotId || pumpPending;
   const handlePumpToggle = useCallback(() => {
-    void togglePump({ potId: trimmedPotId });
-  }, [togglePump, trimmedPotId]);
+    void togglePump({ potId: trimmedPotId, durationMs: manualOverrideDurationMs });
+  }, [manualOverrideDurationMs, togglePump, trimmedPotId]);
 
   const fanStatusLabel = fanPending
     ? "Pending"
@@ -2004,8 +2431,8 @@ function PlantControlPanel({
   })();
   const fanButtonDisabled = !trimmedPotId || fanPending;
   const handleFanToggle = useCallback(() => {
-    void toggleFan({ potId: trimmedPotId });
-  }, [toggleFan, trimmedPotId]);
+    void toggleFan({ potId: trimmedPotId, durationMs: manualOverrideDurationMs });
+  }, [manualOverrideDurationMs, toggleFan, trimmedPotId]);
 
   const misterStatusLabel = misterPending
     ? "Pending"
@@ -2030,8 +2457,8 @@ function PlantControlPanel({
   })();
   const misterButtonDisabled = !trimmedPotId || misterPending;
   const handleMisterToggle = useCallback(() => {
-    void toggleMister({ potId: trimmedPotId });
-  }, [toggleMister, trimmedPotId]);
+    void toggleMister({ potId: trimmedPotId, durationMs: manualOverrideDurationMs });
+  }, [manualOverrideDurationMs, toggleMister, trimmedPotId]);
 
   const lightStatusLabel = lightPending
     ? "Pending"
@@ -2056,8 +2483,8 @@ function PlantControlPanel({
   })();
   const lightButtonDisabled = !trimmedPotId || lightPending;
   const handleLightToggle = useCallback(() => {
-    void toggleLight({ potId: trimmedPotId });
-  }, [toggleLight, trimmedPotId]);
+    void toggleLight({ potId: trimmedPotId, durationMs: manualOverrideDurationMs });
+  }, [manualOverrideDurationMs, toggleLight, trimmedPotId]);
 
   return (
     <div className="space-y-4">
@@ -2248,7 +2675,21 @@ function PlantControlPanel({
               {sensorModeFeedback.message}
             </div>
           ) : null}
-        {pumpFeedback ? (
+        {icZone1Feedback ? (
+            <div
+              role="status"
+              className={`rounded-lg border px-3 py-2 text-xs ${
+                icZone1Feedback.type === "success"
+                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
+                : icZone1Feedback.type === "error"
+                  ? "border-rose-500/50 bg-rose-500/10 text-rose-200"
+                  : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200/80"
+              }`}
+            >
+              {icZone1Feedback.message}
+            </div>
+          ) : null}
+          {pumpFeedback ? (
             <div
               role="status"
               className={`rounded-lg border px-3 py-2 text-xs ${
@@ -2304,8 +2745,40 @@ function PlantControlPanel({
               {lightFeedback.message}
             </div>
           ) : null}
+        <div className="flex flex-col gap-2 rounded-xl border border-emerald-800/40 bg-[rgba(6,24,16,0.72)] px-4 py-3 text-xs text-emerald-100/80">
+          <label className="flex flex-col gap-1 text-emerald-200/70">
+            Manual override duration (seconds)
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={manualDurationSec}
+              onChange={(event) => setManualDurationSec(event.target.value)}
+              placeholder="e.g. 60"
+              className="mt-1 max-w-[12rem] rounded-lg border border-emerald-700/50 bg-[rgba(6,30,20,0.88)] px-3 py-2 text-sm text-emerald-100 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
+            />
+          </label>
+          <p className={`text-[11px] ${manualDurationInvalid ? "text-rose-200" : "text-emerald-200/60"}`}>
+            {manualDurationInvalid
+              ? "Enter a positive number of seconds or leave blank for the device default."
+              : "Leave blank to use the device default."}
+          </p>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {CONTROL_DEVICES.map((device) => {
+              if (device.id === "ic_zone1") {
+                return (
+                  <ControlToggleButton
+                    key={device.id}
+                    label={device.label}
+                    isOn={icZone1IsOn ?? false}
+                    status={icZone1StatusLabel}
+                    helper={icZone1Helper}
+                    disabled={icZone1ButtonDisabled}
+                    onClick={handleIcZone1Toggle}
+                  />
+                );
+              }
               if (device.id === "pump") {
                 return (
                   <ControlToggleButton
@@ -2389,8 +2862,12 @@ function PlantControlPanel({
                       <dd className="text-sm text-emerald-100">{applyUnit(flowRateValue, "L/min")}</dd>
                     </div>
                     <div>
-                      <dt className="text-[10px] uppercase tracking-wide text-emerald-200/60">Valve</dt>
-                      <dd className="text-sm text-emerald-100">{valveDisplay}</dd>
+                      <dt className="text-[10px] uppercase tracking-wide text-emerald-200/60">IC Zone 1</dt>
+                      <dd className="text-sm text-emerald-100">{icZone1Display}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wide text-emerald-200/60">Pump</dt>
+                      <dd className="text-sm text-emerald-100">{pumpDisplay}</dd>
                     </div>
                     <div>
                       <dt className="text-[10px] uppercase tracking-wide text-emerald-200/60">Fan</dt>
@@ -2502,6 +2979,7 @@ function TabButton({
     </button>
   );
 }
+
 
 
 
