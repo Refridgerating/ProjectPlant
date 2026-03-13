@@ -33,6 +33,8 @@ class AgentConfig:
     release_public_key_path: Path | None
     hub_health_checks: tuple[str, ...]
     managed_services: tuple[str, ...]
+    avahi_env_path: Path
+    avahi_service_name: str | None
     mqtt_broker_mode: str
     site: str | None
     channel: str
@@ -50,6 +52,8 @@ def load_config() -> AgentConfig:
     release_key = env.get("PROJECTPLANT_RELEASE_PUBLIC_KEY_PATH")
     health_checks = env.get("PROJECTPLANT_HUB_HEALTH_CHECKS", "http://127.0.0.1:8080/healthz,http://127.0.0.1:8080/api/v1/health")
     managed = env.get("PROJECTPLANT_MANAGED_SERVICES", "projectplant-hub.service,projectplant-avahi.service,mosquitto.service")
+    avahi_env_path = Path(env.get("PROJECTPLANT_AVAHI_ENV_PATH", "/etc/projectplant/avahi.env"))
+    avahi_service_name = (env.get("PROJECTPLANT_AVAHI_SERVICE_NAME", "projectplant-avahi.service") or "").strip() or None
     return AgentConfig(
         control_url=env.get("FLEET_CONTROL_URL", "").rstrip("/"),
         bootstrap_token=env.get("FLEET_BOOTSTRAP_TOKEN", ""),
@@ -64,6 +68,8 @@ def load_config() -> AgentConfig:
         release_public_key_path=Path(release_key) if release_key else None,
         hub_health_checks=tuple(item.strip() for item in health_checks.split(",") if item.strip()),
         managed_services=tuple(item.strip() for item in managed.split(",") if item.strip()),
+        avahi_env_path=avahi_env_path,
+        avahi_service_name=avahi_service_name,
         mqtt_broker_mode=env.get("PROJECTPLANT_MQTT_BROKER_MODE", "external").strip() or "external",
         site=env.get("PROJECTPLANT_SITE") or None,
         channel=env.get("PROJECTPLANT_CHANNEL", "dev").strip() or "dev",

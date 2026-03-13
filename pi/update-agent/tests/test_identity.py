@@ -28,6 +28,8 @@ def _config(tmp_path: Path) -> AgentConfig:
         release_public_key_path=None,
         hub_health_checks=("http://127.0.0.1:8080/healthz",),
         managed_services=("projectplant-hub.service",),
+        avahi_env_path=tmp_path / "avahi.env",
+        avahi_service_name=None,
         mqtt_broker_mode="external",
         site="lab",
         channel="dev",

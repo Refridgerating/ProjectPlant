@@ -27,8 +27,21 @@ def _operation_result_payload(operation_id: str, outcome) -> dict[str, object]:
     }
 
 
-def _write_avahi_metadata(identity: AgentIdentity, state: AgentState) -> None:
-    env_path = Path("/etc/projectplant/avahi.env")
+def _avahi_service_available(service_name: str) -> bool:
+    try:
+        result = subprocess.run(
+            ["systemctl", "show", "--property=LoadState", "--value", service_name],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except Exception:
+        return False
+    return result.returncode == 0 and result.stdout.strip() not in {"", "not-found"}
+
+
+def _write_avahi_metadata(config, identity: AgentIdentity, state: AgentState) -> None:
+    env_path = config.avahi_env_path
     suffix = identity.hub_id.split("-", 1)[-1][-6:]
     channel = str(state.metadata.get("channel") or "dev")
     hub_version = str(state.metadata.get("hubVersion") or "unknown")
@@ -45,7 +58,12 @@ def _write_avahi_metadata(identity: AgentIdentity, state: AgentState) -> None:
         return
     env_path.parent.mkdir(parents=True, exist_ok=True)
     env_path.write_text(payload, encoding="utf-8")
-    subprocess.run(["systemctl", "restart", "projectplant-avahi.service"], check=False)
+    if not config.avahi_service_name:
+        return
+    if not _avahi_service_available(config.avahi_service_name):
+        logger.info("Avahi service %s not installed; skipping restart", config.avahi_service_name)
+        return
+    subprocess.run(["systemctl", "restart", config.avahi_service_name], check=False)
 
 
 def run_forever() -> None:
@@ -60,7 +78,7 @@ def run_forever() -> None:
 
     while True:
         try:
-            _write_avahi_metadata(identity, state)
+            _write_avahi_metadata(config, identity, state)
             inventory = collect_inventory(config, identity, state)
             if not identity.enrolled:
                 logger.info("Enrolling hub %s with fleet control plane", identity.hub_id)
