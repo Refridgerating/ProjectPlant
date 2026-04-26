@@ -1,0 +1,15 @@
+[project]
+name = "projectplant-device-protocol"
+version = "0.1.0"
+description = "MQTT topics and payload contracts for ProjectPlant devices"
+requires-python = ">=3.11"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

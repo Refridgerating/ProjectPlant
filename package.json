@@ -3,8 +3,15 @@
   "private": true,
   "packageManager": "pnpm@9.10.0",
   "scripts": {
+    "dev:stack": "powershell -ExecutionPolicy Bypass -File scripts/dev-stack.ps1",
+    "dev:hub": "powershell -ExecutionPolicy Bypass -Command \"Set-Location apps/hub_api; python -m uvicorn --app-dir src main:app --reload --host 127.0.0.1 --port 8000\"",
+    "dev:fleet": "powershell -ExecutionPolicy Bypass -Command \"Set-Location apps/fleet; python -m uvicorn --app-dir src main:app --reload --host 127.0.0.1 --port 8100\"",
+    "dev:hub-ui": "pnpm -C apps/web_ui dev --host 127.0.0.1 --port 5173",
+    "dev:fleet-ui": "pnpm -C apps/fleet-ui dev --host 127.0.0.1 --port 5180",
     "dev:web": "pnpm --filter @projectplant/web run dev",
     "build:web": "pnpm --filter @projectplant/web run build",
+    "mobile:android:dev": "pnpm --filter @projectplant/android run dev",
+    "mobile:android:run": "pnpm --filter @projectplant/android run run",
     "mobile:android:open": "pnpm --filter @projectplant/android run open",
     "mobile:android:build": "pnpm --filter @projectplant/android run build",
     "build:mobile": "pnpm --filter @projectplant/android run sync"

@@ -1,0 +1,106 @@
+Command: ninja flash
+[1/17] Performing build step for 'bootloader'
+[1/1] C:\Windows\system32\cmd.exe /C "cd /D C:\ProjectPlant\ProjectPlant\firmware\esp32_pot\build\bootloader\esp-idf\esptool_py && C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe C:/Espressif/frameworks/esp-idf-v5.5.1/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x1000 C:/ProjectPlant/ProjectPlant/firmware/esp32_pot/build/bootloader/bootloader.bin"
+Bootloader binary size 0x6680 bytes. 0x980 bytes (8%) free.
+[2/17] No install step for 'bootloader'
+[3/17] Completed 'bootloader'
+[4/17] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/startup_onboarding.c.obj
+[5/17] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/app_main.c.obj
+[6/17] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/sensors.c.obj
+[7/17] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/device_identity.c.obj
+[8/17] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/aht10.c.obj
+[9/17] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/node_schedule.c.obj
+[10/17] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/preferences.c.obj
+[11/17] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/plant_mqtt.c.obj
+[12/17] Linking C static library esp-idf\main\libmain.a
+[13/17] Generating esp-idf/esp_system/ld/sections.ld
+[14/17] Linking CXX executable esp32_pot.elf
+[15/17] Generating binary image from built executable
+esptool.py v4.11.0
+Creating esp32 image...
+Merged 2 ELF sections
+Successfully created esp32 image.
+Generated C:/ProjectPlant/ProjectPlant/firmware/esp32_pot/build/esp32_pot.bin
+[16/17] C:\Windows\system32\cmd.exe /C "cd /D C:\ProjectPlant\ProjectPlant\firmware\esp32_pot\build\esp-idf\esptool_py && C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe C:/Espressif/frameworks/esp-idf-v5.5.1/components/partition_table/check_sizes.py --offset 0x8000 partition --type app C:/ProjectPlant/ProjectPlant/firmware/esp32_pot/build/partition_table/partition-table.bin C:/ProjectPlant/ProjectPlant/firmware/esp32_pot/build/esp32_pot.bin"
+esp32_pot.bin binary size 0x12fb40 bytes. Smallest app partition is 0x177000 bytes. 0x474c0 bytes (19%) free.
+[16/17] C:\Windows\system32\cmd.exe /C "cd /D C:\Espressif\frameworks\esp-idf-v5.5.1\components\esptool_py && C:\Espressif\tools\cmake\3.30.2\bin\cmake.exe -D IDF_PATH=C:/Espressif/frameworks/esp-idf-v5.5.1 -D SERIAL_TOOL=C:/Espressif/python_env/idf5.5_py3.11_env/Scripts/python.exe;;C:/Espressif/frameworks/esp-idf-v5.5.1/components/esptool_py/esptool/esptool.py;--chip;esp32 -D SERIAL_TOOL_ARGS=--before=default_reset;--after=hard_reset;write_flash;@flash_args -D WORKING_DIRECTORY=C:/ProjectPlant/ProjectPlant/firmware/esp32_pot/build -P C:/Espressif/frameworks/esp-idf-v5.5.1/components/esptool_py/run_serial_tool.cmake"
+esptool.py --chip esp32 -p COM8 -b 460800 --before=default_reset --after=hard_reset write_flash --flash_mode dio --flash_freq 40m --flash_size 2MB 0x1000 bootloader/bootloader.bin 0x10000 esp32_pot.bin 0x8000 partition_table/partition-table.bin
+esptool.py v4.11.0
+Serial port COM8
+Connecting....
+Chip is ESP32-D0WD-V3 (revision v3.1)
+Features: WiFi, BT, Dual Core, 240MHz, VRef calibration in efuse, Coding Scheme None
+Crystal is 40MHz
+MAC: 8c:4f:00:35:d3:b4
+Uploading stub...
+Running stub...
+Stub running...
+Changing baud rate to 460800
+Changed.
+Configuring flash size...
+Flash will be erased from 0x00001000 to 0x00007fff...
+Flash will be erased from 0x00010000 to 0x0013ffff...
+Flash will be erased from 0x00008000 to 0x00008fff...
+SHA digest in image updated
+Compressed 26240 bytes to 16487...
+Writing at 0x00001000... (50 %)
+Writing at 0x000075fb... (100 %)
+Wrote 26240 bytes (16487 compressed) at 0x00001000 in 0.8 seconds (effective 279.5 kbit/s)...
+Hash of data verified.
+Compressed 1243968 bytes to 765649...
+Writing at 0x00010000... (2 %)
+Writing at 0x0001d481... (4 %)
+Writing at 0x0002a8f0... (6 %)
+Writing at 0x0003479a... (8 %)
+Writing at 0x0003e62b... (10 %)
+Writing at 0x000456df... (12 %)
+Writing at 0x0004b4d6... (14 %)
+Writing at 0x00051089... (17 %)
+Writing at 0x00056ed0... (19 %)
+Writing at 0x0005d621... (21 %)
+Writing at 0x00063584... (23 %)
+Writing at 0x0006968d... (25 %)
+Writing at 0x0006f958... (27 %)
+Writing at 0x000759fd... (29 %)
+Writing at 0x0007bda4... (31 %)
+Writing at 0x000818d8... (34 %)
+Writing at 0x0008780c... (36 %)
+Writing at 0x0008dda9... (38 %)
+Writing at 0x00093cba... (40 %)
+Writing at 0x00099cd1... (42 %)
+Writing at 0x0009f208... (44 %)
+Writing at 0x000a4559... (46 %)
+Writing at 0x000aa262... (48 %)
+Writing at 0x000afd7a... (51 %)
+Writing at 0x000b55b3... (53 %)
+Writing at 0x000bad2d... (55 %)
+Writing at 0x000c0981... (57 %)
+Writing at 0x000c68be... (59 %)
+Writing at 0x000cc0b7... (61 %)
+Writing at 0x000d1dd6... (63 %)
+Writing at 0x000d7b71... (65 %)
+Writing at 0x000dd471... (68 %)
+Writing at 0x000e3083... (70 %)
+Writing at 0x000e8df5... (72 %)
+Writing at 0x000ee62c... (74 %)
+Writing at 0x000f417b... (76 %)
+Writing at 0x000f9b4e... (78 %)
+Writing at 0x000ff4d7... (80 %)
+Writing at 0x00106107... (82 %)
+Writing at 0x0011040c... (85 %)
+Writing at 0x00116d75... (87 %)
+Writing at 0x0011c540... (89 %)
+Writing at 0x00124850... (91 %)
+Writing at 0x0012a404... (93 %)
+Writing at 0x0012f7cd... (95 %)
+Writing at 0x001355a6... (97 %)
+Writing at 0x0013b541... (100 %)
+Wrote 1243968 bytes (765649 compressed) at 0x00010000 in 17.7 seconds (effective 561.5 kbit/s)...
+Hash of data verified.
+Compressed 3072 bytes to 105...
+Writing at 0x00008000... (100 %)
+Wrote 3072 bytes (105 compressed) at 0x00008000 in 0.1 seconds (effective 485.2 kbit/s)...
+Hash of data verified.
+
+Leaving...
+Hard resetting via RTS pin...

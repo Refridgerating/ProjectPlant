@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core";
+
 export type RuntimeMode = "demo" | "live";
 
 export interface RuntimeEnv {
@@ -75,12 +77,14 @@ async function getStorage(): Promise<StorageAdapter> {
 }
 
 async function resolveStorage(): Promise<StorageAdapter> {
+  if (isNativePlatform()) {
+    const capacitor = await createCapacitorAdapter();
+    if (capacitor) {
+      return capacitor;
+    }
+  }
   if (hasLocalStorage()) {
     return createLocalStorageAdapter();
-  }
-  const capacitor = await createCapacitorAdapter();
-  if (capacitor) {
-    return capacitor;
   }
   return createMemoryAdapter();
 }
@@ -120,19 +124,19 @@ async function createCapacitorAdapter(): Promise<StorageAdapter | null> {
   try {
     // Prefer native secure storage (EncryptedSharedPreferences on Android)
     try {
-      const native = await import("@projectplant/native-bridge");
-      const Secure = native.SecureStorage ?? native.default?.SecureStorage;
-      if (Secure) {
+      const secureStorageModule = await import("@projectplant/native-bridge/secure-storage");
+      const secureStorage = secureStorageModule.SecureStorage;
+      if (secureStorage) {
         return {
           async get() {
-            const result = await Secure.getItem({ key: STORAGE_KEY });
+            const result = await secureStorage.getItem({ key: STORAGE_KEY });
             return result?.value ?? null;
           },
           async set(value: string) {
-            await Secure.setItem({ key: STORAGE_KEY, value });
+            await secureStorage.setItem({ key: STORAGE_KEY, value });
           },
           async remove() {
-            await Secure.removeItem({ key: STORAGE_KEY });
+            await secureStorage.removeItem({ key: STORAGE_KEY });
           }
         };
       }
@@ -175,4 +179,12 @@ function createMemoryAdapter(): StorageAdapter {
       value = null;
     }
   };
+}
+
+function isNativePlatform(): boolean {
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
 }

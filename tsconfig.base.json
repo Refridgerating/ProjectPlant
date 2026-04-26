@@ -13,7 +13,9 @@
     "baseUrl": ".",
     "paths": {
       "@sdk/*": ["packages/sdk/src/*"],
-      "@native/*": ["packages/native-bridge/src/*"]
+      "@native/*": ["packages/native-bridge/src/*"],
+      "@projectplant/protocol": ["packages/protocol/src/index.ts"],
+      "@projectplant/protocol/*": ["packages/protocol/src/*"]
     }
   }
 }

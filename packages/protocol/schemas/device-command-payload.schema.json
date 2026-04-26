@@ -1,0 +1,54 @@
+{
+  "$id": "https://projectplant.local/schemas/device-command-payload.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DeviceCommandPayload",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "requestId": { "type": "string", "minLength": 1, "maxLength": 63 },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 63 },
+    "action": { "type": "string", "enum": ["sensor_read", "sensorRead"] },
+    "command": { "type": "string", "enum": ["sensor_read", "sensorRead"] },
+    "pump": { "$ref": "#/definitions/actuatorValue" },
+    "icZone1": { "$ref": "#/definitions/actuatorValue" },
+    "ic_zone1": { "$ref": "#/definitions/actuatorValue" },
+    "fan": { "$ref": "#/definitions/actuatorValue" },
+    "mister": { "$ref": "#/definitions/actuatorValue" },
+    "light": { "$ref": "#/definitions/actuatorValue" },
+    "duration_ms": { "type": "integer", "minimum": 0 },
+    "deviceName": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "displayName": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "sensorMode": { "type": "string", "enum": ["full", "control_only", "control-only", "control", "sensors", "enabled"] },
+    "sensor_mode": { "type": "string", "enum": ["full", "control_only", "control-only", "control", "sensors", "enabled"] },
+    "sensorsEnabled": { "type": "boolean" },
+    "schedule": { "$ref": "device-schedule-payload.schema.json" },
+    "tzOffsetMinutes": { "type": "integer" },
+    "scheduleTimezonePosix": { "type": "string", "minLength": 1 },
+    "scheduleUpdatedAtMs": { "type": "integer", "minimum": 0 },
+    "updatedAtMs": { "type": "integer", "minimum": 0 }
+  },
+  "anyOf": [
+    { "required": ["action"] },
+    { "required": ["command"] },
+    { "required": ["pump"] },
+    { "required": ["icZone1"] },
+    { "required": ["ic_zone1"] },
+    { "required": ["fan"] },
+    { "required": ["mister"] },
+    { "required": ["light"] },
+    { "required": ["deviceName"] },
+    { "required": ["displayName"] },
+    { "required": ["sensorMode"] },
+    { "required": ["sensor_mode"] },
+    { "required": ["sensorsEnabled"] },
+    { "required": ["schedule"] }
+  ],
+  "definitions": {
+    "actuatorValue": {
+      "anyOf": [
+        { "type": "boolean" },
+        { "type": "string", "enum": ["on", "off"] }
+      ]
+    }
+  }
+}

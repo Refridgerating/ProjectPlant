@@ -29,6 +29,8 @@ static const uint64_t MIN_VALID_TIMESTAMP_MS = 1609459200ULL * 1000ULL;
 static uint64_t current_epoch_ms(void);
 static void format_hhmm(uint16_t minutes, char *buffer, size_t buffer_len);
 static void add_schedule_timer(cJSON *schedule_obj, const char *name, const node_schedule_timer_t *timer);
+static void sanitize_uri(const char *uri, char *out, size_t out_len);
+static void log_mqtt_error_details(const esp_mqtt_error_codes_t *error_handle);
 
 static void log_stack_metrics(const char *label)
 {
@@ -43,6 +45,56 @@ static void log_stack_metrics(const char *label)
 #endif
 
     (void)label;
+}
+
+static void sanitize_uri(const char *uri, char *out, size_t out_len)
+{
+    if (!out || out_len == 0) {
+        return;
+    }
+
+    if (!uri) {
+        out[0] = '\0';
+        return;
+    }
+
+    strncpy(out, uri, out_len - 1);
+    out[out_len - 1] = '\0';
+
+    char *scheme = strstr(out, "://");
+    if (!scheme) {
+        return;
+    }
+
+    char *userinfo = scheme + 3;
+    char *at = strchr(userinfo, '@');
+    if (!at) {
+        return;
+    }
+
+    char *path = strpbrk(userinfo, "/?");
+    if (path && at > path) {
+        return;
+    }
+
+    memset(userinfo, '*', (size_t)(at - userinfo));
+}
+
+static void log_mqtt_error_details(const esp_mqtt_error_codes_t *error_handle)
+{
+    if (!error_handle) {
+        ESP_LOGE(TAG, "MQTT error with no details");
+        return;
+    }
+
+    ESP_LOGE(TAG,
+             "MQTT error details: type=%d connect_return_code=0x%x esp_tls_last_esp_err=0x%x esp_tls_stack_err=0x%x sock_errno=%d (%s)",
+             error_handle->error_type,
+             error_handle->connect_return_code,
+             error_handle->esp_tls_last_esp_err,
+             error_handle->esp_tls_stack_err,
+             error_handle->esp_transport_sock_errno,
+             strerror(error_handle->esp_transport_sock_errno));
 }
 
 static bool topic_equals(const char *topic, int topic_len, const char *expected)
@@ -127,6 +179,20 @@ static bool parse_schedule_config(cJSON *root, node_schedule_t *out_schedule)
         }
     }
 
+    cJSON *schedule_timezone_posix = cJSON_GetObjectItemCaseSensitive(root, "scheduleTimezonePosix");
+    if (!schedule_timezone_posix) {
+        schedule_timezone_posix = cJSON_GetObjectItemCaseSensitive(schedule_obj, "scheduleTimezonePosix");
+    }
+    if (cJSON_IsString(schedule_timezone_posix) && schedule_timezone_posix->valuestring) {
+        size_t timezone_len = strnlen(schedule_timezone_posix->valuestring, NODE_SCHEDULE_TIMEZONE_POSIX_MAX_LEN);
+        if (timezone_len > 0 && timezone_len < NODE_SCHEDULE_TIMEZONE_POSIX_MAX_LEN) {
+            strncpy(parsed.timezone_posix, schedule_timezone_posix->valuestring, sizeof(parsed.timezone_posix) - 1);
+            parsed.timezone_posix[sizeof(parsed.timezone_posix) - 1] = '\0';
+        } else if (timezone_len >= NODE_SCHEDULE_TIMEZONE_POSIX_MAX_LEN) {
+            ESP_LOGW(TAG, "scheduleTimezonePosix too long; ignoring value");
+        }
+    }
+
     cJSON *updated_at = cJSON_GetObjectItemCaseSensitive(root, "scheduleUpdatedAtMs");
     if (!updated_at) {
         updated_at = cJSON_GetObjectItemCaseSensitive(schedule_obj, "scheduleUpdatedAtMs");
@@ -201,14 +267,27 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     esp_mqtt_client_handle_t client = event->client;
 
     switch (event_id) {
-    case MQTT_EVENT_CONNECTED:
-        ESP_LOGI(TAG, "Connected to broker");
-        esp_mqtt_client_subscribe(client, command_topic, 1);
-        esp_mqtt_client_subscribe(client, MQTT_PING_TOPIC, 0);
+    case MQTT_EVENT_CONNECTED: {
+        int command_sub_msg = esp_mqtt_client_subscribe(client, command_topic, 1);
+        int ping_sub_msg = esp_mqtt_client_subscribe(client, MQTT_PING_TOPIC, 0);
+        ESP_LOGI(TAG,
+                 "Connected to broker; subscribed to %s (msg_id=%d) and %s (msg_id=%d)",
+                 command_topic,
+                 command_sub_msg,
+                 MQTT_PING_TOPIC,
+                 ping_sub_msg);
         if (device_id_buffer[0]) {
             mqtt_publish_ping(client, device_id_buffer);
             mqtt_publish_schedule_state(client, device_id_buffer, NULL);
         }
+        break;
+    }
+    case MQTT_EVENT_DISCONNECTED:
+        ESP_LOGW(TAG, "Disconnected from broker");
+        break;
+    case MQTT_EVENT_ERROR:
+        ESP_LOGE(TAG, "MQTT_EVENT_ERROR received");
+        log_mqtt_error_details(event->error_handle);
         break;
     case MQTT_EVENT_DATA: {
         if (topic_equals(event->topic, event->topic_len, command_topic)) {
@@ -236,11 +315,25 @@ esp_mqtt_client_handle_t mqtt_client_start(const char *uri,
                                            const char *password,
                                            mqtt_command_callback_t cb)
 {
+    const char *effective_device_id = device_id ? device_id : "";
+    char sanitized_uri[160];
+
+    if (!uri || !uri[0]) {
+        ESP_LOGE(TAG, "MQTT broker URI is empty");
+        return NULL;
+    }
+
+    sanitize_uri(uri, sanitized_uri, sizeof(sanitized_uri));
+    ESP_LOGI(TAG,
+             "Starting MQTT client (uri=%s client_id=%s)",
+             sanitized_uri[0] ? sanitized_uri : "<empty>",
+             effective_device_id[0] ? effective_device_id : "<unset>");
+
     command_callback = cb;
-    snprintf(command_topic, sizeof(command_topic), COMMAND_TOPIC_FMT, device_id);
+    snprintf(command_topic, sizeof(command_topic), COMMAND_TOPIC_FMT, effective_device_id);
     device_id_buffer[0] = '\0';
-    if (device_id) {
-        strncpy(device_id_buffer, device_id, sizeof(device_id_buffer) - 1);
+    if (effective_device_id[0]) {
+        strncpy(device_id_buffer, effective_device_id, sizeof(device_id_buffer) - 1);
         device_id_buffer[sizeof(device_id_buffer) - 1] = '\0';
     }
 
@@ -250,7 +343,7 @@ esp_mqtt_client_handle_t mqtt_client_start(const char *uri,
         },
         .credentials = {
             .username = username,
-            .client_id = device_id,
+            .client_id = effective_device_id[0] ? effective_device_id : NULL,
             .authentication = {
                 .password = password,
             },
@@ -270,6 +363,7 @@ esp_mqtt_client_handle_t mqtt_client_start(const char *uri,
         return NULL;
     }
 
+    ESP_LOGI(TAG, "MQTT client started");
     return client;
 }
 
@@ -487,8 +581,28 @@ void mqtt_publish_schedule_state(esp_mqtt_client_handle_t client,
 
     node_schedule_t schedule;
     node_schedule_get(&schedule);
+    uint64_t snooze_until_ms = 0;
+    bool schedule_paused = node_schedule_get_snooze_state(&snooze_until_ms);
+
+    cJSON_AddBoolToObject(root, "schedulePaused", schedule_paused);
+    if (schedule_paused && snooze_until_ms > 0) {
+        cJSON_AddNumberToObject(root, "schedulePausedUntilMs", (double)snooze_until_ms);
+    } else {
+        cJSON_AddNullToObject(root, "schedulePausedUntilMs");
+    }
+
     if (schedule.updated_at_ms > 0) {
         cJSON_AddNumberToObject(root, "scheduleUpdatedAtMs", (double)schedule.updated_at_ms);
+    }
+    if (schedule.timezone_posix[0]) {
+        cJSON_AddStringToObject(root, "scheduleTimezonePosix", schedule.timezone_posix);
+    }
+
+    int16_t current_offset_minutes = schedule.timezone_offset_minutes;
+    if (time_sync_get_timezone_offset_minutes(&current_offset_minutes)) {
+        cJSON_AddNumberToObject(root, "tzOffsetMinutesCurrent", (double)current_offset_minutes);
+    } else {
+        cJSON_AddNumberToObject(root, "tzOffsetMinutesCurrent", (double)schedule.timezone_offset_minutes);
     }
 
     cJSON *schedule_obj = cJSON_AddObjectToObject(root, "schedule");

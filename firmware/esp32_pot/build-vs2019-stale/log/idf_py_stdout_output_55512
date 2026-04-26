@@ -1,0 +1,116 @@
+Command: C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe C:/Espressif/frameworks/esp-idf-v5.5.1/tools/idf_monitor.py -p COM7 -b 115200 --toolchain-prefix xtensa-esp32-elf- --target esp32 --revision 0 C:\ProjectPlant\ProjectPlant\firmware\esp32_pot\build\esp32_pot.elf C:\ProjectPlant\ProjectPlant\firmware\esp32_pot\build\bootloader\bootloader.elf --force-color -m 'C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe' 'C:/Espressif/frameworks/esp-idf-v5.5.1/\tools\idf.py' '-p' 'COM7'
+*����     : 40M�ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:6380
+ho 0 tail 12 room 4
+load:0x40078000,len:15916
+load:0x40080400,len:3860
+entry 0x40080638
+[0;32mI (29) boot: ESP-IDF v5.5.1 2nd stage bootloader[0m
+[0;32mI (29) boot: compile time Feb 22 2026 00:10:40[0m
+[0;32mI (29) boot: Multicore bootloader[0m
+[0;32mI (31) boot: chip revision: v3.1[0m
+[0;32mI (33) boot.esp32: SPI Speed      : 40MHz[0m
+[0;32mI (37) boot.esp32: SPI Mode       : DIO[0m
+[0;32mI (41) boot.esp32: SPI Flash Size : 2MB[0m
+[0;32mI (44) boot: Enabling RNG early entropy source...[0m
+[0;32mI (49) boot: Partition Table:[0m
+[0;32mI (51) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+[0;32mI (64) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+[0;32mI (71) boot:  2 factory          factory app      00 00 00010000 00177000[0m
+[0;32mI (77) boot: End of partition table[0m
+[0;32mI (81) esp_image: segment 0: paddr=00010020 vaddr=3f400020 size=2dd20h (187680) map[0m
+[0;32mI (152) esp_image: segment 1: paddr=0003dd48 vaddr=3ffbdb60 size=022d0h (  8912) load[0m
+[0;32mI (156) esp_image: segment 2: paddr=00040020 vaddr=400d0020 size=df498h (914584) map[0m
+[0;32mI (468) esp_image: segment 3: paddr=0011f4c0 vaddr=3ffbfe30 size=03678h ( 13944) load[0m
+[0;32mI (474) esp_image: segment 4: paddr=00122b40 vaddr=40080000 size=1d128h (119080) load[0m
+[0;32mI (520) esp_image: segment 5: paddr=0013fc70 vaddr=50000000 size=00020h (    32) load[0m
+[0;32mI (535) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (535) boot: Disabling RNG early entropy source...[0m
+[0;32mI (545) cpu_start: Multicore app[0m
+[0;32mI (554) cpu_start: Pro cpu start user code[0m
+[0;32mI (554) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (554) app_init: Application information:[0m
+[0;32mI (554) app_init: Project name:     esp32_pot[0m
+[0;32mI (558) app_init: App version:      ab29467-dirty[0m
+[0;32mI (563) app_init: Compile time:     Feb 22 2026 00:10:34[0m
+[0;32mI (568) app_init: ELF file SHA256:  01b1f0ca2...[0m
+[0;32mI (572) app_init: ESP-IDF:          v5.5.1[0m
+[0;32mI (576) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (580) efuse_init: Max chip rev:     v3.99 [0m
+[0;32mI (584) efuse_init: Chip rev:         v3.1[0m
+[0;32mI (588) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (594) heap_init: At 3FFAFF10 len 000000F0 (0 KiB): DRAM[0m
+[0;32mI (599) heap_init: At 3FFB6388 len 00001C78 (7 KiB): DRAM[0m
+[0;32mI (604) heap_init: At 3FFB9A20 len 00004108 (16 KiB): DRAM[0m
+[0;32mI (609) heap_init: At 3FFCA330 len 00015CD0 (87 KiB): DRAM[0m
+[0;32mI (614) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM[0m
+[0;32mI (620) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM[0m
+[0;32mI (625) heap_init: At 4009D128 len 00002ED8 (11 KiB): IRAM[0m
+[0;33mW (632) spi_flash: Detected boya flash chip but using generic driver. For optimal functionality, enable `SPI_FLASH_SUPPORT_BOYA_CHIP` in menuconfig[0m
+[0;32mI (643) spi_flash: detected chip: generic[0m
+[0;32mI (647) spi_flash: flash io: dio[0m
+[0;33mW (650) spi_flash: Detected size(4096k) larger than the size in the binary image header(2048k). Using the size in the binary image header.[0m
+[0;32mI (663) coexist: coex firmware version: b0bcc39[0m
+[0;32mI (667) main_task: Started on CPU0[0m
+[0;32mI (677) main_task: Calling app_main()[0m
+[0;32mI (697) app: Starting ProjectPlant ESP32 node (0.1.0)[0m
+[0;32mI (697) app: test_var: '0'[0m
+[0;32mI (697) identity: Device identity: id=pot-c05d89dcb48c name=DevBoard named=true[0m
+[0;32mI (697) identity: Sensor mode: full[0m
+[0;32mI (707) sensors: I2C driver installed on port 0[0m
+[0;32mI (887) node_schedule: Schedule initialized (tzOffsetMin=0 updatedAtMs=0 light=0[360-1200] pump=0[420-435] ic1=0[420-435] mister=0[480-495] fan=0[540-1080])[0m
+[0;32mI (897) wifi:wifi driver task: 3ffce668, prio:23, stack:6656, core=0[0m
+[0;32mI (907) wifi:wifi firmware version: 14da9b7[0m
+[0;32mI (907) wifi:wifi certification version: v7.0[0m
+[0;32mI (907) wifi:config NVS flash: enabled[0m
+[0;32mI (907) wifi:config nano formatting: disabled[0m
+[0;32mI (917) wifi:Init data frame dynamic rx buffer num: 32[0m
+[0;32mI (917) wifi:Init static rx mgmt buffer num: 5[0m
+[0;32mI (917) wifi:Init management short buffer num: 32[0m
+[0;32mI (927) wifi:Init dynamic tx buffer num: 32[0m
+[0;32mI (927) wifi:Init static rx buffer size: 1600[0m
+[0;32mI (937) wifi:Init static rx buffer num: 10[0m
+[0;32mI (937) wifi:Init dynamic rx buffer num: 32[0m
+[0;32mI (947) wifi_init: rx ba win: 6[0m
+[0;32mI (947) wifi_init: accept mbox: 6[0m
+[0;32mI (947) wifi_init: tcpip mbox: 32[0m
+[0;32mI (947) wifi_init: udp mbox: 6[0m
+[0;32mI (957) wifi_init: tcp mbox: 6[0m
+[0;32mI (957) wifi_init: tcp tx win: 5760[0m
+[0;32mI (957) wifi_init: tcp rx win: 5760[0m
+[0;32mI (967) wifi_init: tcp mss: 1440[0m
+[0;32mI (967) wifi_init: WiFi IRAM OP enabled[0m
+[0;32mI (967) wifi_prov_scheme_ble: BT memory released[0m
+[0;32mI (977) wifi_prov_scheme_ble: BTDM memory released[0m
+[0;32mI (977) phy_init: phy_version 4861,b71b5ad,Aug  5 2025,11:16:06[0m
+[0;32mI (1067) wifi:mode : sta (c0:5d:89:dc:b4:8c)[0m
+[0;32mI (1067) wifi:enable tsf[0m
+[1;31mE (1077) wifi:sta is connecting, return error[0m
+[0;32mI (1087) wifi:new:<1,0>, old:<1,0>, ap:<255,255>, sta:<1,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (1087) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (1097) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (1107) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (1157) wifi:connected with Braudiville, aid = 5, channel 1, BW20, bssid = c0:c5:22:49:d9:80[0m
+[0;32mI (1157) wifi:security: WPA2-PSK, phy: bgn, rssi: -48[0m
+[0;32mI (1167) wifi:pm start, type: 1[0m
+
+[0;32mI (1167) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us[0m
+[0;32mI (1197) wifi:AP's beacon interval = 102400 us, DTIM period = 1[0m
+[0;32mI (1197) wifi:<ba-add>idx:0 (ifx:0, c0:c5:22:49:d9:80), tid:0, ssn:0, winSize:64[0m
+[0;32mI (2237) startup_onboarding: Connected with IP 192.168.0.7[0m
+[0;32mI (2237) esp_netif_handlers: sta ip: 192.168.0.7, mask: 255.255.255.0, gw: 192.168.0.1[0m
+[0;32mI (2237) time_sync: SNTP service started[0m
+[0;32mI (2237) time_sync: Time zone set to UTC[0m
+[0;32mI (3747) app: Time synchronized successfully[0m
+[0;32mI (3747) app: Using MQTT broker URI: mqtt://192.168.0.15:1883[0m
+[0;32mI (3757) main_task: Returned from app_main()[0m
+[0;32mI (3907) mqtt: Connected to broker[0m
+[0;32mI (3917) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1773600493699}[0m
+[0;32mI (3937) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1773600493699}[0m
+[0;32mI (4117) sensors: Soil moisture: 0.0% (raw 17400)[0m

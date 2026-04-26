@@ -1,12 +1,13 @@
 # HRRR Observability Playbook
 
-This guide explains how to monitor the NOAA HRRR ingestion pipeline that now powers `/weather/hrrr/*` endpoints.
+This guide explains how to monitor the NOAA HRRR solar ingestion pipeline that powers `/weather/hrrr/*` endpoints and the station-plus-HRRR-solar weather blend.
 
 ## Data Sources
 
 | Source | Path | Purpose |
 | --- | --- | --- |
 | Fetch log | `<HRRR_CACHE_DIR>/fetch_status.jsonl` | JSONL stream appended after every refresh attempt (success or error). |
+| Solar history DB | `<HRRR_SOLAR_HISTORY_DB>` | SQLite store retaining extracted hourly HRRR solar values for the configured retention window. |
 | Health API | `GET /weather/hrrr/health` | Readiness probe that flags scheduler stoppage, stale data, or recent fetch failures. |
 | Status API | `GET /weather/hrrr/status` | Rich payload used by dashboards for cache size, presets, and recent fetch history. |
 
@@ -140,6 +141,6 @@ Alternatively, configure your uptime system to call `GET /weather/hrrr/health` a
 
 1. **Fetch failures**: inspect the `detail` field in the latest JSON line or the `recent_fetch.detail` property returned by `/weather/hrrr/health`. Common issues include HTTP 404 (upstream lag), network DNS/TLS failures, or missing `eccodes`.
 2. **Staleness**: if the scheduler stops, verify the hub logs for tracebacks and ensure the refresh preset is still active (`POST /weather/hrrr/schedule`).
-3. **Disk pressure**: cache eviction runs automatically but relies on adequate permissions. Monitor `df -h` for the cache mount.
+3. **Disk pressure**: the long-term history is now SQLite-backed, while `HRRR_CACHE_DIR` only holds transient scratch files and logs. Monitor both the DB path and cache mount if disk pressure returns.
 
 With these probes, dashboards, and alerts, you can quickly spot ingest regressions before they compromise irrigation recommendations.

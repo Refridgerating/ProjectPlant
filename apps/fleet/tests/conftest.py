@@ -1,6 +1,8 @@
 ﻿import hashlib
 import json
+import shutil
 import sys
+import uuid
 from pathlib import Path
 
 import pytest
@@ -33,6 +35,18 @@ from api.v1 import dependencies as dep_module
 from api.v1 import router as router_module
 from services import fleet_store as fleet_module
 from services import iam_store as iam_module
+
+
+@pytest.fixture
+def tmp_path() -> Path:
+    temp_root = ROOT / "data" / "pytest-runtime"
+    temp_root.mkdir(parents=True, exist_ok=True)
+    path = temp_root / f"case-{uuid.uuid4().hex}"
+    path.mkdir()
+    try:
+        yield path
+    finally:
+        shutil.rmtree(path, ignore_errors=True)
 
 
 @pytest.fixture(autouse=True)

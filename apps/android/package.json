@@ -4,8 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "pnpm --dir ../web run build && cap build android",
-    "sync": "pnpm --dir ../web run build && cap sync android",
+    "dev": "pnpm --workspace-root --filter @projectplant/web-ui run dev -- --host 0.0.0.0 --port 5173",
+    "run": "cap run android -l --external",
+    "build": "pnpm --workspace-root --filter @projectplant/web-ui run build && cap build android",
+    "sync": "pnpm --workspace-root --filter @projectplant/web-ui run build && cap sync android",
     "open": "cap open android"
   },
   "dependencies": {

@@ -12,7 +12,7 @@ vi.mock("@capacitor/core", () => ({
   }
 }));
 
-vi.mock("@native/discover", () => ({
+vi.mock("@projectplant/native-bridge/discover", () => ({
   DiscoverBridge: discoverBridgeMock,
   DEFAULT_DISCOVERY_HOST: "projectplant.local",
   DEFAULT_DISCOVERY_PORTS: [80, 8080],

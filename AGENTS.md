@@ -1,165 +1,179 @@
-# ProjectPlant Agents Guide (Full-Stack)
+# ProjectPlant AGENTS.md
 
-This file is the shared playbook for AI agents working on ProjectPlant. Keep it concise, safe, and repeatable. Prefer small, focused changes and ask for missing context when needed.
+## Purpose
+Define how agents build and modify ProjectPlant.  
+This document establishes system boundaries, ownership, and workflow.
 
-## Mission & Scope
-- Build and maintain the full stack: Hub API, UI, firmware, and edge services.
-- Respect hardware safety (pumps, sensors, power) and guard secrets.
-- Default to minimal, verifiable changes; avoid speculative refactors.
+---
 
-## Repo Map (quick mental model)
-- `apps/hub/` FastAPI backend (telemetry, weather, plant intel, irrigation).
-- `apps/ui/` Vite + React dashboard.
-- `apps/web/` Vite + React web shell (mobile build entrypoint).
-- `apps/android/` Capacitor Android wrapper.
-- `firmware/esp32_pot/` ESP-IDF firmware for pot hardware.
-- `packages/` shared TypeScript libraries (care-engine, design, protocol).
-- `pi/` Raspberry Pi services (API, provisioning, logging).
-- `ops/` operational tooling (MQTT broker, deployment helpers).
+## System Architecture (Source of Truth)
 
-## Agent Command Palette (Claude/OpenAI-style)
-Use these canonical commands as copy/paste recipes. Each command lists the working directory and exact shell commands.
+ProjectPlant is a hub-centered system:
 
-### /workspace:install
-```
-pnpm install
-```
+Clients (UI, Mobile)  
+↓  
+Hub API (FastAPI)  
+↓  
+Services Layer  
+↓  
+Care Engine | Weather | Device Manager | Scheduler  
+↓  
+Database + MQTT Broker  
+↓  
+ESP32 Devices  
 
-### /hub:dev
-Run the FastAPI hub locally.
-```
-cd apps/hub
-uv sync --extra dev
-uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-Alt: `make hub` from repo root.
+### Rules
+- Backend owns all logic and system state
+- GUI is a thin client only
+- Firmware executes commands, does not make decisions
+- MQTT is the device interface, not the application API
 
-### /hub:test
-```
-cd apps/hub
-uv run pytest
-```
+---
 
-### /hub:lint
-```
-cd apps/hub
-uv run ruff check
-uv run black --check src
-uv run mypy src
-```
+## Component Ownership
 
-### /ui:dev
-```
-cd apps/ui
-pnpm install
-pnpm run dev
-```
-Alt from repo root: `pnpm -C apps/ui install` then `pnpm -C apps/ui dev`.
+### Hub API (`apps/hub_api/`)
+- Owns system state
+- Exposes REST/WebSocket API
+- Validates and routes all inputs
 
-### /ui:test
-```
-cd apps/ui
-pnpm test
-```
+Rule:
+- No business logic in route handlers
 
-### /ui:lint
-```
-cd apps/ui
-pnpm run lint
-```
+---
 
-### /web:dev
-```
-pnpm --filter @projectplant/web run dev
-```
+### Services Layer
+- `care_engine`: irrigation logic, ETo, plant rules
+- `weather`: NOAA/HRRR ingestion and caching
+- `device`: registry, state, command routing
+- `scheduler`: automation and timing
 
-### /web:build
-```
-pnpm --filter @projectplant/web run build
-```
+Rule:
+- All decision-making logic lives here
 
-### /web:preview
-```
-pnpm --filter @projectplant/web run preview
-```
+---
 
-### /mobile:android:build
-```
-pnpm --filter @projectplant/android run build
-```
-Alt from repo root: `pnpm run mobile:android:build`.
+### GUI (`apps/web_ui`, `apps/web`, `apps/android`)
+- Displays backend state
+- Sends user commands to API
 
-### /mobile:android:open
-```
-pnpm --filter @projectplant/android run open
-```
-Alt from repo root: `pnpm run mobile:android:open`.
+Rules:
+- No irrigation, plant, or weather logic
+- No duplication of backend models
 
-### /pkg:care-engine:build
-```
-pnpm --filter @projectplant/care-engine run build
-```
+---
 
-### /pkg:care-engine:test
-```
-pnpm --filter @projectplant/care-engine run test
-```
+### Firmware (`firmware/esp32_pot`)
+- Reads sensors
+- Executes commands
+- Publishes telemetry via MQTT
 
-### /pkg:sdk:build
-```
-pnpm --filter @projectplant/sdk run build
-```
+Rule:
+- No autonomous decision-making
 
-### /pkg:sdk:test
-```
-pnpm --filter @projectplant/sdk run test
-```
+---
 
-### /pkg:native-bridge:build
-```
-pnpm --filter @projectplant/native-bridge run build
-```
+### Shared Packages (`packages/`)
+- `protocol`: MQTT schemas and topics
+- `care-engine`: pure logic only
+- `sdk`: typed API client
 
-### /firmware:build
-```
-cd firmware/esp32_pot
-idf.py set-target esp32
-idf.py build
-```
+---
 
-### /firmware:flash
-```
-cd firmware/esp32_pot
-idf.py -p <PORT> flash monitor
-```
+## Data Flow
 
-### /mosquitto:up
-```
-docker compose -f ops/mosquitto/docker-compose.yml up
-```
+Device → MQTT → Hub → Database  
+                       ↓  
+                  Care Engine  
+                       ↓  
+               Irrigation Decision  
+                       ↓  
+               MQTT Command → Device  
 
-### /pi:api:dev
-```
-cd pi/api
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-ENV=development uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
+---
 
-## Conventions
-- Use `.env` files for local config; never commit secrets.
-- Keep API changes backward compatible when possible (UI and firmware rely on endpoints and MQTT schema).
-- Prefer adding tests for new hub routes or care-engine logic.
-- Document new MQTT topics or payload fields in `packages/protocol/`.
-- For JS/TS work, use `pnpm` (workspace aware); avoid `npm`/`yarn` in this repo.
+## Design Principles
 
-## Safety & Guardrails
-- Pump control is real hardware: default to "off" in tests and mocks.
-- Do not change Wi-Fi, MQTT, or credentials defaults without explicit request.
-- Avoid destructive commands (flash/erase) unless user confirms.
+### Backend-First
+All features must exist in the backend before UI integration.
+
+### Pure Logic Isolation
+Care engine must be:
+- deterministic
+- testable
+- independent of API and database
+
+### Strong Contracts
+- API schemas defined with Pydantic
+- MQTT schemas defined in `packages/protocol`
+- No ad-hoc payloads
+
+### Incremental Refactor Only
+- No large rewrites
+- Move logic in vertical slices
+- Preserve behavior unless explicitly changing it
+
+---
+
+## What NOT to Do
+
+- Do not put logic in React components
+- Do not duplicate models across frontend and backend
+- Do not bypass the Hub API
+- Do not embed hardware assumptions in backend logic
+- Do not introduce breaking API changes without versioning
+
+---
+
+## Safety Constraints
+
+- Default all hardware actions to OFF
+- Never trigger pumps or valves in tests
+- Do not modify credentials or network configuration without instruction
+
+---
+
+## Refactor Workflow
+
+When refactoring:
+
+1. Audit
+   - Identify misplaced logic in UI or route handlers
+
+2. Extract
+   - Move logic into services or care_engine
+
+3. Stabilize
+   - Add or update tests
+
+4. Expose
+   - Add or modify API endpoints
+
+5. Reconnect
+   - Update UI to call API
+
+---
 
 ## When to Ask
-- Missing hardware context (ports, device IDs, sensor calibration).
-- Ambiguous scope between Hub/UI/Firmware responsibilities.
-- Any request that affects deployments or live devices.
+
+- Hardware-specific assumptions (ports, voltage, calibration)
+- MQTT topic or schema changes
+- Any action affecting live devices
+- Ambiguous ownership between components
+
+---
+
+## Optional Dev Commands
+
+Keep minimal. Expand only when necessary.
+
+```bash
+# Backend
+make hub
+
+# UI
+pnpm -C apps/web_ui dev
+
+# Tests
+pytest
+pnpm test

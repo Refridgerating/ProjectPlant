@@ -1,0 +1,49 @@
+﻿{
+    "timestamp":  "2026-03-14T22:05:25.7037522Z",
+    "repoRoot":  "C:\\ProjectPlant\\ProjectPlant",
+    "archiveDuplicates":  true,
+    "actions":  [
+                    {
+                        "action":  "copy",
+                        "source":  "C:\\ProjectPlant\\ProjectPlant\\apps\\fleet\\src\\data\\fleet.sqlite3",
+                        "target":  "C:\\ProjectPlant\\ProjectPlant\\apps\\fleet\\data\\fleet.sqlite3",
+                        "detail":  "Promoted authoritative fleet database into apps/fleet/data."
+                    },
+                    {
+                        "action":  "archive",
+                        "source":  "C:\\ProjectPlant\\ProjectPlant\\apps\\fleet\\src\\data\\fleet.sqlite3",
+                        "target":  "C:\\ProjectPlant\\ProjectPlant\\state-archive\\20260314-180525\\apps\\fleet\\src\\data\\fleet.sqlite3",
+                        "detail":  "Archived former authoritative fleet database after promotion."
+                    },
+                    {
+                        "action":  "archive",
+                        "source":  "C:\\ProjectPlant\\ProjectPlant\\data\\fleet.sqlite3",
+                        "target":  "C:\\ProjectPlant\\ProjectPlant\\state-archive\\20260314-180525\\data\\fleet.sqlite3",
+                        "detail":  "Archived stale repo-root fleet database backup."
+                    },
+                    {
+                        "action":  "archive",
+                        "source":  "C:\\ProjectPlant\\ProjectPlant\\data\\device_registry.json",
+                        "target":  "C:\\ProjectPlant\\ProjectPlant\\state-archive\\20260314-180525\\data\\device_registry.json",
+                        "detail":  "Archived repo-root device registry after merge."
+                    },
+                    {
+                        "action":  "archive",
+                        "source":  "C:\\ProjectPlant\\ProjectPlant\\data\\pot_telemetry.sqlite",
+                        "target":  "C:\\ProjectPlant\\ProjectPlant\\state-archive\\20260314-180525\\data\\pot_telemetry.sqlite",
+                        "detail":  "Archived repo-root telemetry database after merge."
+                    },
+                    {
+                        "action":  "archive",
+                        "source":  "C:\\ProjectPlant\\ProjectPlant\\data\\hrrr",
+                        "target":  "C:\\ProjectPlant\\ProjectPlant\\state-archive\\20260314-180525\\data\\hrrr",
+                        "detail":  "Archived repo-root HRRR cache after merge."
+                    },
+                    {
+                        "action":  "archive",
+                        "source":  "C:\\ProjectPlant\\ProjectPlant\\apps\\hub\\apps\\hub\\data\\hrrr",
+                        "target":  "C:\\ProjectPlant\\ProjectPlant\\state-archive\\20260314-180525\\apps\\hub\\apps\\hub\\data\\hrrr",
+                        "detail":  "Archived packaged HRRR cache after merge."
+                    }
+                ]
+}

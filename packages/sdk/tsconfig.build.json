@@ -3,6 +3,10 @@
   "compilerOptions": {
     "declaration": true,
     "declarationMap": true,
-    "emitDeclarationOnly": false
+    "emitDeclarationOnly": false,
+    "paths": {
+      "@projectplant/protocol": ["../protocol/dist/src/index.d.ts"],
+      "@projectplant/protocol/*": ["../protocol/dist/src/*"]
+    }
   }
 }

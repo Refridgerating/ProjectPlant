@@ -1,0 +1,31 @@
+{
+  "$id": "https://projectplant.local/schemas/device-sensor-payload.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DeviceSensorPayload",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["potId", "moisture", "temperature", "valveOpen", "timestamp"],
+  "properties": {
+    "potId": { "type": "string", "minLength": 1 },
+    "moisture": { "type": "number" },
+    "temperature": { "type": "number" },
+    "humidity": { "type": "number" },
+    "valveOpen": { "type": "boolean" },
+    "icZone1On": { "type": "boolean" },
+    "fanOn": { "type": "boolean" },
+    "misterOn": { "type": "boolean" },
+    "lightOn": { "type": "boolean" },
+    "flowRateLpm": { "type": "number" },
+    "waterLow": { "type": "boolean" },
+    "waterCutoff": { "type": "boolean" },
+    "soilRaw": { "type": "number" },
+    "timestamp": { "type": "string", "minLength": 1 },
+    "timestampMs": { "type": "integer", "minimum": 0 },
+    "requestId": { "type": "string", "minLength": 1 },
+    "deviceName": { "type": "string" },
+    "displayName": { "type": "string" },
+    "isNamed": { "type": "boolean" },
+    "sensorMode": { "type": "string" },
+    "source": { "type": "string" }
+  }
+}

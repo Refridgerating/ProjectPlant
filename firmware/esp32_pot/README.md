@@ -5,12 +5,14 @@ This ESP-IDF application connects an ESP32-based planter node to the ProjectPlan
 ## Features
 - Periodic telemetry publishing (soil moisture, temperature, humidity, water level, pump status)
 - First-boot onboarding with factory-default provisioning
-  - BLE provisioning when Bluetooth is enabled in firmware config
-  - SoftAP provisioning fallback when Bluetooth is disabled
+  - Fallback Wi-Fi and MQTT settings from `main/hardware_config.local.c` or `main/hardware_config.c` when no provisioned credentials exist
+  - BLE provisioning transport when Bluetooth is enabled in firmware config
+  - SoftAP provisioning transport only when Bluetooth is disabled
 - Optional onboarding endpoint for hub metadata (for example, custom MQTT URI / hub URL)
 - MQTT client with JSON command parsing for pump overrides
 - Basic SHT41 driver using I2C master mode
 - FreeRTOS tasks for sensors, MQTT publishing, and command handling
+- GPIO32 local schedule snooze button (NO to GND, internal pull-up, 12-hour toggle snooze)
 
 ## Getting Started
 1. Install ESP-IDF (v5.1 or newer recommended) and export the environment.
@@ -19,6 +21,7 @@ This ESP-IDF application connects an ESP32-based planter node to the ProjectPlan
    - For safe defaults committed to the repo, edit `main/hardware_config.c`.
    - Wi-Fi fallback is only used if no provisioned credentials are available.
    - MQTT URI is used as the default and can be overridden during onboarding.
+   - Current local recovery depends on this fallback path; there is no companion BLE mobile app or browser-based SoftAP portal in this repo yet.
 3. Configure optional SDK settings: `idf.py menuconfig`.
 4. Build and flash:
    ```bash
@@ -51,3 +54,16 @@ Command payload example:
 ```json
 {"pump": "on", "duration_ms": 15000}
 ```
+
+## Provisioning Notes
+- On first boot, a factory-default node attempts the fallback Wi-Fi credentials first. If those succeed, the node joins the network without interactive provisioning.
+- With the current Bluetooth-enabled builds, BLE is the intended provisioning transport when fallback credentials are absent.
+- SoftAP is only relevant on builds where Bluetooth is disabled.
+- The current hardware/firmware does not provide a button-based provisioning re-entry path. For re-provisioning, erase saved credentials and reboot or reflash the node.
+
+## Schedule Snooze Button
+- The firmware reserves `GPIO32` for a simple normally-open pushbutton wired to `GND`.
+- The input is configured as active-low with the ESP32 internal pull-up enabled.
+- A clean press-release toggles a 12-hour global schedule snooze for light, pump, IC Zone 1, mister, and fan schedules.
+- A second press-release clears the snooze immediately.
+- Snooze state is persisted on-device and is reflected in MQTT `schedule_state` payloads via `schedulePaused` and `schedulePausedUntilMs`.

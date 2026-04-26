@@ -124,7 +124,7 @@ export class MqttClientManager {
     }
     const buffer = toBuffer(payload);
     await new Promise<void>((resolve, reject) => {
-      instance.publish(topic, buffer, (error) => {
+      instance.publish(topic, buffer as never, (error) => {
         if (error) {
           reject(error);
           return;

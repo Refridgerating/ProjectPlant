@@ -35,7 +35,7 @@ def package_artifacts(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    hub_paths = ["apps/hub", "pi/update-agent", "pi/avahi"]
+    hub_paths = ["apps/hub_api", "pi/update-agent", "pi/avahi"]
     for hub_path in hub_paths:
         _assert_no_sensitive_content((repo_root / hub_path).resolve())
     _run_tar(output_dir / "hub-app.tar.zst", cwd=repo_root, members=hub_paths, relative_to=repo_root)
@@ -70,7 +70,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root", default=Path(__file__).resolve().parents[2])
     parser.add_argument("--output-dir", required=True)
-    parser.add_argument("--ui-dist", default="apps/ui/dist")
+    parser.add_argument("--ui-dist", default="apps/web_ui/dist")
     parser.add_argument("--systemd-dir", default="pi/systemd")
     parser.add_argument("--config-dir")
     parser.add_argument("--debs-dir")

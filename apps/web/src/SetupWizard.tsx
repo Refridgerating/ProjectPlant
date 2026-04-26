@@ -2,8 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BleBridge, type BleDevice } from "@native/ble";
 import { connect as connectSdk, discoverPi, type PiDiscoveryResult } from "@projectplant/sdk";
-import { EspBleProvisioner, type ProtocolInfo, type HubConfigResponse } from "./provisioning/espBleProvisioning";
-import type { WiFiScanEntry, WiFiStatus } from "./provisioning/protobuf";
+import {
+  EspBleProvisioner,
+  type HubConfigResponse,
+  type ProtocolInfo,
+  type WiFiScanEntry,
+  type WiFiStatus,
+} from "@projectplant/sdk/provisioning";
 
 type WizardStage = "discover" | "secure" | "network" | "provisioning" | "done";
 

@@ -1,0 +1,326 @@
+Command: C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe C:/Espressif/frameworks/esp-idf-v5.5.1/tools/idf_monitor.py -p COM7 -b 115200 --toolchain-prefix xtensa-esp32-elf- --target esp32 --revision 0 C:\ProjectPlant\ProjectPlant\firmware\esp32_pot\build\esp32_pot.elf C:\ProjectPlant\ProjectPlant\firmware\esp32_pot\build\bootloader\bootloader.elf --force-color -m 'C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe' 'C:/Espressif/frameworks/esp-idf-v5.5.1/\tools\idf.py' '-p' 'COM7'
+����     :�ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:6380
+ho 0 tail 12 room 4
+load:0x40078000,len:15916
+load:0x40080400,len:3860
+entry 0x40080638
+[0;32mI (29) boot: ESP-IDF v5.5.1 2nd stage bootloader[0m
+[0;32mI (29) boot: compile time Feb 22 2026 00:10:40[0m
+[0;32mI (29) boot: Multicore bootloader[0m
+[0;32mI (31) boot: chip revision: v3.1[0m
+[0;32mI (33) boot.esp32: SPI Speed      : 40MHz[0m
+[0;32mI (37) boot.esp32: SPI Mode       : DIO[0m
+[0;32mI (41) boot.esp32: SPI Flash Size : 2MB[0m
+[0;32mI (44) boot: Enabling RNG early entropy source...[0m
+[0;32mI (49) boot: Partition Table:[0m
+[0;32mI (51) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+[0;32mI (64) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+[0;32mI (71) boot:  2 factory          factory app      00 00 00010000 00177000[0m
+[0;32mI (77) boot: End of partition table[0m
+[0;32mI (81) esp_image: segment 0: paddr=00010020 vaddr=3f400020 size=2dd10h (187664) map[0m
+[0;32mI (152) esp_image: segment 1: paddr=0003dd38 vaddr=3ffbdb60 size=022e0h (  8928) load[0m
+[0;32mI (156) esp_image: segment 2: paddr=00040020 vaddr=400d0020 size=df484h (914564) map[0m
+[0;32mI (468) esp_image: segment 3: paddr=0011f4ac vaddr=3ffbfe40 size=03668h ( 13928) load[0m
+[0;32mI (474) esp_image: segment 4: paddr=00122b1c vaddr=40080000 size=1d128h (119080) load[0m
+[0;32mI (520) esp_image: segment 5: paddr=0013fc4c vaddr=50000000 size=00020h (    32) load[0m
+[0;32mI (535) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (535) boot: Disabling RNG early entropy source...[0m
+[0;32mI (546) cpu_start: Multicore app[0m
+[0;32mI (554) cpu_start: Pro cpu start user code[0m
+[0;32mI (554) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (554) app_init: Application information:[0m
+[0;32mI (554) app_init: Project name:     esp32_pot[0m
+[0;32mI (558) app_init: App version:      ab29467-dirty[0m
+[0;32mI (563) app_init: Compile time:     Feb 22 2026 00:10:34[0m
+[0;32mI (568) app_init: ELF file SHA256:  b8dd5fb21...[0m
+[0;32mI (572) app_init: ESP-IDF:          v5.5.1[0m
+[0;32mI (576) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (580) efuse_init: Max chip rev:     v3.99 [0m
+[0;32mI (584) efuse_init: Chip rev:         v3.1[0m
+[0;32mI (588) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (594) heap_init: At 3FFAFF10 len 000000F0 (0 KiB): DRAM[0m
+[0;32mI (599) heap_init: At 3FFB6388 len 00001C78 (7 KiB): DRAM[0m
+[0;32mI (604) heap_init: At 3FFB9A20 len 00004108 (16 KiB): DRAM[0m
+[0;32mI (609) heap_init: At 3FFCA2E8 len 00015D18 (87 KiB): DRAM[0m
+[0;32mI (614) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM[0m
+[0;32mI (620) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM[0m
+[0;32mI (625) heap_init: At 4009D128 len 00002ED8 (11 KiB): IRAM[0m
+[0;33mW (632) spi_flash: Detected boya flash chip but using generic driver. For optimal functionality, enable `SPI_FLASH_SUPPORT_BOYA_CHIP` in menuconfig[0m
+[0;32mI (644) spi_flash: detected chip: generic[0m
+[0;32mI (647) spi_flash: flash io: dio[0m
+[0;33mW (650) spi_flash: Detected size(4096k) larger than the size in the binary image header(2048k). Using the size in the binary image header.[0m
+[0;32mI (663) coexist: coex firmware version: b0bcc39[0m
+[0;32mI (667) main_task: Started on CPU0[0m
+[0;32mI (677) main_task: Calling app_main()[0m
+[0;32mI (697) app: Starting ProjectPlant ESP32 node (0.1.0)[0m
+[0;32mI (697) app: test_var: '0'[0m
+[0;32mI (697) identity: Device identity: id=pot-c05d89dcb48c name=DevBoard named=true[0m
+[0;32mI (697) identity: Sensor mode: full[0m
+[0;32mI (707) sensors: I2C driver installed on port 0[0m
+[0;32mI (887) node_schedule: Schedule initialized (tzOffsetMin=0 updatedAtMs=0 light=0[360-1200] pump=0[420-435] ic1=0[420-435] mister=0[480-495] fan=0[540-1080])[0m
+[0;32mI (897) wifi:wifi driver task: 3ffce6ac, prio:23, stack:6656, core=0[0m
+[0;32mI (907) wifi:wifi firmware version: 14da9b7[0m
+[0;32mI (907) wifi:wifi certification version: v7.0[0m
+[0;32mI (907) wifi:config NVS flash: enabled[0m
+[0;32mI (907) wifi:config nano formatting: disabled[0m
+[0;32mI (917) wifi:Init data frame dynamic rx buffer num: 32[0m
+[0;32mI (917) wifi:Init static rx mgmt buffer num: 5[0m
+[0;32mI (917) wifi:Init management short buffer num: 32[0m
+[0;32mI (927) wifi:Init dynamic tx buffer num: 32[0m
+[0;32mI (927) wifi:Init static rx buffer size: 1600[0m
+[0;32mI (937) wifi:Init static rx buffer num: 10[0m
+[0;32mI (937) wifi:Init dynamic rx buffer num: 32[0m
+[0;32mI (947) wifi_init: rx ba win: 6[0m
+[0;32mI (947) wifi_init: accept mbox: 6[0m
+[0;32mI (947) wifi_init: tcpip mbox: 32[0m
+[0;32mI (947) wifi_init: udp mbox: 6[0m
+[0;32mI (957) wifi_init: tcp mbox: 6[0m
+[0;32mI (957) wifi_init: tcp tx win: 5760[0m
+[0;32mI (957) wifi_init: tcp rx win: 5760[0m
+[0;32mI (967) wifi_init: tcp mss: 1440[0m
+[0;32mI (967) wifi_init: WiFi IRAM OP enabled[0m
+[0;32mI (967) wifi_prov_scheme_ble: BT memory released[0m
+[0;32mI (977) wifi_prov_scheme_ble: BTDM memory released[0m
+[0;32mI (977) phy_init: phy_version 4861,b71b5ad,Aug  5 2025,11:16:06[0m
+[0;32mI (1067) wifi:mode : sta (c0:5d:89:dc:b4:8c)[0m
+[0;32mI (1067) wifi:enable tsf[0m
+[1;31mE (1067) wifi:sta is connecting, return error[0m
+[0;32mI (1087) wifi:new:<1,0>, old:<1,0>, ap:<255,255>, sta:<1,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (1087) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (1087) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (1097) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (1127) wifi:connected with Braudiville, aid = 5, channel 1, BW20, bssid = c0:c5:22:49:d9:80[0m
+[0;32mI (1137) wifi:security: WPA2-PSK, phy: bgn, rssi: -54[0m
+[0;32mI (1137) wifi:pm start, type: 1[0m
+
+[0;32mI (1137) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us[0m
+[0;32mI (1197) wifi:AP's beacon interval = 102400 us, DTIM period = 1[0m
+[0;32mI (1337) wifi:<ba-add>idx:0 (ifx:0, c0:c5:22:49:d9:80), tid:0, ssn:1, winSize:64[0m
+[0;32mI (2347) startup_onboarding: Connected with IP 192.168.0.6[0m
+[0;32mI (2347) esp_netif_handlers: sta ip: 192.168.0.6, mask: 255.255.255.0, gw: 192.168.0.1[0m
+[0;32mI (2347) time_sync: SNTP service started[0m
+[0;32mI (2347) time_sync: Time zone set to UTC[0m
+[0;32mI (7857) app: Time synchronized successfully[0m
+[0;32mI (7857) app: Using MQTT broker URI: mqtt://192.168.0.15:1883[0m
+[0;32mI (7867) main_task: Returned from app_main()[0m
+[0;32mI (7887) mqtt: Connected to broker[0m
+[0;32mI (7897) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242354760}[0m
+[0;32mI (8117) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242354760}[0m
+[0;32mI (8227) sensors: Soil moisture: 0.0% (raw 17259)[0m
+[0;32mI (26497) app: Pump command: ON[0m
+[0;32mI (26647) node_schedule: Manual override armed for pump; deferring schedule for 10 check-ins[0m
+[0;32mI (27227) sensors: Soil moisture: 0.0% (raw 17256)[0m
+[0;32mI (27307) app: Sensor read command (requestId=106d77e3-8277-4458-b68b-288c24f1a72c)[0m
+[0;32mI (31107) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242377718}[0m
+[0;32mI (37867) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242384729}[0m
+[0;32mI (38067) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242384729}[0m
+[0;32mI (55997) app: Pump command: OFF[0m
+[0;32mI (55997) node_schedule: Manual override cleared for pump; reapplying schedule[0m
+[0;32mI (61077) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242407718}[0m
+[0;32mI (67877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242414738}[0m
+[0;32mI (67887) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242414738}[0m
+[0;32mI (68667) sensors: Soil moisture: 0.0% (raw 17255)[0m
+[0;32mI (69717) app: Pump command: ON[0m
+[0;32mI (69867) node_schedule: Manual override armed for pump; deferring schedule for 10 check-ins[0m
+[0;32mI (70477) sensors: Soil moisture: 0.0% (raw 17256)[0m
+[0;32mI (70557) app: Sensor read command (requestId=f4804c8f-6018-4835-9541-d5cee272deb5)[0m
+[0;32mI (84977) app: Pump command: OFF[0m
+[0;32mI (84977) node_schedule: Manual override cleared for pump; reapplying schedule[0m
+[0;32mI (85477) sensors: Soil moisture: 0.0% (raw 17253)[0m
+[0;32mI (85557) app: Sensor read command (requestId=47b9a836-955d-4e2f-ae25-612a1da53df3)[0m
+[0;32mI (91117) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242437728}[0m
+[0;32mI (97877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242444738}[0m
+[0;32mI (98097) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242444738}[0m
+[0;32mI (111807) app: Light command: ON override 100000 ms[0m
+[0;32mI (111807) node_schedule: Manual override armed for light; deferring schedule for 10 check-ins[0m
+[0;32mI (112477) sensors: Soil moisture: 0.0% (raw 17250)[0m
+[0;32mI (112557) app: Sensor read command (requestId=e1b4fe9e-fdc1-48b5-b6ec-04004cc7ab9c)[0m
+[0;32mI (112567) app: Pump command: ON[0m
+[0;32mI (112717) node_schedule: Manual override armed for pump; deferring schedule for 10 check-ins[0m
+[0;32mI (113227) sensors: Soil moisture: 0.0% (raw 17254)[0m
+[0;32mI (113307) app: Sensor read command (requestId=c165f62b-8a6d-41fd-98fe-aae5e0f1402b)[0m
+[0;32mI (113367) app: Fan command: ON override 100000 ms[0m
+[0;32mI (113367) node_schedule: Manual override armed for fan; deferring schedule for 10 check-ins[0m
+[0;33mW (113877) ads1115: Conversion read failed (attempt 1/3): ESP_ERR_TIMEOUT[0m
+[0;33mW (113887) ads1115: Conversion read failed (attempt 2/3): ESP_ERR_TIMEOUT[0m
+[0;33mW (113907) ads1115: Conversion read failed (attempt 3/3): ESP_ERR_TIMEOUT[0m
+[1;31mE (113947) ads1115: ADS1115 channel 1 conversion read exhausted retries[0m
+[0;33mW (113947) sensors: ADS1115 read failed (sample 5/16): ESP_ERR_TIMEOUT[0m
+[0;32mI (114077) sensors: Soil moisture: 0.0% (raw 17270)[0m
+[0;32mI (114157) app: Sensor read command (requestId=f599f735-1956-4bcf-9d54-eee49d481e27)[0m
+[0;32mI (116207) app: Light command: OFF override 0 ms[0m
+[0;32mI (116207) node_schedule: Manual override cleared for light; reapplying schedule[0m
+[0;32mI (116367) app: Pump command: OFF[0m
+[0;32mI (116367) node_schedule: Manual override cleared for pump; reapplying schedule[0m
+[0;32mI (116617) app: Fan command: OFF override 0 ms[0m
+[0;32mI (116617) node_schedule: Manual override cleared for fan; reapplying schedule[0m
+[0;32mI (121077) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242467728}[0m
+[0;32mI (124087) app: Pump command: ON[0m
+[0;32mI (124237) node_schedule: Manual override armed for pump; deferring schedule for 10 check-ins[0m
+[0;32mI (124727) sensors: Soil moisture: 0.0% (raw 17254)[0m
+[0;32mI (124807) app: Sensor read command (requestId=47f41591-1a90-434f-a8e2-ea989463bf35)[0m
+[0;32mI (124817) app: Light command: ON override 100000 ms[0m
+[0;32mI (124817) node_schedule: Manual override armed for light; deferring schedule for 10 check-ins[0m
+[0;33mW (125367) ads1115: Conversion read failed (attempt 1/3): ESP_ERR_TIMEOUT[0m
+[0;33mW (125377) ads1115: Conversion read failed (attempt 2/3): ESP_ERR_TIMEOUT[0m
+[0;33mW (125397) ads1115: Conversion read failed (attempt 3/3): ESP_ERR_TIMEOUT[0m
+[1;31mE (125437) ads1115: ADS1115 channel 1 conversion read exhausted retries[0m
+[0;33mW (125437) sensors: ADS1115 read failed (sample 5/16): ESP_ERR_TIMEOUT[0m
+[0;32mI (125567) sensors: Soil moisture: 0.0% (raw 17268)[0m
+[0;32mI (125647) app: Sensor read command (requestId=f715d5e4-660c-4fe5-bd8d-f4b41d6890fe)[0m
+[0;32mI (125657) app: Fan command: ON override 100000 ms[0m
+[0;32mI (125657) node_schedule: Manual override armed for fan; deferring schedule for 10 check-ins[0m
+[0;33mW (126127) ads1115: Conversion read failed (attempt 1/3): ESP_ERR_TIMEOUT[0m
+[0;33mW (126137) ads1115: Conversion read failed (attempt 2/3): ESP_ERR_TIMEOUT[0m
+[0;33mW (126157) ads1115: Conversion read failed (attempt 3/3): ESP_ERR_TIMEOUT[0m
+[1;31mE (126197) ads1115: ADS1115 channel 1 conversion read exhausted retries[0m
+[0;33mW (126197) sensors: ADS1115 read failed (sample 5/16): ESP_ERR_TIMEOUT[0m
+[0;32mI (126327) sensors: Soil moisture: 0.0% (raw 17269)[0m
+[0;32mI (126407) app: Sensor read command (requestId=ecdb3d75-3f73-40c3-8fef-cb821d55d6b4)[0m
+[0;32mI (127877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242474738}[0m
+[0;32mI (127897) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242474738}[0m
+[0;32mI (129107) sensors: Soil moisture: 0.0% (raw 17256)[0m
+[0;32mI (134327) app: Mister command: ON override 100000 ms[0m
+[0;32mI (134327) node_schedule: Manual override armed for mister; deferring schedule for 10 check-ins[0m
+[0;32mI (134977) sensors: Soil moisture: 0.0% (raw 17253)[0m
+[0;32mI (135057) app: Sensor read command (requestId=54f0c9c6-4e73-41c5-901a-f19ec4ddebb5)[0m
+[0;32mI (137507) app: IC Zone 1 command: ON pulse 50 ms override 100000 ms[0m
+[0;32mI (137557) node_schedule: Manual override armed for ic_zone1; deferring schedule for 10 check-ins[0m
+[0;33mW (137907) ads1115: Conversion read failed (attempt 1/3): ESP_ERR_TIMEOUT[0m
+[0;33mW (137917) ads1115: Conversion read failed (attempt 2/3): ESP_ERR_TIMEOUT[0m
+[0;33mW (137937) ads1115: Conversion read failed (attempt 3/3): ESP_ERR_TIMEOUT[0m
+[1;31mE (137977) ads1115: ADS1115 channel 1 conversion read exhausted retries[0m
+[0;33mW (137977) sensors: ADS1115 read failed (sample 9/16): ESP_ERR_TIMEOUT[0m
+[0;32mI (138067) sensors: Soil moisture: 0.0% (raw 17039)[0m
+[0;32mI (138147) app: Sensor read command (requestId=9ed10f1a-9302-478e-842b-19c448895c0e)[0m
+[0;32mI (138367) app: IC Zone 1 command: OFF pulse 50 ms override 100000 ms[0m
+[0;32mI (138417) node_schedule: Manual override cleared for ic_zone1; reapplying schedule[0m
+[0;32mI (139017) sensors: Soil moisture: 0.3% (raw 17010)[0m
+[0;32mI (139097) app: Sensor read command (requestId=f176c85e-7e36-4a06-b711-4b841b38b6dd)[0m
+[0;32mI (146827) app: Light command: OFF override 0 ms[0m
+[0;32mI (146827) node_schedule: Manual override cleared for light; reapplying schedule[0m
+[0;32mI (147117) app: Pump command: OFF[0m
+[0;32mI (147127) node_schedule: Manual override cleared for pump; reapplying schedule[0m
+[0;32mI (147377) app: Mister command: OFF override 0 ms[0m
+[0;32mI (147377) node_schedule: Manual override cleared for mister; reapplying schedule[0m
+[0;32mI (147617) app: Fan command: OFF override 0 ms[0m
+[0;32mI (147617) node_schedule: Manual override cleared for fan; reapplying schedule[0m
+[0;32mI (151117) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242497738}[0m
+[0;32mI (157877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242504739}[0m
+[0;32mI (157887) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242504739}[0m
+[0;32mI (181087) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242527738}[0m
+[0;32mI (187877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242534739}[0m
+[0;32mI (187907) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242534739}[0m
+[0;32mI (189547) sensors: Soil moisture: 0.0% (raw 17252)[0m
+[0;32mI (211127) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242557738}[0m
+[0;32mI (217887) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242564738}[0m
+[0;32mI (217887) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242564738}[0m
+[0;32mI (241087) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242587738}[0m
+[0;32mI (247887) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242594749}[0m
+[0;32mI (247897) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242594749}[0m
+[0;32mI (249987) sensors: Soil moisture: 0.0% (raw 17255)[0m
+[0;32mI (271127) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242617738}[0m
+[0;32mI (277887) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242624749}[0m
+[0;32mI (278087) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242624749}[0m
+[0;32mI (301087) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242647748}[0m
+[0;32mI (307887) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242654749}[0m
+[0;32mI (308097) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242654749}[0m
+[0;32mI (310427) sensors: Soil moisture: 0.0% (raw 17255)[0m
+[0;32mI (331137) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242677748}[0m
+[0;32mI (337897) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242684749}[0m
+[0;32mI (338097) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242684749}[0m
+[0;32mI (339947) app: Pump command: ON[0m
+[0;32mI (340097) node_schedule: Manual override armed for pump; deferring schedule for 10 check-ins[0m
+[0;32mI (340727) sensors: Soil moisture: 0.0% (raw 17252)[0m
+[0;32mI (340807) app: Sensor read command (requestId=798effb5-f2ce-426f-a042-f8e4f48f98e8)[0m
+[0;32mI (340877) app: Light command: ON override 100000 ms[0m
+[0;32mI (340877) node_schedule: Manual override armed for light; deferring schedule for 10 check-ins[0m
+[0;32mI (341477) sensors: Soil moisture: 0.0% (raw 17252)[0m
+[0;32mI (341557) app: Sensor read command (requestId=bb69d910-de95-48ce-8880-9e39769691b2)[0m
+[0;32mI (341627) app: Mister command: ON override 100000 ms[0m
+[0;32mI (341627) node_schedule: Manual override armed for mister; deferring schedule for 10 check-ins[0m
+[0;32mI (342227) sensors: Soil moisture: 0.0% (raw 17253)[0m
+[0;32mI (342307) app: Sensor read command (requestId=6e3af4c5-c341-49e6-b625-c2f1bc9e006d)[0m
+[0;32mI (344247) app: Fan command: ON override 100000 ms[0m
+[0;32mI (344247) node_schedule: Manual override armed for fan; deferring schedule for 10 check-ins[0m
+[0;32mI (344727) sensors: Soil moisture: 0.4% (raw 17004)[0m
+[0;32mI (344807) app: Sensor read command (requestId=60b9e1e8-1ea3-456f-9080-d87855d0b6a3)[0m
+[0;32mI (345577) app: Fan command: OFF override 100000 ms[0m
+[0;32mI (345577) node_schedule: Manual override cleared for fan; reapplying schedule[0m
+[0;33mW (346097) ads1115: Conversion read failed (attempt 1/3): ESP_ERR_TIMEOUT[0m
+[0;33mW (346107) ads1115: Conversion read failed (attempt 2/3): ESP_ERR_TIMEOUT[0m
+[0;33mW (346127) ads1115: Conversion read failed (attempt 3/3): ESP_ERR_TIMEOUT[0m
+[1;31mE (346167) ads1115: ADS1115 channel 1 conversion read exhausted retries[0m
+[0;33mW (346167) sensors: ADS1115 read failed (sample 3/16): ESP_ERR_TIMEOUT[0m
+[0;33mW (346237) ads1115: Conversion read failed (attempt 1/3): ESP_ERR_TIMEOUT[0m
+[0;33mW (346247) ads1115: Conversion read failed (attempt 2/3): ESP_ERR_TIMEOUT[0m
+[0;33mW (346267) ads1115: Conversion read failed (attempt 3/3): ESP_ERR_TIMEOUT[0m
+[1;31mE (346307) ads1115: ADS1115 channel 1 conversion read exhausted retries[0m
+[0;33mW (346307) sensors: ADS1115 read failed (sample 8/16): ESP_ERR_TIMEOUT[0m
+[0;32mI (346407) sensors: Soil moisture: 0.2% (raw 17022)[0m
+[0;32mI (346487) app: Sensor read command (requestId=eebdcb7f-59c8-4f98-914e-45acc7fe5802)[0m
+[0;32mI (352437) app: Light command: OFF override 100000 ms[0m
+[0;32mI (352437) node_schedule: Manual override cleared for light; reapplying schedule[0m
+[0;32mI (352977) sensors: Soil moisture: 0.6% (raw 16982)[0m
+[0;32mI (353057) app: Sensor read command (requestId=6a8c0c3a-7d31-4e92-a05a-d1227b768338)[0m
+[0;32mI (353077) app: Pump command: OFF[0m
+[0;32mI (353077) node_schedule: Manual override cleared for pump; reapplying schedule[0m
+[0;33mW (353497) ads1115: Conversion read failed (attempt 1/3): ESP_ERR_TIMEOUT[0m
+[0;33mW (353507) ads1115: Conversion read failed (attempt 2/3): ESP_ERR_TIMEOUT[0m
+[0;33mW (353527) ads1115: Conversion read failed (attempt 3/3): ESP_ERR_TIMEOUT[0m
+[1;31mE (353567) ads1115: ADS1115 channel 1 conversion read exhausted retries[0m
+[0;33mW (353567) sensors: ADS1115 read failed (sample 3/16): ESP_ERR_TIMEOUT[0m
+[0;32mI (353717) sensors: Soil moisture: 0.5% (raw 16996)[0m
+[0;32mI (353797) app: Sensor read command (requestId=ed8b69e5-06a3-4d2f-a2cf-9978a32fdce3)[0m
+[0;32mI (357967) app: Mister command: OFF override 0 ms[0m
+[0;32mI (357967) node_schedule: Manual override cleared for mister; reapplying schedule[0m
+[0;32mI (361237) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242707748}[0m
+[0;32mI (367897) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242714759}[0m
+[0;32mI (367907) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242714759}[0m
+[0;32mI (370867) sensors: Soil moisture: 0.0% (raw 17251)[0m
+[0;32mI (391137) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242737748}[0m
+[0;32mI (397897) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242744759}[0m
+[0;32mI (398097) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242744759}[0m
+[0;32mI (421087) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242767758}[0m
+[0;32mI (427897) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242774759}[0m
+[0;32mI (427907) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242774759}[0m
+[0;32mI (431307) sensors: Soil moisture: 0.0% (raw 17252)[0m
+[0;32mI (451157) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242797758}[0m
+[0;32mI (457907) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242804758}[0m
+[0;32mI (457907) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242804758}[0m
+[0;32mI (481077) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242827758}[0m
+[0;32mI (487907) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242834769}[0m
+[0;32mI (487917) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242834769}[0m
+[0;32mI (491747) sensors: Soil moisture: 0.0% (raw 17254)[0m
+[0;32mI (511147) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242857768}[0m
+[0;32mI (517907) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242864769}[0m
+[0;32mI (518107) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242864769}[0m
+[0;32mI (541077) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242887778}[0m
+[0;32mI (547917) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242894779}[0m
+[0;32mI (548117) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242894779}[0m
+[0;32mI (552187) sensors: Soil moisture: 0.0% (raw 17258)[0m
+[0;32mI (571157) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242917778}[0m
+[0;32mI (577917) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242924779}[0m
+[0;32mI (577937) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242924779}[0m
+[0;32mI (601087) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242947778}[0m
+[0;32mI (607917) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242954779}[0m
+[0;32mI (607927) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242954779}[0m
+[0;32mI (612627) sensors: Soil moisture: 0.0% (raw 17256)[0m
+[0;32mI (631177) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772242977778}[0m
+[0;32mI (637917) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772242984779}[0m
+[0;32mI (638117) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772242984779}[0m
+[0;32mI (661267) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772243007788}[0m
+[0;32mI (667917) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772243014779}[0m
+[0;32mI (668127) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772243014779}[0m
+[0;32mI (673067) sensors: Soil moisture: 0.0% (raw 17253)[0m
+[0;32mI (691167) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772243037788}[0m
+[0;32mI (697927) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772243044778}[0m
+[0;32mI (697937) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772243044778}[0m
+[0;32mI (721277) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772243067788}[0m

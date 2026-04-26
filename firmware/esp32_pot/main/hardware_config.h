@@ -57,6 +57,12 @@ extern const char *MQTT_PASSWORD;
 #define WATER_REFILL_GPIO       GPIO_NUM_34   // Reservoir refill indicator (low = needs refill)
 #define WATER_CUTOFF_GPIO       GPIO_NUM_35   // Immediate pump cutoff level (low = stop pump)
 
+// Schedule snooze button (simple NO pushbutton to GND, active-low with internal pull-up)
+#define SCHEDULE_BUTTON_GPIO        GPIO_NUM_32
+#define SCHEDULE_BUTTON_POLL_MS     20
+#define SCHEDULE_BUTTON_DEBOUNCE_MS 40
+#define SCHEDULE_SNOOZE_DURATION_MS 43200000UL
+
 // I2C pins (shared by AHT10 + ADS1115)
 #define I2C_SDA_GPIO            GPIO_NUM_21
 #define I2C_SCL_GPIO            GPIO_NUM_22

@@ -1,0 +1,32 @@
+{
+  "$id": "https://projectplant.local/schemas/legacy-firmware-telemetry-payload.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LegacyFirmwareTelemetryPayload",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "device_id": { "type": "string" },
+    "potId": { "type": "string" },
+    "soil_pct": { "anyOf": [{ "type": "number" }, { "type": "string" }] },
+    "moisture": { "anyOf": [{ "type": "number" }, { "type": "string" }] },
+    "temperature_c": { "anyOf": [{ "type": "number" }, { "type": "string" }] },
+    "temperature": { "anyOf": [{ "type": "number" }, { "type": "string" }] },
+    "humidity_pct": { "anyOf": [{ "type": "number" }, { "type": "string" }] },
+    "humidity": { "anyOf": [{ "type": "number" }, { "type": "string" }] },
+    "pump_on": { "anyOf": [{ "type": "boolean" }, { "type": "string" }, { "type": "number" }] },
+    "valveOpen": { "anyOf": [{ "type": "boolean" }, { "type": "string" }, { "type": "number" }] },
+    "icZone1On": { "anyOf": [{ "type": "boolean" }, { "type": "string" }, { "type": "number" }] },
+    "ic_zone1_on": { "anyOf": [{ "type": "boolean" }, { "type": "string" }, { "type": "number" }] },
+    "fanOn": { "anyOf": [{ "type": "boolean" }, { "type": "string" }, { "type": "number" }] },
+    "fan_on": { "anyOf": [{ "type": "boolean" }, { "type": "string" }, { "type": "number" }] },
+    "misterOn": { "anyOf": [{ "type": "boolean" }, { "type": "string" }, { "type": "number" }] },
+    "mister_on": { "anyOf": [{ "type": "boolean" }, { "type": "string" }, { "type": "number" }] },
+    "lightOn": { "anyOf": [{ "type": "boolean" }, { "type": "string" }, { "type": "number" }] },
+    "light_on": { "anyOf": [{ "type": "boolean" }, { "type": "string" }, { "type": "number" }] },
+    "timestamp_ms": { "anyOf": [{ "type": "number" }, { "type": "string" }] },
+    "timestampMs": { "anyOf": [{ "type": "number" }, { "type": "string" }] },
+    "timestamp": { "type": "string" },
+    "requestId": { "type": "string" },
+    "request_id": { "type": "string" }
+  }
+}

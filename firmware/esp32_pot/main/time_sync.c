@@ -12,6 +12,7 @@
 
 static const char *TAG = "time_sync";
 static const time_t MIN_VALID_EPOCH = 1609459200; // 2021-01-01T00:00:00Z
+static const char *UTC_TZ = "UTC0";
 
 static bool sntp_started = false;
 
@@ -38,10 +39,8 @@ esp_err_t time_sync_init(void)
     } else {
         ESP_LOGI(TAG, "SNTP already initialized");
     }
-    setenv("TZ", "UTC0", 1);
-    tzset();
+    time_sync_set_timezone(NULL);
     sntp_started = true;
-    ESP_LOGI(TAG, "Time zone set to UTC");
     return ESP_OK;
 }
 
@@ -74,5 +73,51 @@ bool time_sync_wait_for_valid(TickType_t timeout_ticks)
             waited += delay;
         }
     }
+    return true;
+}
+
+esp_err_t time_sync_set_timezone(const char *timezone_posix)
+{
+    const char *effective_tz = UTC_TZ;
+    if (timezone_posix && timezone_posix[0] != '\0') {
+        effective_tz = timezone_posix;
+    }
+
+    if (setenv("TZ", effective_tz, 1) != 0) {
+        ESP_LOGE(TAG, "Failed to set TZ to %s", effective_tz);
+        return ESP_FAIL;
+    }
+
+    tzset();
+    ESP_LOGI(TAG, "Time zone set to %s", effective_tz);
+    return ESP_OK;
+}
+
+bool time_sync_get_timezone_offset_minutes(int16_t *out_offset_minutes)
+{
+    if (!out_offset_minutes) {
+        return false;
+    }
+
+    if (!time_sync_is_time_valid()) {
+        return false;
+    }
+
+    time_t now = 0;
+    time(&now);
+
+    struct tm tm_utc;
+    if (gmtime_r(&now, &tm_utc) == NULL) {
+        return false;
+    }
+    tm_utc.tm_isdst = -1;
+
+    time_t utc_as_local = mktime(&tm_utc);
+    if (utc_as_local == (time_t)-1) {
+        return false;
+    }
+
+    double offset_seconds = difftime(now, utc_as_local);
+    *out_offset_minutes = (int16_t)(offset_seconds / 60.0);
     return true;
 }

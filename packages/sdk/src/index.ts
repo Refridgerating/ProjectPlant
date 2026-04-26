@@ -3,10 +3,55 @@ import { createMqttClient, type MqttBridge, type MessageHandler } from "./mqtt";
 import { createRestClient, type IrrigationZone, type PotSummary, type RestClient } from "./rest";
 import { getEnv, setEnv, type RuntimeEnv } from "./env";
 import { parseSensorTopic, legacyTelemetryTopic } from "./topics";
+import { isDeviceSensorPayload, isLegacyFirmwareTelemetryPayload } from "@projectplant/protocol/validators";
 
 export { discoverPi } from "./discover";
 export type { PiDiscoveryResult } from "./discover";
 export * from "./topics";
+export { createHubClient } from "./client/hubClient";
+export type {
+  HrrrPointRequestParams,
+  HrrrPointResponse,
+  HrrrPointSnapshot,
+  HubClient,
+  HubClientOptions,
+  HubRequestOptions,
+  HubWeatherLocationResponse,
+  HubWeatherLocationUpsertRequest,
+  IrrigationEstimateRequest,
+  IrrigationEstimateResponse,
+  LocalWeatherEndpointRequestParams,
+  LocalWeatherEndpointResponse,
+  LocalWeatherRequestParams,
+  LocalWeatherResponse,
+  LocalWeatherSample,
+  WeatherLocation,
+  WeatherLocationEndpointRequest,
+  WeatherLocationEndpointResponse,
+  WeatherLocationUpsertInput,
+  WeatherSeries,
+  WeatherStation,
+  WateringAssumptions,
+  WateringClimateSummary,
+  WateringDiagnostics,
+  WateringOutputs,
+  WateringPlantProfile,
+  WateringPotMetrics,
+  WateringPotProfile,
+  WateringRecommendation,
+  WateringRequest,
+  WateringRequestOptions,
+  WateringRequestSample,
+  WateringTelemetrySample,
+} from "./client/hubClient";
+export {
+  buildWateringRecommendationRequest,
+  DEFAULT_WATERING_REQUEST_MAX_SAMPLES,
+  HubResponseError,
+  toWeatherLocation,
+  toWeatherSeries,
+} from "./client/hubClient";
+export type * from "./generated/api-types";
 
 
 export interface SensorEvent {
@@ -173,19 +218,15 @@ function parseTelemetry(buffer: Uint8Array): SensorTelemetry | undefined {
     const obj = JSON.parse(decoded) as Record<string, unknown> | null;
     if (!obj || typeof obj !== "object") return undefined;
 
-    // Direct SDK schema
-    if (
-      typeof obj["potId"] === "string" &&
-      typeof obj["moisture"] === "number"
-    ) {
+    if (isDeviceSensorPayload(obj)) {
       return {
-        potId: obj["potId"] as string,
-        moisture: obj["moisture"] as number,
-        temperature: typeof obj["temperature"] === "number" ? (obj["temperature"] as number) : 0,
-        humidity: typeof obj["humidity"] === "number" ? (obj["humidity"] as number) : undefined,
-        valveOpen: typeof obj["valveOpen"] === "boolean" ? (obj["valveOpen"] as boolean) : false,
-        flowRateLpm: typeof obj["flowRateLpm"] === "number" ? (obj["flowRateLpm"] as number) : undefined,
-        timestamp: typeof obj["timestamp"] === "string" ? (obj["timestamp"] as string) : new Date().toISOString()
+        potId: obj.potId,
+        moisture: obj.moisture,
+        temperature: obj.temperature,
+        humidity: typeof obj.humidity === "number" ? obj.humidity : undefined,
+        valveOpen: obj.valveOpen,
+        flowRateLpm: typeof obj.flowRateLpm === "number" ? obj.flowRateLpm : undefined,
+        timestamp: obj.timestamp
       } satisfies SensorTelemetry;
     }
 
@@ -201,6 +242,8 @@ function parseFirmwareTelemetry(buffer: Uint8Array, fallbackPotId?: string): Sen
     const decoded = new TextDecoder().decode(buffer);
     const obj = JSON.parse(decoded) as Record<string, unknown> | null;
     if (!obj || typeof obj !== "object") return undefined;
+
+    if (!isLegacyFirmwareTelemetryPayload(obj)) return undefined;
 
     const deviceId = typeof obj["device_id"] === "string" ? (obj["device_id"] as string) : fallbackPotId;
     const soilPct = typeof obj["soil_pct"] === "number" ? (obj["soil_pct"] as number) : undefined;

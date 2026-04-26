@@ -1,5 +1,6 @@
 import type { IrrigationZone, PotSummary } from "./rest";
-import { sensorTopic, parseSensorTopic } from "./topics";
+import { isDeviceSensorPayload } from "@projectplant/protocol/validators";
+import { parseSensorTopic, sensorTopic } from "./topics";
 
 export interface SensorTelemetry {
   potId: string;
@@ -264,7 +265,7 @@ function emitTelemetry(listeners: Map<string, Set<SensorCallback>>, pot: PotStat
 }
 
 function createPayload(pot: PotState): SensorTelemetry {
-  return {
+  const payload = {
     potId: pot.id,
     moisture: round(pot.moisture, 1),
     temperature: round(pot.temperature, 1),
@@ -273,6 +274,10 @@ function createPayload(pot: PotState): SensorTelemetry {
     flowRateLpm: round(pot.flowRateLpm, 2),
     timestamp: pot.updatedAt
   };
+  if (!isDeviceSensorPayload(payload)) {
+    throw new Error("Mock sensor payload failed protocol validation");
+  }
+  return payload;
 }
 
 function randomWalk(value: number, min: number, max: number, step: number): number {

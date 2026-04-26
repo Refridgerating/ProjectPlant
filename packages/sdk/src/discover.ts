@@ -6,7 +6,7 @@ import {
   DEFAULT_DISCOVERY_HOST,
   DEFAULT_DISCOVERY_PORTS,
   DEFAULT_DISCOVERY_TIMEOUT_MS
-} from "@native/discover";
+} from "@projectplant/native-bridge/discover";
 
 export interface PiDiscoveryResult extends DiscoverResult {
   via: "native" | "web";

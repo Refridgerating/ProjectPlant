@@ -1,0 +1,581 @@
+Command: C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe C:/Espressif/frameworks/esp-idf-v5.5.1/tools/idf_monitor.py -p COM7 -b 115200 --toolchain-prefix xtensa-esp32-elf- --target esp32 --revision 0 C:\ProjectPlant\ProjectPlant\firmware\esp32_pot\build\esp32_pot.elf C:\ProjectPlant\ProjectPlant\firmware\esp32_pot\build\bootloader\bootloader.elf --force-color -m 'C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe' 'C:/Espressif/frameworks/esp-idf-v5.5.1/\tools\idf.py' '-p' 'COM7'
+����     : 4�ets Jul 29 2019 12:21:46
+
+rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:2
+load:0x3fff0030,len:6380
+ho 0 tail 12 room 4
+load:0x40078000,len:15916
+load:0x40080400,len:3860
+entry 0x40080638
+[0;32mI (29) boot: ESP-IDF v5.5.1 2nd stage bootloader[0m
+[0;32mI (29) boot: compile time Feb 22 2026 00:10:40[0m
+[0;32mI (29) boot: Multicore bootloader[0m
+[0;32mI (31) boot: chip revision: v3.1[0m
+[0;32mI (33) boot.esp32: SPI Speed      : 40MHz[0m
+[0;32mI (37) boot.esp32: SPI Mode       : DIO[0m
+[0;32mI (41) boot.esp32: SPI Flash Size : 2MB[0m
+[0;32mI (44) boot: Enabling RNG early entropy source...[0m
+[0;32mI (49) boot: Partition Table:[0m
+[0;32mI (51) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (58) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+[0;32mI (64) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+[0;32mI (71) boot:  2 factory          factory app      00 00 00010000 00177000[0m
+[0;32mI (77) boot: End of partition table[0m
+[0;32mI (81) esp_image: segment 0: paddr=00010020 vaddr=3f400020 size=2dc80h (187520) map[0m
+[0;32mI (152) esp_image: segment 1: paddr=0003dca8 vaddr=3ffbdb60 size=02370h (  9072) load[0m
+[0;32mI (156) esp_image: segment 2: paddr=00040020 vaddr=400d0020 size=df42ch (914476) map[0m
+[0;32mI (468) esp_image: segment 3: paddr=0011f454 vaddr=3ffbfed0 size=035d8h ( 13784) load[0m
+[0;32mI (474) esp_image: segment 4: paddr=00122a34 vaddr=40080000 size=1d128h (119080) load[0m
+[0;32mI (520) esp_image: segment 5: paddr=0013fb64 vaddr=50000000 size=00020h (    32) load[0m
+[0;32mI (535) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (535) boot: Disabling RNG early entropy source...[0m
+[0;32mI (545) cpu_start: Multicore app[0m
+[0;32mI (554) cpu_start: Pro cpu start user code[0m
+[0;32mI (554) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (554) app_init: Application information:[0m
+[0;32mI (554) app_init: Project name:     esp32_pot[0m
+[0;32mI (558) app_init: App version:      ab29467-dirty[0m
+[0;32mI (562) app_init: Compile time:     Feb 22 2026 00:10:34[0m
+[0;32mI (568) app_init: ELF file SHA256:  129f75021...[0m
+[0;32mI (572) app_init: ESP-IDF:          v5.5.1[0m
+[0;32mI (576) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (580) efuse_init: Max chip rev:     v3.99 [0m
+[0;32mI (583) efuse_init: Chip rev:         v3.1[0m
+[0;32mI (588) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (594) heap_init: At 3FFAFF10 len 000000F0 (0 KiB): DRAM[0m
+[0;32mI (599) heap_init: At 3FFB6388 len 00001C78 (7 KiB): DRAM[0m
+[0;32mI (604) heap_init: At 3FFB9A20 len 00004108 (16 KiB): DRAM[0m
+[0;32mI (609) heap_init: At 3FFCA330 len 00015CD0 (87 KiB): DRAM[0m
+[0;32mI (614) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM[0m
+[0;32mI (620) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM[0m
+[0;32mI (625) heap_init: At 4009D128 len 00002ED8 (11 KiB): IRAM[0m
+[0;33mW (632) spi_flash: Detected boya flash chip but using generic driver. For optimal functionality, enable `SPI_FLASH_SUPPORT_BOYA_CHIP` in menuconfig[0m
+[0;32mI (643) spi_flash: detected chip: generic[0m
+[0;32mI (647) spi_flash: flash io: dio[0m
+[0;33mW (650) spi_flash: Detected size(4096k) larger than the size in the binary image header(2048k). Using the size in the binary image header.[0m
+[0;32mI (663) coexist: coex firmware version: b0bcc39[0m
+[0;32mI (667) main_task: Started on CPU0[0m
+[0;32mI (677) main_task: Calling app_main()[0m
+[0;32mI (697) app: Starting ProjectPlant ESP32 node (0.1.0)[0m
+[0;32mI (697) app: test_var: '0'[0m
+[0;32mI (697) identity: Device identity: id=pot-c05d89dcb48c name=DevBoard named=true[0m
+[0;32mI (697) identity: Sensor mode: full[0m
+[0;32mI (707) sensors: I2C driver installed on port 0[0m
+[0;32mI (887) node_schedule: Schedule initialized (tzOffsetMin=0 updatedAtMs=0 light=0[360-1200] pump=0[420-435] ic1=0[420-435] mister=0[480-495] fan=0[540-1080])[0m
+[0;32mI (897) wifi:wifi driver task: 3ffce6f4, prio:23, stack:6656, core=0[0m
+[0;32mI (907) wifi:wifi firmware version: 14da9b7[0m
+[0;32mI (907) wifi:wifi certification version: v7.0[0m
+[0;32mI (907) wifi:config NVS flash: enabled[0m
+[0;32mI (907) wifi:config nano formatting: disabled[0m
+[0;32mI (917) wifi:Init data frame dynamic rx buffer num: 32[0m
+[0;32mI (917) wifi:Init static rx mgmt buffer num: 5[0m
+[0;32mI (917) wifi:Init management short buffer num: 32[0m
+[0;32mI (927) wifi:Init dynamic tx buffer num: 32[0m
+[0;32mI (927) wifi:Init static rx buffer size: 1600[0m
+[0;32mI (937) wifi:Init static rx buffer num: 10[0m
+[0;32mI (937) wifi:Init dynamic rx buffer num: 32[0m
+[0;32mI (947) wifi_init: rx ba win: 6[0m
+[0;32mI (947) wifi_init: accept mbox: 6[0m
+[0;32mI (947) wifi_init: tcpip mbox: 32[0m
+[0;32mI (947) wifi_init: udp mbox: 6[0m
+[0;32mI (957) wifi_init: tcp mbox: 6[0m
+[0;32mI (957) wifi_init: tcp tx win: 5760[0m
+[0;32mI (957) wifi_init: tcp rx win: 5760[0m
+[0;32mI (967) wifi_init: tcp mss: 1440[0m
+[0;32mI (967) wifi_init: WiFi IRAM OP enabled[0m
+[0;32mI (967) wifi_prov_scheme_ble: BT memory released[0m
+[0;32mI (977) wifi_prov_scheme_ble: BTDM memory released[0m
+[0;32mI (977) phy_init: phy_version 4861,b71b5ad,Aug  5 2025,11:16:06[0m
+[0;32mI (1067) wifi:mode : sta (c0:5d:89:dc:b4:8c)[0m
+[0;32mI (1067) wifi:enable tsf[0m
+[1;31mE (1067) wifi:sta is connecting, return error[0m
+[0;32mI (1087) wifi:new:<1,0>, old:<1,0>, ap:<255,255>, sta:<1,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (1087) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (1087) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (1097) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (1127) wifi:connected with Braudiville, aid = 4, channel 1, BW20, bssid = c0:c5:22:49:d9:80[0m
+[0;32mI (1137) wifi:security: WPA2-PSK, phy: bgn, rssi: -52[0m
+[0;32mI (1137) wifi:pm start, type: 1[0m
+
+[0;32mI (1137) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us[0m
+[0;32mI (1197) wifi:<ba-add>idx:0 (ifx:0, c0:c5:22:49:d9:80), tid:0, ssn:0, winSize:64[0m
+[0;32mI (1227) wifi:AP's beacon interval = 102400 us, DTIM period = 1[0m
+[0;32mI (2247) startup_onboarding: Connected with IP 192.168.0.6[0m
+[0;32mI (2247) esp_netif_handlers: sta ip: 192.168.0.6, mask: 255.255.255.0, gw: 192.168.0.1[0m
+[0;32mI (2247) time_sync: SNTP service started[0m
+[0;32mI (2247) time_sync: Time zone set to UTC[0m
+[0;32mI (3757) app: Time synchronized successfully[0m
+[0;32mI (3757) app: Using MQTT broker URI: mqtt://192.168.0.15:1883[0m
+[0;32mI (3767) main_task: Returned from app_main()[0m
+[0;32mI (3807) mqtt: Connected to broker[0m
+[0;32mI (3827) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772233523708}[0m
+[0;32mI (3847) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772233523708}[0m
+[0;32mI (4127) sensors: Soil moisture: 0.0% (raw 17321)[0m
+[0;32mI (21197) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772233541039}[0m
+[0;32mI (29297) app: IC Zone 1 command: ON pulse 50 ms override 60000 ms[0m
+[0;32mI (29877) sensors: Soil moisture: 0.0% (raw 17324)[0m
+[0;32mI (29957) app: Sensor read command (requestId=33b48c3c-2b6e-4318-986c-25a93f1f7c35)[0m
+[0;32mI (31037) app: IC Zone 1 command: OFF pulse 50 ms override 60000 ms[0m
+[0;32mI (31637) sensors: Soil moisture: 0.0% (raw 17325)[0m
+[0;32mI (31717) app: Sensor read command (requestId=c970f8e5-ecfe-4378-a44e-c82a8543e98b)[0m
+[0;32mI (33767) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772233553654}[0m
+[0;32mI (33787) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772233553654}[0m
+[0;32mI (34627) app: Mister command: ON override 60000 ms[0m
+[0;32mI (35127) sensors: Soil moisture: 0.0% (raw 17323)[0m
+[0;32mI (35207) app: Sensor read command (requestId=2ba78f05-2318-4577-aa79-31f067126ed1)[0m
+[0;32mI (39337) app: Light command: ON override 60000 ms[0m
+[0;32mI (39877) sensors: Soil moisture: 1.8% (raw 16873)[0m
+[0;32mI (39957) app: Sensor read command (requestId=78ea948f-5c52-4adc-a2dc-623c7a5508bd)[0m
+[0;32mI (41077) app: Pump command: ON[0m
+[0;32mI (41737) sensors: Soil moisture: 1.8% (raw 16869)[0m
+[0;32mI (41817) app: Sensor read command (requestId=d982cd9b-6472-41ce-aaf0-a8e5b6151eea)[0m
+[0;32mI (42917) app: Pump command: OFF[0m
+[0;32mI (43377) sensors: Soil moisture: 1.8% (raw 16867)[0m
+[0;32mI (43457) app: Sensor read command (requestId=ebdfc731-31c4-4651-886e-1cf956e1a58d)[0m
+[0;32mI (43547) app: Light command: OFF override 60000 ms[0m
+[0;32mI (44127) sensors: Soil moisture: 1.7% (raw 16880)[0m
+[0;32mI (44207) app: Sensor read command (requestId=3a1e063f-f4c9-4396-b3c0-354ae4cf3722)[0m
+[0;32mI (44217) app: Mister command: OFF override 60000 ms[0m
+[0;32mI (44647) sensors: Soil moisture: 0.0% (raw 17322)[0m
+[0;32mI (44727) app: Sensor read command (requestId=49341c78-336b-4460-a8a3-1244f9af1ed7)[0m
+[0;32mI (51207) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772233571048}[0m
+[0;32mI (63767) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772233583654}[0m
+[0;32mI (63807) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772233583654}[0m
+[0;32mI (64567) sensors: Soil moisture: 0.0% (raw 17326)[0m
+[0;32mI (81207) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772233601048}[0m
+[0;32mI (93767) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772233613654}[0m
+[0;32mI (93777) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772233613654}[0m
+[0;32mI (111207) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772233631048}[0m
+[0;32mI (123767) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772233643654}[0m
+[0;32mI (123807) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772233643654}[0m
+[0;32mI (125007) sensors: Soil moisture: 0.0% (raw 17321)[0m
+[0;32mI (126627) sensors: Soil moisture: 0.0% (raw 17323)[0m
+[0;32mI (126707) app: Sensor read command (requestId=1f2720a4-609a-4eff-ac01-20a79db8acfd)[0m
+[0;32mI (141317) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772233661049}[0m
+[0;32mI (153767) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772233673654}[0m
+[0;32mI (153817) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772233673654}[0m
+[0;32mI (171217) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772233691048}[0m
+[0;32mI (183767) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772233703654}[0m
+[0;32mI (183787) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772233703654}[0m
+[0;32mI (185447) sensors: Soil moisture: 0.0% (raw 17322)[0m
+[0;32mI (201227) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772233721059}[0m
+[0;32mI (213767) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772233733654}[0m
+[0;32mI (213827) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772233733654}[0m
+[0;32mI (231327) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772233751058}[0m
+[0;32mI (243767) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772233763654}[0m
+[0;32mI (243827) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772233763654}[0m
+[0;32mI (245887) sensors: Soil moisture: 0.0% (raw 17331)[0m
+[0;32mI (261227) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772233781058}[0m
+[0;32mI (273767) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772233793654}[0m
+[0;32mI (273827) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772233793654}[0m
+[0;32mI (291327) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772233811068}[0m
+[0;32mI (303777) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772233823664}[0m
+[0;32mI (303787) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772233823664}[0m
+[0;32mI (306327) sensors: Soil moisture: 0.0% (raw 17322)[0m
+[0;32mI (321227) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772233841068}[0m
+[0;32mI (333777) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772233853664}[0m
+[0;32mI (333827) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772233853664}[0m
+[0;32mI (351227) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772233871069}[0m
+[0;32mI (363777) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772233883664}[0m
+[0;32mI (363827) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772233883664}[0m
+[0;32mI (366767) sensors: Soil moisture: 0.0% (raw 17311)[0m
+[0;32mI (381237) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772233901068}[0m
+[0;32mI (393777) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772233913664}[0m
+[0;32mI (393827) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772233913664}[0m
+[0;32mI (411237) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772233931078}[0m
+[0;32mI (423787) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772233943674}[0m
+[0;32mI (423837) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772233943674}[0m
+[0;32mI (427207) sensors: Soil moisture: 0.0% (raw 17324)[0m
+[0;32mI (441247) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772233961078}[0m
+[0;32mI (453787) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772233973674}[0m
+[0;32mI (453837) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772233973674}[0m
+[0;32mI (471247) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772233991079}[0m
+[0;32mI (483797) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234003684}[0m
+[0;32mI (483837) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234003684}[0m
+[0;32mI (487647) sensors: Soil moisture: 0.0% (raw 17320)[0m
+[0;32mI (501247) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234021078}[0m
+[0;32mI (513797) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234033684}[0m
+[0;32mI (513837) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234033684}[0m
+[0;32mI (531247) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234051088}[0m
+[0;32mI (543797) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234063684}[0m
+[0;32mI (543847) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234063684}[0m
+[0;32mI (548087) sensors: Soil moisture: 0.0% (raw 17319)[0m
+[0;32mI (561247) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234081089}[0m
+[0;32mI (573807) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234093694}[0m
+[0;32mI (573847) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234093694}[0m
+[0;32mI (591247) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234111088}[0m
+[0;32mI (603807) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234123694}[0m
+[0;32mI (603817) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234123694}[0m
+[0;32mI (608527) sensors: Soil moisture: 0.0% (raw 17318)[0m
+[0;32mI (621257) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234141098}[0m
+[0;32mI (633817) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234153704}[0m
+[0;32mI (633847) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234153704}[0m
+[0;32mI (651257) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234171098}[0m
+[0;32mI (663817) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234183704}[0m
+[0;32mI (663857) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234183704}[0m
+[0;32mI (668967) sensors: Soil moisture: 0.0% (raw 17320)[0m
+[0;32mI (681257) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234201098}[0m
+[0;32mI (693817) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234213704}[0m
+[0;32mI (693857) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234213704}[0m
+[0;32mI (711267) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234231108}[0m
+[0;32mI (723827) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234243714}[0m
+[0;32mI (723837) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234243714}[0m
+[0;32mI (729407) sensors: Soil moisture: 0.0% (raw 17317)[0m
+[0;32mI (741367) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234261108}[0m
+[0;32mI (753827) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234273714}[0m
+[0;32mI (753867) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234273714}[0m
+[0;32mI (771367) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234291108}[0m
+[0;32mI (783827) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234303714}[0m
+[0;32mI (783837) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234303714}[0m
+[0;32mI (789847) sensors: Soil moisture: 0.0% (raw 17316)[0m
+[0;32mI (801267) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234321109}[0m
+[0;32mI (813827) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234333714}[0m
+[0;32mI (813867) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234333714}[0m
+[0;32mI (831377) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234351108}[0m
+[0;32mI (843837) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234363724}[0m
+[0;32mI (843847) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234363724}[0m
+[0;32mI (850287) sensors: Soil moisture: 0.0% (raw 17309)[0m
+[0;32mI (861387) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234381118}[0m
+[0;32mI (873837) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234393724}[0m
+[0;32mI (873877) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234393724}[0m
+[0;32mI (891377) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234411118}[0m
+[0;32mI (903837) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234423724}[0m
+[0;32mI (903877) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234423724}[0m
+[0;32mI (910727) sensors: Soil moisture: 0.0% (raw 17314)[0m
+[0;32mI (921277) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234441120}[0m
+[0;32mI (933837) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234453724}[0m
+[0;32mI (933847) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234453724}[0m
+[0;32mI (951277) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234471128}[0m
+[0;32mI (963837) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234483724}[0m
+[0;32mI (963877) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234483724}[0m
+[0;32mI (971167) sensors: Soil moisture: 0.0% (raw 17310)[0m
+[0;32mI (981387) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234501128}[0m
+[0;32mI (993837) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234513724}[0m
+[0;32mI (993887) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234513724}[0m
+[0;32mI (1011387) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234531129}[0m
+[0;32mI (1023847) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234543734}[0m
+[0;32mI (1023887) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234543734}[0m
+[0;32mI (1031607) sensors: Soil moisture: 0.0% (raw 17311)[0m
+[0;32mI (1041287) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234561128}[0m
+[0;32mI (1053847) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234573734}[0m
+[0;32mI (1053857) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234573734}[0m
+[0;32mI (1071397) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234591138}[0m
+[0;32mI (1083847) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234603734}[0m
+[0;32mI (1083887) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234603734}[0m
+[0;32mI (1092057) sensors: Soil moisture: 0.0% (raw 17312)[0m
+[0;32mI (1101297) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234621148}[0m
+[0;32mI (1113857) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234633744}[0m
+[0;32mI (1113867) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234633744}[0m
+[0;32mI (1131397) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234651148}[0m
+[0;32mI (1143857) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234663744}[0m
+[0;32mI (1143897) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234663744}[0m
+[0;32mI (1152497) sensors: Soil moisture: 0.0% (raw 17311)[0m
+[0;32mI (1161297) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234681148}[0m
+[0;32mI (1173867) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234693754}[0m
+[0;32mI (1173887) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234693754}[0m
+[0;32mI (1191307) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234711158}[0m
+[0;32mI (1203867) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234723754}[0m
+[0;32mI (1203907) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234723754}[0m
+[0;32mI (1212937) sensors: Soil moisture: 0.0% (raw 17311)[0m
+[0;32mI (1221317) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234741158}[0m
+[0;32mI (1233867) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234753754}[0m
+[0;32mI (1233877) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234753754}[0m
+[0;32mI (1251307) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234771158}[0m
+[0;32mI (1263867) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234783754}[0m
+[0;32mI (1263877) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234783754}[0m
+[0;32mI (1273377) sensors: Soil moisture: 0.0% (raw 17311)[0m
+[0;32mI (1281317) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234801158}[0m
+[0;32mI (1293877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234813764}[0m
+[0;32mI (1293907) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234813764}[0m
+[0;32mI (1311307) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234831158}[0m
+[0;32mI (1323877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234843764}[0m
+[0;32mI (1323917) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234843764}[0m
+[0;32mI (1333817) sensors: Soil moisture: 0.0% (raw 17310)[0m
+[0;32mI (1341417) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234861158}[0m
+[0;32mI (1353877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234873764}[0m
+[0;32mI (1353887) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234873764}[0m
+[0;32mI (1371437) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234891158}[0m
+[0;32mI (1383877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234903764}[0m
+[0;32mI (1383887) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234903764}[0m
+[0;32mI (1394257) sensors: Soil moisture: 0.0% (raw 17306)[0m
+[0;32mI (1401317) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234921168}[0m
+[0;32mI (1413877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234933764}[0m
+[0;32mI (1413887) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234933764}[0m
+[0;32mI (1431317) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234951168}[0m
+[0;32mI (1443877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234963764}[0m
+[0;32mI (1443897) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234963764}[0m
+[0;32mI (1454697) sensors: Soil moisture: 0.0% (raw 17308)[0m
+[0;32mI (1461327) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772234981168}[0m
+[0;32mI (1473877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772234993764}[0m
+[0;32mI (1473927) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772234993764}[0m
+[0;32mI (1491327) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235011178}[0m
+[0;32mI (1503877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235023764}[0m
+[0;32mI (1503897) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235023764}[0m
+[0;32mI (1515137) sensors: Soil moisture: 0.0% (raw 17313)[0m
+[0;32mI (1521327) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235041178}[0m
+[0;32mI (1533877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235053764}[0m
+[0;32mI (1533897) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235053764}[0m
+[0;32mI (1551337) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235071178}[0m
+[0;32mI (1563877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235083764}[0m
+[0;32mI (1563887) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235083764}[0m
+[0;32mI (1575577) sensors: Soil moisture: 0.0% (raw 17311)[0m
+[0;32mI (1581337) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235101180}[0m
+[0;32mI (1593877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235113764}[0m
+[0;32mI (1593937) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235113764}[0m
+[0;32mI (1611337) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235131188}[0m
+[0;32mI (1623877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235143764}[0m
+[0;32mI (1623897) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235143764}[0m
+[0;32mI (1636017) sensors: Soil moisture: 0.0% (raw 17316)[0m
+[0;32mI (1641337) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235161188}[0m
+[0;32mI (1653877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235173764}[0m
+[0;32mI (1654137) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235173764}[0m
+[0;32mI (1671347) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235191188}[0m
+[0;32mI (1683877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235203764}[0m
+[0;32mI (1684037) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235203764}[0m
+[0;32mI (1696467) sensors: Soil moisture: 0.0% (raw 17313)[0m
+[0;32mI (1701447) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235221198}[0m
+[0;32mI (1713877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235233764}[0m
+[0;32mI (1714047) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235233764}[0m
+[0;32mI (1731347) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235251198}[0m
+[0;32mI (1743877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235263764}[0m
+[0;32mI (1744047) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235263764}[0m
+[0;32mI (1756907) sensors: Soil moisture: 0.0% (raw 17316)[0m
+[0;32mI (1761357) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235281208}[0m
+[0;32mI (1773877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235293764}[0m
+[0;32mI (1774047) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235293764}[0m
+[0;32mI (1791357) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235311208}[0m
+[0;32mI (1803877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235323764}[0m
+[0;32mI (1803907) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235323764}[0m
+[0;32mI (1817347) sensors: Soil moisture: 0.0% (raw 17322)[0m
+[0;32mI (1821457) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235341208}[0m
+[0;32mI (1833877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235353764}[0m
+[0;32mI (1834057) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235353764}[0m
+[0;32mI (1851457) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235371208}[0m
+[0;32mI (1863877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235383764}[0m
+[0;32mI (1863957) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235383764}[0m
+[0;32mI (1877787) sensors: Soil moisture: 0.0% (raw 17321)[0m
+[0;32mI (1881357) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235401208}[0m
+[0;32mI (1893877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235413764}[0m
+[0;32mI (1893887) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235413764}[0m
+[0;32mI (1911477) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235431209}[0m
+[0;32mI (1923877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235443764}[0m
+[0;32mI (1923887) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235443764}[0m
+[0;32mI (1938227) sensors: Soil moisture: 0.0% (raw 17318)[0m
+[0;32mI (1941467) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235461218}[0m
+[0;32mI (1953877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235473764}[0m
+[0;32mI (1953967) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235473764}[0m
+[0;32mI (1971367) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235491218}[0m
+[0;32mI (1983877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235503764}[0m
+[0;32mI (1983897) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235503764}[0m
+[0;32mI (1998667) sensors: Soil moisture: 0.0% (raw 17322)[0m
+[0;32mI (2001367) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235521228}[0m
+[0;32mI (2013877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235533764}[0m
+[0;32mI (2014077) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235533764}[0m
+[0;32mI (2031477) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235551238}[0m
+[0;32mI (2043877) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235563764}[0m
+[0;32mI (2043897) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235563764}[0m
+[0;32mI (2059107) sensors: Soil moisture: 0.0% (raw 17326)[0m
+[0;32mI (2061377) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235581238}[0m
+[0;32mI (2073887) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235593774}[0m
+[0;32mI (2074077) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235593774}[0m
+[0;32mI (2091477) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235611238}[0m
+[0;32mI (2103897) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235623784}[0m
+[0;32mI (2103917) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235623784}[0m
+[0;32mI (2119547) sensors: Soil moisture: 0.0% (raw 17322)[0m
+[0;32mI (2121377) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235641238}[0m
+[0;32mI (2133897) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235653784}[0m
+[0;32mI (2134087) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235653784}[0m
+[0;32mI (2151487) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235671374}[0m
+[0;32mI (2163897) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235683784}[0m
+[0;32mI (2163907) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235683784}[0m
+[0;32mI (2179987) sensors: Soil moisture: 0.0% (raw 17322)[0m
+[0;32mI (2181397) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235701374}[0m
+[0;32mI (2193907) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235713794}[0m
+[0;32mI (2193987) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235713794}[0m
+[0;32mI (2211387) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235731374}[0m
+[0;32mI (2223907) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235743794}[0m
+[0;32mI (2224087) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235743794}[0m
+[0;32mI (2240427) sensors: Soil moisture: 0.0% (raw 17322)[0m
+[0;32mI (2241397) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235761376}[0m
+[0;32mI (2253907) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235773794}[0m
+[0;32mI (2254087) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235773794}[0m
+[0;32mI (2271497) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235791384}[0m
+[0;32mI (2283907) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235803794}[0m
+[0;32mI (2284087) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235803794}[0m
+[0;32mI (2300867) sensors: Soil moisture: 0.0% (raw 17323)[0m
+[0;32mI (2301307) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235821384}[0m
+[0;32mI (2313907) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235833794}[0m
+[0;32mI (2313927) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235833794}[0m
+[0;32mI (2331607) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235851385}[0m
+[0;32mI (2343907) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235863794}[0m
+[0;32mI (2343917) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235863794}[0m
+[0;32mI (2361307) sensors: Soil moisture: 0.0% (raw 17321)[0m
+[0;32mI (2361407) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235881394}[0m
+[0;32mI (2373907) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235893794}[0m
+[0;32mI (2373937) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235893794}[0m
+[0;32mI (2391407) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235911394}[0m
+[0;32mI (2403907) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235923794}[0m
+[0;32mI (2404097) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235923794}[0m
+[0;32mI (2421407) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235941394}[0m
+[0;32mI (2421747) sensors: Soil moisture: 0.0% (raw 17319)[0m
+[0;32mI (2433907) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235953794}[0m
+[0;32mI (2433927) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235953794}[0m
+[0;32mI (2451407) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772235971395}[0m
+[0;32mI (2463917) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772235983804}[0m
+[0;32mI (2464107) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772235983804}[0m
+[0;32mI (2481407) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772236001394}[0m
+[0;32mI (2482187) sensors: Soil moisture: 0.0% (raw 17318)[0m
+[0;32mI (2493917) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772236013804}[0m
+[0;32mI (2494107) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772236013804}[0m
+[0;32mI (2511417) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772236031404}[0m
+[0;32mI (2523917) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772236043804}[0m
+[0;32mI (2524117) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772236043804}[0m
+[0;32mI (2541517) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772236061414}[0m
+[0;32mI (2542627) sensors: Soil moisture: 0.0% (raw 17323)[0m
+[0;32mI (2553917) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772236073804}[0m
+[0;32mI (2554117) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772236073804}[0m
+[0;32mI (2571527) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772236091414}[0m
+[0;32mI (2583917) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772236103804}[0m
+[0;32mI (2584117) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772236103804}[0m
+[0;32mI (2601417) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772236121414}[0m
+[0;32mI (2603067) sensors: Soil moisture: 0.0% (raw 17322)[0m
+[0;32mI (2613917) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772236133804}[0m
+[0;32mI (2614117) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772236133804}[0m
+[0;32mI (2631537) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772236151414}[0m
+[0;32mI (2643917) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772236163804}[0m
+[0;32mI (2643927) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772236163804}[0m
+[0;32mI (2661527) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772236181415}[0m
+[0;32mI (2663507) sensors: Soil moisture: 0.0% (raw 17323)[0m
+[0;32mI (2673917) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772236193804}[0m
+[0;32mI (2673937) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772236193804}[0m
+[0;32mI (2691527) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772236211414}[0m
+[0;32mI (2703927) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772236223804}[0m
+[0;32mI (2704127) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772236223804}[0m
+[0;32mI (2721427) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772236241424}[0m
+[0;32mI (2723947) sensors: Soil moisture: 0.0% (raw 17324)[0m
+[0;32mI (2733927) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772236253814}[0m
+[0;32mI (2734137) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772236253814}[0m
+[0;32mI (2751537) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772236271424}[0m
+[0;32mI (2763927) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772236283814}[0m
+[0;32mI (2764137) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772236283814}[0m
+[0;32mI (2781437) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772236301425}[0m
+[0;32mI (2784387) sensors: Soil moisture: 0.0% (raw 17326)[0m
+[0;32mI (2793927) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772236313814}[0m
+[0;32mI (2793937) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772236313814}[0m
+[0;32mI (2811547) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772236331424}[0m
+[0;32mI (2823937) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772236343814}[0m
+[0;32mI (2824137) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772236343814}[0m
+[0;32mI (2841447) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772236361434}[0m
+[0;32mI (2844827) sensors: Soil moisture: 0.0% (raw 17379)[0m
+[0;32mI (2853937) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772236373824}[0m
+[0;32mI (2854137) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772236373824}[0m
+[0;32mI (2871547) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772236391435}[0m
+[0;32mI (2883937) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772236403824}[0m
+[0;32mI (2883947) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772236403824}[0m
+[0;32mI (2901447) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772236421434}[0m
+[0;32mI (2905267) sensors: Soil moisture: 0.0% (raw 17312)[0m
+[0;32mI (2913937) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772236433824}[0m
+[0;32mI (2914147) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772236433824}[0m
+[0;32mI (2931557) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772236451434}[0m
+[0;32mI (2943947) mqtt: Published ping: {"from":"pot-c05d89dcb48c","timestampMs":1772236463824}[0m
+[0;32mI (2943957) mqtt: Ping topic lab/ping payload {"from":"pot-c05d89dcb48c","timestampMs":1772236463824}[0m
+d:0x3fff0030,len:6380
+ho 0 tail 12 room 4
+load:0x40078000,len:15916
+load:0x40080400,len:38$��data          01 01 0000f000 00001000
+[0;32mI (71) boot:  2 factory          factory app      00 00 00010000 00177000[0m
+[0;32mI (77) boot: End of partition table[0m
+[0;32mI (81) esp_image: segment 0: paddr=00010020 vaddr=3f400020 size=2dcb0h (187568) map[0m
+[0;32mI (152) esp_image: segment 1: paddr=0003dcd8 vaddr=3ffbdb60 size=02340h (  9024) load[0m
+[0;32mI (156) esp_image: segment 2: paddr=00040020 vaddr=400d0020 size=df38ch (914316) map[0m
+[0;32mI (468) esp_image: segment 3: paddr=0011f3b4 vaddr=3ffbfea0 size=03608h ( 13832) load[0m
+[0;32mI (474) esp_image: segment 4: paddr=001229c4 vaddr=40080000 size=1d128h (119080) load[0m
+[0;32mI (520) esp_image: segment 5: paddr=0013faf4 vaddr=50000000 size=00020h (    32) load[0m
+[0;32mI (535) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (535) boot: Disabling RNG early entropy source...[0m
+[0;32mI (545) cpu_start: Multicore app[0m
+[0;32mI (554) cpu_start: Pro cpu start user code[0m
+[0;32mI (554) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (554) app_init: Application information:[0m
+[0;32mI (554) app_init: Project name:     esp32_pot[0m
+[0;32mI (558) app_init: App version:      ab29467-dirty[0m
+[0;32mI (562) app_init: Compile time:     Feb 22 2026 00:10:34[0m
+[0;32mI (567) app_init: ELF file SHA256:  e88f96bdd...[0m
+[0;32mI (572) app_init: ESP-IDF:          v5.5.1[0m
+[0;32mI (576) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (579) efuse_init: Max chip rev:     v3.99 [0m
+[0;32mI (583) efuse_init: Chip rev:         v3.1[0m
+[0;32mI (588) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (594) heap_init: At 3FFAFF10 len 000000F0 (0 KiB): DRAM[0m
+[0;32mI (599) heap_init: At 3FFB6388 len 00001C78 (7 KiB): DRAM[0m
+[0;32mI (604) heap_init: At 3FFB9A20 len 00004108 (16 KiB): DRAM[0m
+[0;32mI (609) heap_init: At 3FFCA2D8 len 00015D28 (87 KiB): DRAM[0m
+[0;32mI (614) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM[0m
+[0;32mI (620) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM[0m
+[0;32mI (625) heap_init: At 4009D128 len 00002ED8 (11 KiB): IRAM[0m
+[0;33mW (632) spi_flash: Detected boya flash chip but using generic driver. For optimal functionality, enable `SPI_FLASH_SUPPORT_BOYA_CHIP` in menuconfig[0m
+[0;32mI (643) spi_flash: detected chip: generic[0m
+[0;32mI (647) spi_flash: flash io: dio[0m
+[0;33mW (650) spi_flash: Detected size(4096k) larger than the size in the binary image header(2048k). Using the size in the binary image header.[0m
+[0;32mI (663) coexist: coex firmware version: b0bcc39[0m
+[0;32mI (667) main_task: Started on CPU0[0m
+[0;32mI (677) main_task: Calling app_main()[0m
+[0;32mI (707) app: Starting ProjectPlant ESP32 node (0.1.0)[0m
+[0;32mI (707) app: test_var: '0'[0m
+[0;32mI (707) identity: Device identity: id=pot-8c4f0035d3b4 name=HalfMoon named=true[0m
+[0;32mI (707) identity: Sensor mode: control_only[0m
+[0;32mI (717) sensors: I2C driver installed on port 0[0m
+[0;32mI (897) node_schedule: Schedule initialized (tzOffsetMin=-300 updatedAtMs=1772024257000 light=1[360-0] pump=0[420-435] ic1=0[420-435] mister=0[480-495] fan=0[540-1080])[0m
+[0;32mI (917) wifi:wifi driver task: 3ffce5ac, prio:23, stack:6656, core=0[0m
+[0;32mI (927) wifi:wifi firmware version: 14da9b7[0m
+[0;32mI (927) wifi:wifi certification version: v7.0[0m
+[0;32mI (927) wifi:config NVS flash: enabled[0m
+[0;32mI (927) wifi:config nano formatting: disabled[0m
+[0;32mI (937) wifi:Init data frame dynamic rx buffer num: 32[0m
+[0;32mI (937) wifi:Init static rx mgmt buffer num: 5[0m
+[0;32mI (937) wifi:Init management short buffer num: 32[0m
+[0;32mI (947) wifi:Init dynamic tx buffer num: 32[0m
+[0;32mI (947) wifi:Init static rx buffer size: 1600[0m
+[0;32mI (957) wifi:Init static rx buffer num: 10[0m
+[0;32mI (957) wifi:Init dynamic rx buffer num: 32[0m
+[0;32mI (967) wifi_init: rx ba win: 6[0m
+[0;32mI (967) wifi_init: accept mbox: 6[0m
+[0;32mI (967) wifi_init: tcpip mbox: 32[0m
+[0;32mI (967) wifi_init: udp mbox: 6[0m
+[0;32mI (977) wifi_init: tcp mbox: 6[0m
+[0;32mI (977) wifi_init: tcp tx win: 5760[0m
+[0;32mI (977) wifi_init: tcp rx win: 5760[0m
+[0;32mI (977) wifi_init: tcp mss: 1440[0m
+[0;32mI (987) wifi_init: WiFi IRAM OP enabled[0m
+[0;32mI (987) wifi_prov_scheme_ble: BT memory released[0m
+[0;32mI (997) wifi_prov_scheme_ble: BTDM memory released[0m
+[0;32mI (997) phy_init: phy_version 4861,b71b5ad,Aug  5 2025,11:16:06[0m
+[0;32mI (1087) phy_init: Saving new calibration data due to checksum failure or outdated calibration data, mode(0)[0m
+[0;32mI (1117) wifi:mode : sta (8c:4f:00:35:d3:b4)[0m
+[0;32mI (1117) wifi:enable tsf[0m
+[1;31mE (1117) wifi:sta is connecting, return error[0m
+[0;32mI (1127) wifi:new:<1,0>, old:<1,0>, ap:<255,255>, sta:<1,0>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (1127) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (1137) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (1147) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (1177) wifi:connected with Braudiville, aid = 4, channel 1, BW20, bssid = c0:c5:22:49:d9:80[0m
+[0;32mI (1187) wifi:security: WPA2-PSK, phy: bgn, rssi: -50[0m
+[0;32mI (1187) wifi:pm start, type: 1[0m
+
+[0;32mI (1187) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us[0m
+[0;32mI (1247) wifi:AP's beacon interval = 102400 us, DTIM period = 1[0m
+[0;32mI (1247) wifi:<ba-add>idx:0 (ifx:0, c0:c5:22:49:d9:80), tid:0, ssn:0, winSize:64[0m
+[0;32mI (2297) startup_onboarding: Connected with IP 192.168.0.8[0m
+[0;32mI (2297) esp_netif_handlers: sta ip: 192.168.0.8, mask: 255.255.255.0, gw: 192.168.0.1[0m
+[0;32mI (2297) time_sync: SNTP service started[0m
+[0;32mI (2297) time_sync: Time zone set to UTC[0m
+[0;32mI (3807) app: Time synchronized successfully[0m
+[0;32mI (3807) app: Using MQTT broker URI: mqtt://192.168.0.15:1883[0m
+[0;32mI (3817) main_task: Returned from app_main()[0m
+[0;32mI (3927) mqtt: Connected to broker[0m
+[0;32mI (3937) mqtt: Published ping: {"from":"pot-8c4f0035d3b4","timestampMs":1772239877936}[0m
+[0;32mI (3967) mqtt: Ping topic lab/ping payload {"from":"pot-8c4f0035d3b4","timestampMs":1772239877936}[0m
+[0;32mI (6987) app: Light command: ON duration 0 ms[0m

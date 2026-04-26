@@ -1,127 +1,269 @@
-# ProjectPlant Hub (FastAPI)
+# ProjectPlant
 
-ProjectPlant Hub is the backend API for ProjectPlant. It aggregates sensor telemetry, enriches plant knowledge, calculates irrigation recommendations, and bridges the MQTT edge network with the web UI.
+ProjectPlant is a full-stack smart plant platform. This repo contains the ESP32 pot firmware, MQTT and edge integrations, Python APIs, React dashboards, a Capacitor Android app, Raspberry Pi services, and shared TypeScript libraries that connect the whole system.
 
-## Feature Highlights
-- Versioned REST API (`/api/v1`) with shared FastAPI middleware, request logging, and CORS configuration.
-- Weather ingestion from weather.gov with caching, station resolution, and normalization for UI consumption.
-- Plant intelligence that merges local reference data with remote sources (POWO, iNaturalist) and caches suggestions + care profiles.
-- Penman-Monteith irrigation modeller that turns climate samples into actionable watering guidance for smart pots and garden zones.
-- Local catalog of pots, irrigation zones, and plant records with mock data to bootstrap the UI.
-- Optional MQTT connection (asyncio-mqtt) to publish/subscribe to hardware devices, ready for local Mosquitto.
-- Mock telemetry generator for rapid UI development when hardware is offline.
+Use this README as the monorepo entrypoint for local setup, common development commands, and repo navigation. Subsystem-specific API details, configuration matrices, and hardware notes live in the linked docs for each area.
 
-## API Overview
+## What's In This Repo
 
-| Endpoint | Purpose |
+| Path | Role |
 | --- | --- |
-| `GET /` / `GET /health` | Service metadata and readiness probe. |
-| `GET /api/v1/health` / `GET /api/v1/info` | Versioned status plus runtime configuration snapshot. |
-| `GET /api/v1/mock/telemetry?samples=` | Synthetic climate telemetry for charts and testing. |
-| `GET /api/v1/weather/local?lat=&lon=&hours=` | Recent NOAA observations (0.5-48 h windows) with coverage hints. |
-| `POST /api/v1/irrigation/estimate` | Penman-Monteith evapotranspiration and watering recommendation engine. |
-| `GET /api/v1/plants/reference` | Local reference catalog for popular species. |
-| `GET /api/v1/plants/suggest?query=` | Remote + local autocompletion for plant search. |
-| `GET /api/v1/plants/details?scientific_name=` | Rich taxonomy, distribution, and care guidance. |
-| `GET /api/v1/plants/pots` | Smart pot models with volume/feature metadata. |
-| `GET /api/v1/plants/zones` | Irrigation zones configured for deployments. |
-| `GET /api/v1/plants/detect-pot` | Helper that picks the next available smart pot profile. |
-| `GET /api/v1/plants` / `POST /api/v1/plants` | In-memory plant records with create + list operations. |
+| `apps/hub_api` | FastAPI hub API for telemetry, weather, plant intelligence, irrigation, auth, and device control. |
+| `apps/fleet` | FastAPI fleet control plane for hub enrollment, releases, rollouts, and rollback workflows. |
+| `apps/web_ui` | Main Vite + React dashboard for plant monitoring, setup, diagnostics, and controls. |
+| `apps/fleet-ui` | Vite + React operator UI for fleet management workflows. |
+| `apps/android` | Active Capacitor Android wrapper for the main app. It currently packages the `apps/web_ui` build output. |
+| `apps/web` | Secondary Vite + React web shell and provisioning surface. Present in the repo, but not the primary Android build input. |
+| `packages/*` | Shared libraries: `care-engine` for plant care logic, `sdk` for client/runtime helpers, `native-bridge` for Capacitor integrations, plus `protocol` and `design` as shared support packages. |
+| `firmware/esp32_pot` | ESP-IDF firmware for the smart pot hardware. |
+| `pi/*` | Raspberry Pi services such as the local API, update agent, logging, fallback AP, and BLE provisioning support. |
+| `ops/*` | Operational tooling for local MQTT and signed release packaging/publishing. |
 
-Interactive docs are available at `http://localhost:8000/docs` and `http://localhost:8000/redoc`.
+## Architecture at a Glance
 
-## Configuration
-
-Settings are loaded via Pydantic from `apps/hub/.env` (case-insensitive keys) and environment variables. Key options:
-
-| Variable | Description | Default |
-| --- | --- | --- |
-| `APP_NAME`, `APP_VERSION` | Displayed metadata in root endpoints. | `ProjectPlant Hub`, `0.1.0` |
-| `DEBUG` | Enables verbose logging + exception traces. | `true` |
-| `CORS_ORIGINS` | Origins allowed to call the API. Accepts JSON array or comma list. | `[*]` |
-| `PORT` | Uvicorn bind port when launched via helper scripts. | `8000` |
-| `MQTT_ENABLED` | Toggle MQTT startup handshake. | `false` |
-| `MQTT_*` | Broker connection details (host, port, credentials, TLS). | See `.env` |
-| `WEATHER_*` | Timeouts, cache TTL, and user-agent for weather.gov. | See `.env` |
-| `HRRR_ENABLED` | Turn NOAA HRRR ingestion on/off. Scheduler and endpoints disable when `false`. | `true` |
-| `HRRR_BASE_URL` / `HRRR_DOMAIN` | Source bucket + sub-domain (`conus`, `alaska`, etc.) for GRIB downloads. | NOAA public S3 + `conus` |
-| `HRRR_CACHE_DIR` | Filesystem path where GRIBs + fetch logs are stored. | `data/hrrr` |
-| `HRRR_CACHE_MAX_AGE_MINUTES` | Minutes to keep cached GRIB files before eviction. | `360` |
-| `HRRR_MAX_FORECAST_HOUR` | Preferred forecast lead (0-48) when computing target runs. | `18` |
-| `HRRR_AVAILABILITY_DELAY_MINUTES` | Publication lag to subtract when selecting cycles. | `90` |
-| `HRRR_DEFAULT_LAT` / `HRRR_DEFAULT_LON` | Coordinates used by the background refresh job. | unset |
-| `HRRR_REFRESH_INTERVAL_MINUTES` | Default cadence (minutes) for the HRRR scheduler when no preset is chosen. | `60` |
-| `POWO_BASE_URL` | Override remote plant data provider. | production APIs |
-| `INAT_BASE_URL` | Override iNaturalist API base URL. | production API |
-
-Update `apps/hub/.env` or export env vars before starting the server. When `MQTT_ENABLED=true`, ensure a broker is reachable or the startup will log connection failures.
-
-## Fast Local Start
-
-### Option A: uv (recommended)
-```bash
-cd apps/hub
-uv sync --extra dev
-uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```text
+Smart pots / ESP32 firmware -> MQTT broker -> Hub API -> Hub UI / Android app
+Pi hubs + update agent -> Fleet API -> Fleet UI / release tooling
+Shared packages -> UI, web shell, and mobile runtime integrations
 ```
 
-### Option B: pip + venv
+- `firmware/esp32_pot` publishes device state and accepts commands over MQTT.
+- `apps/hub_api` bridges plant/device workflows to HTTP clients and local dashboards.
+- `apps/web_ui` is the main dashboard surface, and `apps/android` wraps that UI for Android.
+- `apps/web` remains available as a separate shell/provisioning surface.
+- `apps/fleet`, `apps/fleet-ui`, `pi/update-agent`, and `ops/release` make up the hub fleet management path.
+
+## Prerequisites
+
+- `Node.js 18+`
+- `pnpm 9`
+- `Python 3.11+`
+- Optional: `Docker` for the local Mosquitto broker
+- `ESP-IDF 5.1+` for firmware work
+- `Android Studio`, JDK, and `adb` for Android development and release builds
+
+## Quick Start
+
+The supported local recovery flow is the Windows launcher in `scripts/dev-stack.ps1`. It creates or reuses the Python virtual environments, installs Python requirements, resolves free local ports, and starts the main local surfaces together.
+
+1. Install workspace dependencies:
+
 ```bash
-cd apps/hub
+pnpm install
+```
+
+2. Start the managed local stack:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/dev-stack.ps1
+```
+
+3. If you already have `make` available, the repo shortcut is:
+
+```bash
+make stack
+```
+
+The launcher starts:
+
+- Fleet API
+- Hub API
+- Fleet UI
+- Hub UI
+
+It prints both localhost and LAN URLs after startup. Manual per-app startup commands are still available for debugging, but they do not provide the same managed environment injection, dynamic port selection, or cross-service URL wiring as the launcher.
+
+## Development Workflows
+
+These commands are the current repo-supported entrypoints. For deeper setup, environment variables, or subsystem behavior, use the docs linked later in this README.
+
+### Hub API
+
+Debug/manual start:
+
+```bash
+cd apps/hub_api
 python -m venv .venv
-# Windows
 .venv\Scripts\activate
-# macOS/Linux
-source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn --app-dir src main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-From the repo root you can also use:
+Shortcut from the repo root:
+
 ```bash
 make hub
 ```
 
-Visit `http://localhost:8000/health` or `http://localhost:8000/docs` to confirm the service is running.
+### Fleet API
 
-### HRRR Forecast Configuration
+Debug/manual start:
 
-1. Set the default location (`HRRR_DEFAULT_LAT`/`HRRR_DEFAULT_LON`) in `apps/hub/.env` so the scheduler knows which grid point to refresh. You can also update the cadence at runtime through `POST /weather/hrrr/schedule` with `{ "interval_minutes": 15 }` or `60`.
-2. Adjust `HRRR_MAX_FORECAST_HOUR` if you prefer deeper lead times (e.g., 24 hours). The service trims values above the configured horizon when computing `compute_target_run`.
-3. Point `HRRR_CACHE_DIR` to fast local storage with ~2 GB free. The service stores GRIBs, companion metadata, and a JSONL fetch log at `<cache_dir>/fetch_status.jsonl` that powers observability dashboards.
-4. Tune `HRRR_CACHE_MAX_AGE_MINUTES` and `HRRR_AVAILABILITY_DELAY_MINUTES` to match your deployment's tolerance for stale data and upstream publication lag.
-
-See `docs/observability/hrrr_monitoring.md` for dashboards and alerting examples built on that fetch log.
-
-## Optional Services
-
-- **Local MQTT broker**: `docker compose -f ops/mosquitto/docker-compose.yml up` spins up Mosquitto with the defaults in `.env`.
-- **Frontend**: Run the Vite UI (`apps/ui`) alongside the hub to exercise the full stack.
-
-## Development Workflow
-- Run tests: `uv run pytest` (or `pytest` inside your venv).
-- Static checks: `uv run ruff check` for linting, `uv run black --check apps/hub/src` for formatting, and `uv run mypy apps/hub/src` for typing.
-- Weather and plant services hit public APIs; tests use mocks and are network-safe.
-- Stop the app with `Ctrl+C`; FastAPI triggers shutdown routines that close MQTT and HTTP clients cleanly.
-
-Android release build
-- See `docs/android-release.md` for keystore creation, signing config, shrinker/ProGuard rules, build output path, and `adb install` commands.
-
-## Project Layout
-
-```
-apps/hub/
-  src/           # FastAPI app, routers, services, and helpers
-    api/v1/     # Routers for weather, irrigation, plants, mock data
-    services/   # Weather, plant lookup, irrigation modelling, MQTT helpers
-    mock/       # Synthetic telemetry payloads for UI prototyping
-    config.py   # Pydantic settings and env handling
-  tests/        # pytest suite (API, services, modelling, MQTT)
-  README.md     # This guide
-  .env          # Local development defaults
+```bash
+cd apps/fleet
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python -m uvicorn --app-dir src main:app --reload --host 0.0.0.0 --port 8100
 ```
 
-## Next Steps
-- Extend the MQTT manager with topic handlers to relay live telemetry.
-- Persist plant records in a real database (currently in-memory).
-- Expand the irrigation model with localized weather stations or soil sensors.
+Shortcut from the repo root:
+
+```bash
+make fleet
+```
+
+### Hub UI
+
+```bash
+pnpm -C apps/web_ui dev --host 127.0.0.1 --port 5173
+```
+
+Shortcut from the repo root:
+
+```bash
+make ui
+```
+
+### Fleet UI
+
+```bash
+pnpm -C apps/fleet-ui dev --host 127.0.0.1 --port 5180
+```
+
+Shortcut from the repo root:
+
+```bash
+make fleet-ui
+```
+
+### Mobile Development
+
+The active Android wrapper is `apps/android`, and it currently packages `apps/web_ui/dist`. Android live reload and packaged builds run against `apps/web_ui`, not `apps/web`.
+
+Use the root package scripts:
+
+```bash
+pnpm run mobile:android:dev
+pnpm run mobile:android:build
+pnpm run mobile:android:open
+```
+
+- `mobile:android:dev` runs the main `apps/web_ui` Vite app for device live reload.
+- `mobile:android:build` builds `apps/web_ui` first, then builds the Android project.
+- `mobile:android:open` opens the native Android project in Android Studio.
+- Signed APK and release signing steps are documented in [docs/android-release.md](docs/android-release.md).
+
+### Secondary Web Shell (`apps/web`)
+
+`apps/web` stays in the repo as a separate shell/provisioning surface. It is useful for targeted web-shell work, but it is not the primary Android build input today.
+
+```bash
+pnpm run dev:web
+pnpm run build:web
+```
+
+### Shared Packages
+
+```bash
+pnpm --filter @projectplant/care-engine run build
+pnpm --filter @projectplant/care-engine run test
+pnpm --filter @projectplant/sdk run build
+pnpm --filter @projectplant/sdk run test
+pnpm --filter @projectplant/native-bridge run build
+```
+
+### Hub API Contracts
+
+The Hub API contract is generated from FastAPI/Pydantic and consumed through `@projectplant/sdk`.
+Regenerate contracts after changing Hub request or response models:
+
+```bash
+apps/hub_api/.venv/Scripts/python.exe apps/hub_api/scripts/export-openapi.py
+pnpm --filter @projectplant/sdk run generate:openapi-types
+pnpm --filter @projectplant/sdk run build
+```
+
+This updates `apps/hub_api/openapi.json` and `packages/sdk/src/generated/api-types.ts`. Do not hand-maintain duplicated HTTP API request/response shapes in UI code; add SDK aliases or client helpers and migrate UI slices incrementally.
+
+### Local MQTT
+
+```bash
+docker compose -f ops/mosquitto/docker-compose.yml up
+```
+
+### Firmware
+
+```bash
+cd firmware/esp32_pot
+idf.py set-target esp32
+idf.py build
+idf.py -p <PORT> flash monitor
+```
+
+## Testing and Checks
+
+Use the checks below for the surface you are working on.
+
+### Hub API
+
+```bash
+cd apps/hub_api
+pytest
+ruff check
+black --check src
+mypy src
+```
+
+### Fleet API
+
+`apps/fleet` follows the same Python service pattern as the hub. Run its tests from `apps/fleet/tests` as needed after installing the local dev environment.
+
+### Hub UI
+
+```bash
+pnpm -C apps/web_ui test
+pnpm -C apps/web_ui run lint
+```
+
+### Shared Packages
+
+```bash
+pnpm --filter @projectplant/care-engine run test
+pnpm --filter @projectplant/sdk run test
+pnpm --filter @projectplant/care-engine run build
+pnpm --filter @projectplant/sdk run build
+pnpm --filter @projectplant/native-bridge run build
+```
+
+### Secondary Web Shell
+
+```bash
+pnpm run build:web
+```
+
+### Android
+
+```bash
+pnpm run mobile:android:build
+```
+
+### Firmware
+
+```bash
+cd firmware/esp32_pot
+idf.py build
+```
+
+## Docs by Area
+
+- [Hub API](apps/hub_api/README.md)
+- [Fleet API](apps/fleet/README.md)
+- [Hub UI](apps/web_ui/README.md)
+- [ESP32 firmware](firmware/esp32_pot/README.md)
+- [Plant care engine](packages/care-engine/README.md)
+- [Protocol notes](packages/protocol/README.md)
+- [Pi API](pi/api/README.md)
+- [Update agent](pi/update-agent/README.md)
+- [Android release guide](docs/android-release.md)
+- [Release tooling](ops/release/README.md)

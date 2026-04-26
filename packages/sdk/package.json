@@ -10,20 +10,28 @@
     "./mqtt": "./src/mqtt.ts",
     "./discover": "./src/discover.ts",
     "./mock": "./src/mock.ts",
-    "./topics": "./src/topics.ts"
+    "./topics": "./src/topics.ts",
+    "./api-types": "./src/generated/api-types.ts",
+    "./hub": "./src/client/hubClient.ts",
+    "./provisioning": "./src/provisioning/index.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "generate:openapi-types": "tsx scripts/generate-openapi-types.ts",
+    "prebuild": "pnpm --filter @projectplant/protocol run build",
     "test": "vitest run"
   },
   "dependencies": {
     "@capacitor/core": "^7.4.3",
     "@capacitor/preferences": "^7.0.2",
     "@projectplant/native-bridge": "workspace:*",
+    "@projectplant/protocol": "workspace:*",
     "mqtt": "^5.10.1"
   },
   "devDependencies": {
     "@types/node": "^22.5.3",
+    "openapi-typescript": "^7.9.1",
+    "tsx": "^4.20.6",
     "typescript": "^5.5.4",
     "vitest": "^1.6.0"
   }

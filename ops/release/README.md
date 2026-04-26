@@ -14,16 +14,20 @@ Package repo artifacts first:
 ```bash
 python ops/release/package_artifacts.py \
   --output-dir dist/release \
-  --ui-dist apps/ui/dist \
+  --ui-dist apps/web_ui/dist \
   --systemd-dir pi/systemd \
   --config-dir ops/release/configs \
   --debs-dir ops/release/debs
 ```
 
-This expects `apps/ui/dist` to exist already and requires `tar` with `--zstd` support.
+This expects `apps/web_ui/dist` to exist already and requires `tar` with `--zstd` support.
 
 Then generate and sign the release manifest:
 ```bash
+python ops/release/generate_signing_key.py \
+  --private-key-path projectplant-runtime-secrets/release-signing.dev.hex \
+  --public-key-path projectplant-runtime-secrets/release-signing.dev.pub
+
 python ops/release/build_release.py \
   --release-id 2026.02.28-1 \
   --channel stable \

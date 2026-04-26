@@ -1,0 +1,2 @@
+source C:/ProjectPlant/ProjectPlant/firmware/esp32_pot/build/bootloader/gdbinit/symbols
+source C:/ProjectPlant/ProjectPlant/firmware/esp32_pot/build/bootloader/gdbinit/connect
